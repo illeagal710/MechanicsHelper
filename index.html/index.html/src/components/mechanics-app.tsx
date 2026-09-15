@@ -1150,7 +1150,7 @@ function JobDetail({
               />
             </label>
           </Field>
-          <form>
+          <form
             className="mt-3"
             onSubmit={async (e) => {
               e.preventDefault();
