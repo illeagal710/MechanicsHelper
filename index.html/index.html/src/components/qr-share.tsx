@@ -164,9 +164,12 @@ export function QrShare({
             const ok = window.confirm(
               "Generate a new code?\n\nThrow away or cover the old QR. Any sticker, paper, or saved QR with the old code will not work anymore. Print a new sheet after this.",
             );
-            if (ok) void onRotate();
+           if (ok) void onRotate();
           }}
         >
+          <RefreshCw className="size-4" />
+          New code + QR
+        </button>
       ) : null}
       {rotateHint ? <p className="mt-1 text-xs text-dim">{rotateHint}</p> : null}
     </div>
