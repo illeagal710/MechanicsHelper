@@ -131,7 +131,13 @@ export async function uniqueCode() {
 }
 
 export async function ensureSeeded() {
-  const sql = await getSql();
+  const sql = await getSql();  const live = Boolean(process.env.DATABASE_URL?.trim()) && process.env.SEED_DEMO !== "1";
+  if (live) {
+    await sql.query("delete from mh_jobs where id in ('MH-4821','MH-4822','MH-1094') or provider_id in ('s-main','u-indy') or user_id in ('u-maya','u-shop','u-alex','u-indy')");
+    await sql.query("delete from mh_users where id in ('u-maya','u-shop','u-alex','u-indy') or email in ('maya@example.com','shop@example.com','alex@example.com','indy@example.com')");
+    await sql.query("delete from mh_shops where id = 's-main' or code = 'RIV4'");
+    return;
+  }
   const rows = await sql.query<{ n: number }>("select count(*)::int as n from mh_users");
   if ((rows[0]?.n || 0) > 0) return;
 
