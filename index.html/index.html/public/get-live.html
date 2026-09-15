@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Saving Mechanics Helper</title>
+    <style>
+      html, body { margin: 0; min-height: 100dvh; background: #0c1220; color: #f3f6fb; font-family: system-ui, sans-serif; }
+      main { max-width: 28rem; margin: 0 auto; padding: 2rem 1.25rem; }
+      .ok { color: #34d399; }
+      .err { color: #fb923c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p id="status">Saving Mechanics-Helper-Live.zip…</p>
+    </main>
+    <script>
+      (async function () {
+        var status = document.getElementById("status");
+        try {
+          var res = await fetch("/Mechanics-Helper-Live.zip", { cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          var blob = await res.blob();
+          if (blob.size < 1000) throw new Error("file too small");
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "Mechanics-Helper-Live.zip";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          status.className = "ok";
+          status.textContent = "Saved. Check your Downloads folder for Mechanics-Helper-Live.zip";
+        } catch (err) {
+          status.className = "err";
+          status.textContent = "Could not save from this window. Use the file in the chat instead.";
+        }
+      })();
+    </script>
+  </body>
+</html>

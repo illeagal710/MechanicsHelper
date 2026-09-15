@@ -1,0 +1,67 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@500;600&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0c1220;
+  --color-bg2: #121a2b;
+  --color-surface: #172033;
+  --color-surface2: #1c2740;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-fg: #f3f6fb;
+  --color-muted: #93a0b8;
+  --color-dim: #6b7890;
+  --color-accent: #f59e0b;
+  --color-accent2: #fb923c;
+  --color-good: #34d399;
+  --color-ink: #1a0b00;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --radius-xl: 1.125rem;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: #05070c;
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  select {
+    background-image: none;
+  }
+  select option {
+    background: #121a2b;
+    color: #f3f6fb;
+  }
+  .badge-scheduled { background: #1e2a44; color: #93c5fd; }
+  .badge-enroute { background: #1a2e3a; color: #67e8f9; }
+  .badge-checkedin { background: #1a2e3a; color: #67e8f9; }
+  .badge-diagnosing { background: #2a2410; color: #fcd34d; }
+  .badge-parts { background: #2a1d10; color: #fdba74; }
+  .badge-repair { background: #1a2438; color: #a5b4fc; }
+  .badge-ready { background: #10291f; color: #6ee7b7; }
+  .badge-done { background: #1a2030; color: #94a3b8; }
+}
+
+@layer utilities {
+  .tap {
+    transition: transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+  }
+  .tap:active {
+    transform: scale(0.98);
+  }
+}

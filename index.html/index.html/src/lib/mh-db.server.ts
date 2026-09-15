@@ -1,0 +1,626 @@
+import { getSql } from "@/lib/db";
+import type { Job, Note, Role, Shop, User } from "@/lib/store";
+
+const RIVERSIDE_BIO =
+  "Family-run shop since 1998. Brakes, engines, and same-day diagnostics. We text you before we turn a wrench.";
+const LEON_BIO =
+  "I come to your driveway. Scan tools, common parts, and straight talk. Nights and weekends if the car is down.";
+
+export const BIO_MAX = 320;
+
+function passHash(s: string) {
+  let h = 2166136261;
+  const str = "mh|" + String(s || "");
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+function shopCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+function slotDays(days: number, hhmm: string) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const [h, m] = hhmm.split(":").map(Number);
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
+}
+
+function parseJson<T>(raw: unknown, fallback: T): T {
+  try {
+    if (typeof raw !== "string" || !raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function rowUser(r: Record<string, unknown>): User {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    email: String(r.email || ""),
+    phone: String(r.phone || ""),
+    role: r.role as Role,
+    pass: String(r.pass || ""),
+    shopId: r.shop_id ? String(r.shop_id) : undefined,
+    shopName: r.shop_name ? String(r.shop_name) : undefined,
+    shopRole: r.shop_role === "owner" || r.shop_role === "tech" ? r.shop_role : undefined,
+    businessName: r.business_name ? String(r.business_name) : undefined,
+    serviceMode:
+      r.service_mode === "mobile" || r.service_mode === "shop" || r.service_mode === "both"
+        ? r.service_mode
+        : undefined,
+    code: r.code ? String(r.code) : undefined,
+    bio: String(r.bio || ""),
+    photo: String(r.photo || ""),
+    supportEmail: String(r.support_email || ""),
+    supportPhone: String(r.support_phone || ""),
+    pushToken: String(r.push_token || ""),
+    alertsOn: r.alerts_on !== false && r.alerts_on !== "f" && r.alerts_on !== 0,
+    hoursDays: String(r.hours_days || "123456"),
+    hoursOpen: String(r.hours_open || "08:00"),
+    hoursClose: String(r.hours_close || "16:00"),
+  };
+}
+
+function rowShop(r: Record<string, unknown>): Shop {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    code: String(r.code),
+    ownerId: String(r.owner_id),
+    techs: parseJson<string[]>(r.techs_json, []),
+    bio: String(r.bio || ""),
+    photo: String(r.photo || ""),
+    supportEmail: String(r.support_email || ""),
+    supportPhone: String(r.support_phone || ""),
+    hoursDays: String(r.hours_days || "123456"),
+    hoursOpen: String(r.hours_open || "08:00"),
+    hoursClose: String(r.hours_close || "16:00"),
+  };
+}
+
+function rowJob(r: Record<string, unknown>): Job {
+  return {
+    id: String(r.id),
+    userId: r.user_id ? String(r.user_id) : undefined,
+    createdAt: Number(r.created_at),
+    providerId: String(r.provider_id),
+    providerType: r.provider_type === "independent" ? "independent" : "shop",
+    providerName: String(r.provider_name),
+    assignedTo: String(r.assigned_to || ""),
+    name: String(r.name),
+    phone: String(r.phone || ""),
+    email: String(r.email || ""),
+    year: String(r.year || ""),
+    make: String(r.make || ""),
+    model: String(r.model || ""),
+    trim: String(r.trim || ""),
+    symptoms: String(r.symptoms || ""),
+    slot: String(r.slot),
+    status: (r.status as Job["status"]) || "scheduled",
+    notes: parseJson<Note[]>(r.notes_json, []),
+    notifySms: r.notify_sms !== false && r.notify_sms !== "f" && r.notify_sms !== 0,
+    photo: String(r.photo || ""),
+  };
+}
+
+async function usedCodes() {
+  const sql = await getSql();
+  const shops = await sql.query<{ code: string }>("select code from mh_shops");
+  const users = await sql.query<{ code: string | null }>("select code from mh_users where code is not null");
+  const used = new Set<string>();
+  for (const s of shops) used.add(s.code);
+  for (const u of users) if (u.code) used.add(u.code);
+  return used;
+}
+
+export async function uniqueCode() {
+  const used = await usedCodes();
+  let c = shopCode();
+  while (used.has(c)) c = shopCode();
+  return c;
+}
+
+export async function ensureSeeded() {
+  const sql = await getSql();
+  const rows = await sql.query<{ n: number }>("select count(*)::int as n from mh_users");
+  if ((rows[0]?.n || 0) > 0) return;
+
+  const now = Date.now();
+  await sql.query(
+    `insert into mh_shops (id, name, code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6)`,
+    ["s-main", "Riverside Auto", "RIV4", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
+  );
+
+  const users: unknown[][] = [
+    ["u-maya", "Maya Chen", "maya@example.com", "5550148821", "customer", passHash("demo123"), null, null, null, null, null, null, ""],
+    ["u-shop", "Shop Desk", "shop@example.com", "5550100000", "shop", passHash("demo123"), "s-main", "Riverside Auto", "owner", null, null, null, ""],
+    ["u-alex", "Alex Ruiz", "alex@example.com", "5550100001", "shop", passHash("demo123"), "s-main", "Riverside Auto", "tech", null, null, null, ""],
+    ["u-indy", "Leon Miles", "indy@example.com", "5550166000", "independent", passHash("demo123"), null, null, null, "Leon Mobile Repair", "mobile", "LEON", LEON_BIO],
+  ];
+  for (const u of users) {
+    await sql.query(
+      `insert into mh_users (id, name, email, phone, role, pass, shop_id, shop_name, shop_role, business_name, service_mode, code, bio)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      u,
+    );
+  }
+
+  const jobs: Job[] = [
+    {
+      id: "MH-4821",
+      createdAt: now - 86400000 * 2,
+      providerId: "s-main",
+      providerType: "shop",
+      providerName: "Riverside Auto",
+      assignedTo: "Alex Ruiz",
+      name: "Maya Chen",
+      phone: "5550148821",
+      email: "maya@example.com",
+      year: "2019",
+      make: "Honda",
+      model: "CR-V",
+      symptoms: "Grinding noise when braking, especially downhill.",
+      slot: slotDays(1, "09:00"),
+      status: "repair",
+      notes: [
+        { at: now - 86400000 * 2, text: "Booked online.", by: "system" },
+        {
+          at: now - 3600000 * 8,
+          text: "Front pads at 2mm. Rotors scored. Customer approved pads + rotors.",
+          by: "shop",
+        },
+      ],
+    },
+    {
+      id: "MH-4822",
+      createdAt: now - 3600000 * 5,
+      providerId: "u-indy",
+      providerType: "independent",
+      providerName: "Leon Mobile Repair",
+      assignedTo: "Leon Miles",
+      name: "James Ortiz",
+      phone: "5550193304",
+      email: "james@example.com",
+      year: "2016",
+      make: "Ford",
+      model: "F-150",
+      symptoms: "Check engine light. Rough idle after warmup.",
+      slot: slotDays(0, "11:30"),
+      status: "diagnosing",
+      notes: [
+        { at: now - 3600000 * 5, text: "Booked online.", by: "system" },
+        { at: now - 3600000, text: "Pulled codes P0302. Checking coil pack and injector.", by: "shop" },
+      ],
+    },
+    {
+      id: "MH-4820",
+      createdAt: now - 86400000,
+      providerId: "s-main",
+      providerType: "shop",
+      providerName: "Riverside Auto",
+      assignedTo: "Shop Desk",
+      name: "Priya Shah",
+      phone: "5550167742",
+      email: "priya@example.com",
+      year: "2022",
+      make: "Toyota",
+      model: "Camry",
+      symptoms: "Oil change and 30k service.",
+      slot: slotDays(0, "08:00"),
+      status: "ready",
+      notes: [
+        { at: now - 86400000, text: "Booked online.", by: "system" },
+        { at: now - 3600000 * 2, text: "Service complete. Cabin filter replaced.", by: "shop" },
+      ],
+    },
+  ];
+  for (const j of jobs) {
+    await insertJob(j);
+  }
+}
+
+export async function loadBoard() {
+  await ensureSeeded();
+  const sql = await getSql();
+  const shops = (await sql.query<Record<string, unknown>>("select * from mh_shops order by name")).map(rowShop);
+  const users = (await sql.query<Record<string, unknown>>("select * from mh_users order by name")).map(rowUser);
+  const jobs = (await sql.query<Record<string, unknown>>("select * from mh_jobs order by created_at desc")).map(rowJob);
+  return { shops, users, jobs };
+}
+
+export async function findUser(emailOrPhone: string) {
+  await ensureSeeded();
+  const q = String(emailOrPhone || "").trim().toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  const sql = await getSql();
+  const rows = await sql.query<Record<string, unknown>>("select * from mh_users");
+  const users = rows.map(rowUser);
+  return (
+    users.find((u) => {
+      if ((u.email || "").toLowerCase() === q) return true;
+      const ph = (u.phone || "").replace(/\D/g, "");
+      return digits.length >= 4 && ph === digits;
+    }) || null
+  );
+}
+
+export async function login(emailOrPhone: string, password: string) {
+  const user = await findUser(emailOrPhone);
+  if (!user || user.pass !== passHash(password)) {
+    return { ok: false as const, error: "Email/phone or password is wrong." };
+  }
+  const { pass: _p, ...rest } = user;
+  return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+export async function register(fields: {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  role: Role;
+  shopJoin?: string;
+  shopName?: string;
+  shopCode?: string;
+  businessName?: string;
+  serviceMode?: User["serviceMode"];
+}) {
+  await ensureSeeded();
+  const sql = await getSql();
+  const emailL = (fields.email || "").trim().toLowerCase();
+  const phoneD = String(fields.phone || "").replace(/\D/g, "");
+  if (!fields.name || !fields.password || (!emailL && !phoneD)) {
+    return { ok: false as const, error: "Name, password, and email or phone are required." };
+  }
+  if (fields.password.length < 6) {
+    return { ok: false as const, error: "Password must be at least 6 characters." };
+  }
+  if (await findUser(emailL || phoneD)) {
+    return { ok: false as const, error: "That email or phone already has an account." };
+  }
+  const role: Role =
+    fields.role === "shop" || fields.role === "independent" ? fields.role : "customer";
+  const user: User = {
+    id: "u-" + Math.random().toString(36).slice(2, 8),
+    name: String(fields.name).trim(),
+    email: emailL,
+    phone: phoneD,
+    role,
+    pass: passHash(fields.password),
+    bio: "",
+  };
+  if (role === "shop") {
+    if (fields.shopJoin === "join") {
+      const code = String(fields.shopCode || "").trim().toUpperCase();
+      const shops = await sql.query<Record<string, unknown>>("select * from mh_shops where code = $1", [code]);
+      const shop = shops[0] ? rowShop(shops[0]) : null;
+      if (!shop) return { ok: false as const, error: "No shop with that code." };
+      user.shopId = shop.id;
+      user.shopName = shop.name;
+      user.shopRole = "tech";
+      if (!shop.techs.includes(user.name)) shop.techs.push(user.name);
+      await sql.query("update mh_shops set techs_json = $2 where id = $1", [shop.id, JSON.stringify(shop.techs)]);
+    } else {
+      const shopName = String(fields.shopName || "").trim() || user.name + "'s Shop";
+      const shop: Shop = {
+        id: "s-" + Math.random().toString(36).slice(2, 7),
+        name: shopName,
+        code: await uniqueCode(),
+        ownerId: user.id,
+        techs: [user.name],
+        bio: "",
+      };
+      await sql.query(
+        `insert into mh_shops (id, name, code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6)`,
+        [shop.id, shop.name, shop.code, shop.ownerId, JSON.stringify(shop.techs), shop.bio],
+      );
+      user.shopId = shop.id;
+      user.shopName = shop.name;
+      user.shopRole = "owner";
+    }
+  }
+  if (role === "independent") {
+    user.businessName = String(fields.businessName || "").trim() || user.name;
+    user.serviceMode = fields.serviceMode || "both";
+    user.code = await uniqueCode();
+    user.bio = "";
+  }
+  await sql.query(
+    `insert into mh_users (id, name, email, phone, role, pass, shop_id, shop_name, shop_role, business_name, service_mode, code, bio)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    [
+      user.id,
+      user.name,
+      user.email,
+      user.phone,
+      user.role,
+      user.pass,
+      user.shopId || null,
+      user.shopName || null,
+      user.shopRole || null,
+      user.businessName || null,
+      user.serviceMode || null,
+      user.code || null,
+      user.bio || "",
+    ],
+  );
+  const { pass: _p, ...rest } = user;
+  return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+export async function rotateCustomerCode(userId: string) {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user) return "";
+  const next = await uniqueCode();
+  const sql = await getSql();
+  if (user.role === "shop" && user.shopId) {
+    await sql.query("update mh_shops set code = $2 where id = $1", [user.shopId, next]);
+    return next;
+  }
+  if (user.role === "independent") {
+    await sql.query("update mh_users set code = $2 where id = $1", [user.id, next]);
+    return next;
+  }
+  return "";
+}
+
+export async function updateShopProfile(
+  userId: string,
+  patch: {
+    name?: string;
+    bio?: string;
+    photo?: string;
+    supportEmail?: string;
+    supportPhone?: string;
+    hoursDays?: string;
+    hoursOpen?: string;
+    hoursClose?: string;
+  },
+) {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user || user.role !== "shop" || user.shopRole !== "owner" || !user.shopId) {
+    return { ok: false as const, error: "Only the shop owner can edit this." };
+  }
+  const shop = board.shops.find((s) => s.id === user.shopId);
+  if (!shop) return { ok: false as const, error: "Shop not found." };
+  const sql = await getSql();
+  if (patch.name !== undefined) {
+    const name = String(patch.name).trim();
+    if (!name) return { ok: false as const, error: "Shop name is required." };
+    shop.name = name;
+    await sql.query("update mh_shops set name = $2 where id = $1", [shop.id, name]);
+    await sql.query("update mh_users set shop_name = $2 where shop_id = $1", [shop.id, name]);
+  }
+  if (patch.bio !== undefined) {
+    const bio = String(patch.bio).trim().slice(0, BIO_MAX);
+    await sql.query("update mh_shops set bio = $2 where id = $1", [shop.id, bio]);
+  }
+  if (patch.photo !== undefined) {
+    await sql.query("update mh_shops set photo = $2 where id = $1", [shop.id, String(patch.photo || "")]);
+  }
+  if (patch.supportEmail !== undefined) {
+    await sql.query("update mh_shops set support_email = $2 where id = $1", [
+      shop.id,
+      String(patch.supportEmail || "").trim().toLowerCase(),
+    ]);
+  }
+  if (patch.supportPhone !== undefined) {
+    await sql.query("update mh_shops set support_phone = $2 where id = $1", [
+      shop.id,
+      String(patch.supportPhone || "").trim(),
+    ]);
+  }
+  if (patch.hoursDays !== undefined || patch.hoursOpen !== undefined || patch.hoursClose !== undefined) {
+    await sql.query("update mh_shops set hours_days = $2, hours_open = $3, hours_close = $4 where id = $1", [
+      shop.id,
+      patch.hoursDays ?? shop.hoursDays ?? "123456",
+      patch.hoursOpen ?? shop.hoursOpen ?? "08:00",
+      patch.hoursClose ?? shop.hoursClose ?? "16:00",
+    ]);
+  }
+  const fresh = (await loadBoard()).users.find((u) => u.id === userId);
+  if (!fresh) return { ok: false as const, error: "Account not found." };
+  const { pass: _p, ...rest } = fresh;
+  return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+export async function updateIndependentProfile(
+  userId: string,
+  patch: {
+    businessName?: string;
+    bio?: string;
+    serviceMode?: User["serviceMode"];
+    photo?: string;
+    supportEmail?: string;
+    supportPhone?: string;
+    hoursDays?: string;
+    hoursOpen?: string;
+    hoursClose?: string;
+  },
+) {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user || user.role !== "independent") {
+    return { ok: false as const, error: "Only independents can edit this." };
+  }
+  const sql = await getSql();
+  const name =
+    patch.businessName !== undefined ? String(patch.businessName).trim() : user.businessName || user.name;
+  if (patch.businessName !== undefined && !name) {
+    return { ok: false as const, error: "Business name is required." };
+  }
+  const bio = patch.bio !== undefined ? String(patch.bio).trim().slice(0, BIO_MAX) : user.bio || "";
+  const mode = patch.serviceMode || user.serviceMode || "both";
+  const photo = patch.photo !== undefined ? String(patch.photo || "") : user.photo || "";
+  const supportEmail =
+    patch.supportEmail !== undefined ? String(patch.supportEmail || "").trim().toLowerCase() : user.supportEmail || "";
+  const supportPhone =
+    patch.supportPhone !== undefined ? String(patch.supportPhone || "").trim() : user.supportPhone || "";
+  const hoursDays = patch.hoursDays ?? user.hoursDays ?? "123456";
+  const hoursOpen = patch.hoursOpen ?? user.hoursOpen ?? "08:00";
+  const hoursClose = patch.hoursClose ?? user.hoursClose ?? "16:00";
+  await sql.query(
+    "update mh_users set business_name = $2, bio = $3, service_mode = $4, photo = $5, support_email = $6, support_phone = $7, hours_days = $8, hours_open = $9, hours_close = $10 where id = $1",
+    [user.id, name, bio, mode, photo, supportEmail, supportPhone, hoursDays, hoursOpen, hoursClose],
+  );
+  const fresh = (await loadBoard()).users.find((u) => u.id === userId);
+  if (!fresh) return { ok: false as const, error: "Account not found." };
+  const { pass: _p, ...rest } = fresh;
+  return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+export async function addTechName(shopId: string, name: string) {
+  const board = await loadBoard();
+  const shop = board.shops.find((s) => s.id === shopId);
+  if (!shop) return null;
+  name = String(name || "").trim();
+  if (name && !shop.techs.includes(name)) shop.techs.push(name);
+  const sql = await getSql();
+  await sql.query("update mh_shops set techs_json = $2 where id = $1", [shop.id, JSON.stringify(shop.techs)]);
+  return shop;
+}
+
+async function insertJob(job: Job) {
+  const sql = await getSql();
+  await sql.query(
+    `insert into mh_jobs (
+      id, user_id, created_at, provider_id, provider_type, provider_name, assigned_to,
+      name, phone, email, year, make, model, symptoms, slot, status, notes_json
+    ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+    [
+      job.id,
+      job.userId || null,
+      job.createdAt,
+      job.providerId,
+      job.providerType,
+      job.providerName,
+      job.assignedTo || "",
+      job.name,
+      job.phone,
+      job.email,
+      job.year,
+      job.make,
+      job.model,
+      job.symptoms,
+      job.slot,
+      job.status,
+      JSON.stringify(job.notes || []),
+    ],
+  );
+  try {
+    await sql.query("update mh_jobs set notify_sms = $2 where id = $1", [job.id, job.notifySms !== false]);
+  } catch {
+    /* column arrives after 0005 */
+  }
+  try {
+    await sql.query("update mh_jobs set trim = $2 where id = $1", [job.id, job.trim || ""]);
+  } catch {
+    /* column arrives after 0006 */
+  }
+  return job;
+}
+
+export async function addJob(job: Job) {
+  await ensureSeeded();
+  const board = await loadBoard();
+  const t = new Date(job.slot).getTime();
+  const taken = board.jobs.some(
+    (j) =>
+      j.providerId === job.providerId &&
+      j.status !== "done" &&
+      new Date(j.slot).getTime() === t,
+  );
+  if (taken) {
+    return { ok: false as const, error: "That time is already booked. Pick another slot." };
+  }
+  const saved = await insertJob(job);
+  return { ok: true as const, job: saved };
+}
+
+export async function updateJob(id: string, patch: Partial<Job>) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return null;
+  const previous = job.status;
+  Object.assign(job, patch);
+  const sql = await getSql();
+  await sql.query(
+    `update mh_jobs set
+      assigned_to = $2, status = $3, notes_json = $4, provider_name = $5
+     where id = $1`,
+    [job.id, job.assignedTo || "", job.status, JSON.stringify(job.notes || []), job.providerName],
+  );
+  try {
+    await sql.query("update mh_jobs set photo = $2 where id = $1", [job.id, job.photo || ""]);
+  } catch {
+    /* 0007 */
+  }
+  if (patch.status && patch.status !== previous) {
+    const owner = job.userId ? board.users.find((u) => u.id === job.userId) : undefined;
+    const token = owner?.alertsOn === false ? "" : owner?.pushToken || "";
+    try {
+      const { pingJob } = await import("./notify.server");
+      await pingJob(job, previous, token);
+    } catch {
+      /* preview without Twilio/FCM is fine */
+    }
+  }
+  return job;
+}
+
+export async function savePushToken(userId: string, token: string, alertsOn: boolean) {
+  const sql = await getSql();
+  await sql.query("update mh_users set push_token = $2, alerts_on = $3 where id = $1", [
+    userId,
+    String(token || ""),
+    alertsOn,
+  ]);
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user) return { ok: false as const, error: "Account not found." };
+  const { pass: _p, ...rest } = user;
+  return { ok: true as const, user: { ...rest, pass: "", pushToken: token, alertsOn } };
+}
+
+export async function addNote(id: string, text: string, by = "shop") {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return null;
+  job.notes = job.notes || [];
+  job.notes.push({ at: Date.now(), text, by });
+  return updateJob(id, { notes: job.notes });
+}
+
+export function jobCode() {
+  return "MH-" + Math.floor(1000 + Math.random() * 9000);
+}
+
+export async function deleteAccount(userId: string, password: string) {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user) return { ok: false as const, error: "Account not found." };
+  if (user.pass !== passHash(password)) {
+    return { ok: false as const, error: "Password is wrong." };
+  }
+  const sql = await getSql();
+  if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
+    await sql.query("delete from mh_shops where id = $1", [user.shopId]);
+    await sql.query("update mh_users set shop_id = null, shop_name = null, shop_role = null where shop_id = $1", [
+      user.shopId,
+    ]);
+  }
+  await sql.query("delete from mh_users where id = $1", [user.id]);
+  return { ok: true as const };
+}

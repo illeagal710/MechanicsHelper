@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Mechanics Helper",
+      "hasCanvas": false,
+      "bodyTextLen": 393,
+      "bodyTextHash": "e16608e2d1137ad6593b268a37ca90e2d1ee2753c6cf70414f269175af2f3521",
+      "bodyTextPrefix": "Mechanics Helper Bay Mechanics Helper Shop · Independent · Custo",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Mechanics Helper",
+      "hasCanvas": false,
+      "bodyTextLen": 393,
+      "bodyTextHash": "e16608e2d1137ad6593b268a37ca90e2d1ee2753c6cf70414f269175af2f3521",
+      "bodyTextPrefix": "Mechanics Helper Bay Mechanics Helper Shop · Independent · Custo",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
