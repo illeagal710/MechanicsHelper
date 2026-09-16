@@ -8,6 +8,7 @@ import {
   localeTag,
   messages,
   privacySections,
+  termsSections,
   statusText,
   translate,
   translateDetail,
@@ -59,6 +60,17 @@ test("production store errors and hours labels translate", () => {
   );
   assert.match(formatHoursLabel("es", { hoursDays: "123456", hoursOpen: "08:00", hoursClose: "16:00" }), /Lun–Sáb/);
   assert.equal(privacySections("es")[0].title, "Para quién es esto");
+  assert.match(privacySections("en").map((s) => s.title).join(" "), /Accounts|Photos|Helper AI|Password/);
+  assert.match(privacySections("en").find((s) => s.title === "Photos")?.body || "", /bay/i);
+  assert.match(privacySections("en").find((s) => s.title === "Password and username recovery")?.body || "", /Resend/);
+  assert.match(privacySections("en").find((s) => s.title === "Helper AI")?.body || "", /Groq/);
+  assert.match(privacySections("en").find((s) => s.title === "Contact")?.body || "", /support@mechanicshelper\.app/);
+  assert.equal(termsSections("es")[0].title, "Usar la app");
+  assert.match(termsSections("en").map((s) => s.body).join(" "), /support@mechanicshelper\.app/);
+  assert.match(translate("en", "support.body"), /support@mechanicshelper\.app/);
+  assert.match(translate("es", "support.bayTitle"), /bahía/i);
+  assert.equal(translate("en", "welcome.terms"), "Terms");
+  assert.equal(translate("es", "welcome.terms"), "Términos");
 });
 
 function assertMeridiem(label: string) {

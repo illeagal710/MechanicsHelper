@@ -344,6 +344,7 @@ const en = {
 
   "nav.qr": "QR",
   "welcome.privacy": "Privacy",
+  "welcome.terms": "Terms",
   "welcome.support": "Support",
 
   "home.bookSub": "Pick the car, a time, and the shop.",
@@ -465,18 +466,34 @@ const en = {
   "qr.printHint": "Or type this find code in Mechanics Helper.",
   "qr.printTitle": "{code} print",
 
-  "legal.updated": "Mechanics Helper · last updated September 14, 2026",
-  "legal.privacy": "Privacy",
+  "legal.updated": "Mechanics Helper · last updated September 16, 2026",
+  "legal.privacy": "Privacy Policy",
+  "legal.terms": "Terms of Use",
+  "legal.notAdvice":
+    "This is a plain-language explanation for people using Mechanics Helper and for the app stores. It is not legal advice.",
+  "legal.linksAria": "Privacy, terms, and support",
 
   "privacy.who.title": "Who this is for",
   "privacy.who.body":
-    "Mechanics Helper is a booking and job-status app for auto shops, independent mechanics, and their customers. This page explains what is stored when you use the app.",
-  "privacy.store.title": "What we store",
+    "Mechanics Helper is a booking and job-status app. You can create a shop account, an independent mechanic account, or a customer account. This page explains what is stored when you use the app.",
+  "privacy.accounts.title": "Accounts",
+  "privacy.accounts.body":
+    "Shop accounts belong to a repair shop and can have staff on the same board. Independent accounts are for a solo mechanic. Customer accounts are for people booking and tracking a car. Each account stores a name, login (email or phone), and password.",
+  "privacy.store.title": "Shop and customer data",
   "privacy.store.body":
-    "Account name, email, phone, and password. Shop or mechanic name, find code, bio, logo or profile photo, and support contact. Appointments: vehicle year, make, and model, what is wrong, the time slot, job status, and notes the shop writes. Photos you upload for a profile or logo.",
+    "A shop or independent can store a business name, find code, bio, hours, support email or phone, and a profile photo or shop logo. Customers book jobs with that shop. Job tickets store the vehicle year, make, and model, optional symptoms, the time slot, job status, and notes the shop writes.",
+  "privacy.photos.title": "Photos",
+  "privacy.photos.body":
+    "A profile photo or shop logo lives on the account and the public shop or mechanic page. A photo from the bay (the car or a part on a job) stays on that job ticket. A bay photo does not replace your profile photo.",
+  "privacy.recovery.title": "Password and username recovery",
+  "privacy.recovery.body":
+    "If you forget your password or username, we can email a reset code or login reminder to the address on the account. That mail is sent with Resend. We use that email for account recovery, not for ads.",
+  "privacy.helper.title": "Helper AI",
+  "privacy.helper.body":
+    "Helper AI (powered by Groq) answers car and vehicle questions you type in Helper. It is for automotive help only. We send the question you type to Groq to get an answer. Helper is a starting point, not a certified inspection, not a guarantee, and not a substitute for a mechanic looking at the car.",
   "privacy.not.title": "What we do not do",
   "privacy.not.body":
-    "We do not sell your list to advertisers. We do not use the diagnose helper to train a public model on your name. Card numbers are not stored in this app today. If you opt in, we text the booking phone for on-the-way, parts, and ready. App alerts use those same moments after you allow notifications.",
+    "We do not sell your list to advertisers. We do not use Helper to train a public model on your name. Card numbers are not stored in this app today. If you opt in, we text the booking phone for on-the-way, parts, and ready. App alerts use those same moments after you allow notifications.",
   "privacy.see.title": "Who sees what",
   "privacy.see.body":
     "A customer sees their own jobs and the public shop or mechanic page (name, photo, bio, find code, support line). A shop or independent sees jobs booked with them. Staff at a shop share that shop’s board.",
@@ -486,22 +503,50 @@ const en = {
   "privacy.delete.title": "Delete your account",
   "privacy.delete.body":
     "Open Account and use Delete account. That removes your login. Open jobs stay with the shop as work records unless the shop clears them. Shop owners who delete also take the public find code down.",
-  "privacy.diag.title": "Diagnose helper",
-  "privacy.diag.body":
-    "The helper is a starting point from what you type. It is not a certified inspection, not a guarantee, and not a substitute for a mechanic looking at the car.",
   "privacy.contact.title": "Contact",
   "privacy.contact.body":
-    "For a booking or a car on the board, use the support email or phone on that shop’s page. For this app itself, use Account → Support after you sign in, or the Support link on the welcome screen.",
+    "Questions about this app: support@mechanicshelper.app. For a booking or a car on the board, use the shop’s support email or phone, or Account → Support in the app (Bay Support).",
+
+  "terms.accept.title": "Using the app",
+  "terms.accept.body":
+    "By creating an account or using Mechanics Helper, you agree to these terms. Keep using the app only if you accept them.",
+  "terms.who.title": "Who can use it",
+  "terms.who.body":
+    "You can sign up as a shop, an independent mechanic, or a customer. Use your own account. Do not pretend to be another shop or customer.",
+  "terms.use.title": "Bookings and the board",
+  "terms.use.body":
+    "Use the app to book work, run a shop or independent board, and track jobs. Do not misuse find codes or try to open someone else’s account.",
+  "terms.helper.title": "Helper AI",
+  "terms.helper.body":
+    "Helper AI (Groq) is for car and vehicle questions only. It is not a certified inspection. You are responsible for repair decisions. A mechanic still has to look at the car.",
+  "terms.accounts.title": "Your login",
+  "terms.accounts.body":
+    "Keep your password private. You can recover a password or username by email (Resend) if that address is on the account.",
+  "terms.photos.title": "Photos you upload",
+  "terms.photos.body":
+    "Only upload photos you have the right to use. Profile photos and shop logos can appear on the public shop or mechanic page. Bay photos stay on the job ticket for that shop and customer.",
+  "terms.data.title": "Your data",
+  "terms.data.body":
+    "We store the account and job data described in the Privacy Policy. You can delete your account from Account.",
+  "terms.asIs.title": "No repair promise",
+  "terms.asIs.body":
+    "The app is a booking and status board. We are not your mechanic and we do not guarantee a diagnosis or a repair outcome.",
+  "terms.contact.title": "Questions",
+  "terms.contact.body":
+    "Email support@mechanicshelper.app. For a car already on the board, use Bay Support in the app (Account → Support) or the shop contact on that ticket.",
 
   "support.title": "Support",
-  "support.intro": "For a car on the board, start with the shop or mechanic on that ticket.",
+  "support.intro": "Need help with Mechanics Helper? Email us. We keep this page short on purpose.",
   "support.noPhone": "No support phone on file yet.",
   "support.noEmail": "No support email on file yet.",
   "support.scanFirst":
     "Scan a shop code or open a job first. Shop owners add a public phone and email under Account.",
-  "support.thisApp": "This app",
+  "support.thisApp": "App support",
   "support.body":
-    "Mechanics Helper is a booking and status board. The diagnose helper is not a certified inspection. Privacy details are on the Privacy page.",
+    "Write to support@mechanicshelper.app for login trouble, the website, or the app itself. Helper AI is for car questions only and is not a certified inspection.",
+  "support.bayTitle": "Bay Support",
+  "support.bayBody":
+    "If you already have a car on the board, start in the app. Open Account, then Support, or use the shop phone and email on that ticket.",
   "support.readPrivacy": "Read privacy",
 
   "diag.disclaimer": "Helper only — not a certified inspection. A mechanic still has to look at the car.",
@@ -849,6 +894,7 @@ const es: Record<MessageKey, string> = {
 
   "nav.qr": "QR",
   "welcome.privacy": "Privacidad",
+  "welcome.terms": "Términos",
   "welcome.support": "Soporte",
 
   "home.bookSub": "Elige el auto, un horario y el taller.",
@@ -971,18 +1017,34 @@ const es: Record<MessageKey, string> = {
   "qr.printHint": "O escribe este código en Mechanics Helper.",
   "qr.printTitle": "impresión {code}",
 
-  "legal.updated": "Mechanics Helper · actualizado el 14 de septiembre de 2026",
-  "legal.privacy": "Privacidad",
+  "legal.updated": "Mechanics Helper · actualizado el 16 de septiembre de 2026",
+  "legal.privacy": "Política de privacidad",
+  "legal.terms": "Términos de uso",
+  "legal.notAdvice":
+    "Esto es una explicación en lenguaje sencillo para quienes usan Mechanics Helper y para las tiendas de apps. No es asesoría legal.",
+  "legal.linksAria": "Privacidad, términos y soporte",
 
   "privacy.who.title": "Para quién es esto",
   "privacy.who.body":
-    "Mechanics Helper es una app de citas y estado de trabajos para talleres, mecánicos independientes y sus clientes. Esta página explica qué se guarda cuando usas la app.",
-  "privacy.store.title": "Qué guardamos",
+    "Mechanics Helper es una app de citas y estado de trabajos. Puedes crear una cuenta de taller, de mecánico independiente o de cliente. Esta página explica qué se guarda cuando usas la app.",
+  "privacy.accounts.title": "Cuentas",
+  "privacy.accounts.body":
+    "Las cuentas de taller pertenecen a un taller y pueden tener personal en el mismo tablero. Las cuentas independientes son para un mecánico solo. Las cuentas de cliente son para quien reserva y sigue un auto. Cada cuenta guarda un nombre, un acceso (correo o teléfono) y una contraseña.",
+  "privacy.store.title": "Datos del taller y del cliente",
   "privacy.store.body":
-    "Nombre de la cuenta, correo, teléfono y contraseña. Nombre del taller o mecánico, código, bio, logo o foto de perfil y contacto de soporte. Citas: año, marca y modelo del vehículo, qué le pasa, el horario, el estado del trabajo y las notas que escribe el taller. Fotos que subes para un perfil o logo.",
+    "Un taller o independiente puede guardar el nombre del negocio, el código, la bio, el horario, el correo o teléfono de soporte y una foto de perfil o logo. Los clientes reservan trabajos con ese taller. Los tickets guardan el año, marca y modelo del vehículo, síntomas opcionales, el horario, el estado del trabajo y las notas que escribe el taller.",
+  "privacy.photos.title": "Fotos",
+  "privacy.photos.body":
+    "La foto de perfil o el logo del taller viven en la cuenta y en la página pública. Una foto de la bahía (el auto o una pieza en un trabajo) se queda en ese ticket. Una foto de la bahía no reemplaza tu foto de perfil.",
+  "privacy.recovery.title": "Recuperar contraseña y usuario",
+  "privacy.recovery.body":
+    "Si olvidas la contraseña o el usuario, podemos enviar un código o un recordatorio al correo de la cuenta. Ese correo se envía con Resend. Usamos ese correo para recuperar la cuenta, no para anuncios.",
+  "privacy.helper.title": "Helper AI",
+  "privacy.helper.body":
+    "Helper AI (con Groq) responde preguntas de autos y vehículos que escribes en Helper. Solo es para ayuda automotriz. Enviamos la pregunta que escribes a Groq para obtener una respuesta. Helper es un punto de partida, no una inspección certificada, ni una garantía, ni un sustituto de que un mecánico revise el auto.",
   "privacy.not.title": "Qué no hacemos",
   "privacy.not.body":
-    "No vendemos tu lista a anunciantes. No usamos el asistente de diagnóstico para entrenar un modelo público con tu nombre. Hoy esta app no guarda números de tarjeta. Si aceptas, enviamos un mensaje al teléfono de la cita para en camino, piezas y listo. Las alertas de la app usan esos mismos momentos cuando las permites.",
+    "No vendemos tu lista a anunciantes. No usamos Helper para entrenar un modelo público con tu nombre. Hoy esta app no guarda números de tarjeta. Si aceptas, enviamos un mensaje al teléfono de la cita para en camino, piezas y listo. Las alertas de la app usan esos mismos momentos cuando las permites.",
   "privacy.see.title": "Quién ve qué",
   "privacy.see.body":
     "Un cliente ve sus propios trabajos y la página pública del taller o mecánico (nombre, foto, bio, código, línea de soporte). Un taller o independiente ve los trabajos reservados con ellos. El personal de un taller comparte ese tablero.",
@@ -992,22 +1054,50 @@ const es: Record<MessageKey, string> = {
   "privacy.delete.title": "Eliminar tu cuenta",
   "privacy.delete.body":
     "Abre Cuenta y usa Eliminar cuenta. Eso quita tu acceso. Los trabajos abiertos se quedan con el taller como registro, salvo que el taller los borre. Si un dueño elimina su cuenta, también baja el código público.",
-  "privacy.diag.title": "Asistente de diagnóstico",
-  "privacy.diag.body":
-    "El asistente es un punto de partida según lo que escribes. No es una inspección certificada, ni una garantía, ni un sustituto de que un mecánico revise el auto.",
   "privacy.contact.title": "Contacto",
   "privacy.contact.body":
-    "Para una cita o un auto en el tablero, usa el correo o teléfono de soporte en la página de ese taller. Para la app, usa Cuenta → Soporte después de iniciar sesión, o el enlace de Soporte en la pantalla de bienvenida.",
+    "Preguntas sobre esta app: support@mechanicshelper.app. Para una cita o un auto en el tablero, usa el correo o teléfono de soporte del taller, o Cuenta → Soporte en la app (Soporte de bahía).",
+
+  "terms.accept.title": "Usar la app",
+  "terms.accept.body":
+    "Al crear una cuenta o usar Mechanics Helper, aceptas estos términos. Sigue usando la app solo si los aceptas.",
+  "terms.who.title": "Quién puede usarla",
+  "terms.who.body":
+    "Puedes registrarte como taller, mecánico independiente o cliente. Usa tu propia cuenta. No te hagas pasar por otro taller o cliente.",
+  "terms.use.title": "Citas y el tablero",
+  "terms.use.body":
+    "Usa la app para reservar trabajo, llevar el tablero de un taller o independiente y seguir trabajos. No uses mal los códigos ni intentes abrir la cuenta de otra persona.",
+  "terms.helper.title": "Helper AI",
+  "terms.helper.body":
+    "Helper AI (Groq) es solo para preguntas de autos y vehículos. No es una inspección certificada. Tú eres responsable de las decisiones de reparación. Un mecánico aún tiene que revisar el auto.",
+  "terms.accounts.title": "Tu acceso",
+  "terms.accounts.body":
+    "Mantén tu contraseña en privado. Puedes recuperar la contraseña o el usuario por correo (Resend) si esa dirección está en la cuenta.",
+  "terms.photos.title": "Fotos que subes",
+  "terms.photos.body":
+    "Solo sube fotos que tienes derecho a usar. Las fotos de perfil y los logos pueden verse en la página pública del taller o mecánico. Las fotos de la bahía se quedan en el ticket para ese taller y cliente.",
+  "terms.data.title": "Tus datos",
+  "terms.data.body":
+    "Guardamos los datos de cuenta y de trabajo descritos en la Política de privacidad. Puedes eliminar tu cuenta desde Cuenta.",
+  "terms.asIs.title": "Sin promesa de reparación",
+  "terms.asIs.body":
+    "La app es un tablero de citas y estado. No somos tu mecánico y no garantizamos un diagnóstico ni un resultado de reparación.",
+  "terms.contact.title": "Preguntas",
+  "terms.contact.body":
+    "Escribe a support@mechanicshelper.app. Si ya hay un auto en el tablero, usa Soporte de bahía en la app (Cuenta → Soporte) o el contacto del taller en ese ticket.",
 
   "support.title": "Soporte",
-  "support.intro": "Si hay un auto en el tablero, empieza con el taller o mecánico de ese ticket.",
+  "support.intro": "¿Necesitas ayuda con Mechanics Helper? Escríbenos. Esta página es corta a propósito.",
   "support.noPhone": "Aún no hay teléfono de soporte.",
   "support.noEmail": "Aún no hay correo de soporte.",
   "support.scanFirst":
     "Escanea un código de taller o abre un trabajo primero. Los dueños agregan un teléfono y correo públicos en Cuenta.",
-  "support.thisApp": "Esta app",
+  "support.thisApp": "Soporte de la app",
   "support.body":
-    "Mechanics Helper es un tablero de citas y estado. El asistente de diagnóstico no es una inspección certificada. Los detalles de privacidad están en la página de Privacidad.",
+    "Escribe a support@mechanicshelper.app si hay un problema de acceso, del sitio o de la app. Helper AI es solo para preguntas de autos y no es una inspección certificada.",
+  "support.bayTitle": "Soporte de bahía",
+  "support.bayBody":
+    "Si ya tienes un auto en el tablero, empieza en la app. Abre Cuenta y luego Soporte, o usa el teléfono y correo del taller en ese ticket.",
   "support.readPrivacy": "Leer privacidad",
 
   "diag.disclaimer": "Solo asistente — no es una inspección certificada. Un mecánico aún tiene que revisar el auto.",
@@ -1148,20 +1238,46 @@ export function applyDocumentLocale(locale: Locale) {
 
 const PRIVACY_KEYS = [
   ["privacy.who.title", "privacy.who.body"],
+  ["privacy.accounts.title", "privacy.accounts.body"],
   ["privacy.store.title", "privacy.store.body"],
+  ["privacy.photos.title", "privacy.photos.body"],
+  ["privacy.recovery.title", "privacy.recovery.body"],
+  ["privacy.helper.title", "privacy.helper.body"],
   ["privacy.not.title", "privacy.not.body"],
   ["privacy.see.title", "privacy.see.body"],
   ["privacy.long.title", "privacy.long.body"],
   ["privacy.delete.title", "privacy.delete.body"],
-  ["privacy.diag.title", "privacy.diag.body"],
   ["privacy.contact.title", "privacy.contact.body"],
 ] as const;
 
-export function privacySections(locale: Locale): { title: string; body: string }[] {
-  return PRIVACY_KEYS.map(([title, body]) => ({
+const TERMS_KEYS = [
+  ["terms.accept.title", "terms.accept.body"],
+  ["terms.who.title", "terms.who.body"],
+  ["terms.use.title", "terms.use.body"],
+  ["terms.helper.title", "terms.helper.body"],
+  ["terms.accounts.title", "terms.accounts.body"],
+  ["terms.photos.title", "terms.photos.body"],
+  ["terms.data.title", "terms.data.body"],
+  ["terms.asIs.title", "terms.asIs.body"],
+  ["terms.contact.title", "terms.contact.body"],
+] as const;
+
+function legalSections(
+  locale: Locale,
+  keys: readonly (readonly [MessageKey, MessageKey])[],
+): { title: string; body: string }[] {
+  return keys.map(([title, body]) => ({
     title: translate(locale, title),
     body: translate(locale, body),
   }));
+}
+
+export function privacySections(locale: Locale): { title: string; body: string }[] {
+  return legalSections(locale, PRIVACY_KEYS);
+}
+
+export function termsSections(locale: Locale): { title: string; body: string }[] {
+  return legalSections(locale, TERMS_KEYS);
 }
 
 /** Display-only 12-hour clock. Storage/API values stay HH:mm / ISO. */
