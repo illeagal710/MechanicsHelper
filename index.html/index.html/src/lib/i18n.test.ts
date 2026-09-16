@@ -82,6 +82,15 @@ test("clock and hours labels use 12-hour AM/PM in English and Spanish", () => {
   assertMeridiem(hoursEs);
 });
 
+test("booking symptoms are marked optional in English and Spanish", () => {
+  assert.match(translate("en", "book.whatsGoingOn"), /optional/i);
+  assert.match(translate("es", "book.whatsGoingOn"), /opcional/i);
+  assert.match(translate("en", "book.symptomsHint"), /optional/i);
+  assert.match(translate("es", "book.symptomsHint"), /opcional/i);
+  assert.equal(translate("en", "book.noSymptoms"), "No description");
+  assert.equal(translate("es", "book.noSymptoms"), "Sin descripción");
+});
+
 test("profile vs bay photo labels exist in English and Spanish", () => {
   assert.equal(translate("en", "photo.choose"), "Choose photo");
   assert.equal(translate("en", "photo.take"), "Take photo");

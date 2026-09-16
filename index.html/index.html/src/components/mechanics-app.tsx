@@ -41,6 +41,7 @@ import {
   statusMeta,
   vehicleLabel,
 } from "@/lib/store";
+import { missingRequiredBookingFields, normalizeSymptoms } from "@/lib/booking";
 import { trimOptions } from "@/lib/trims";
 import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
 
@@ -1048,7 +1049,7 @@ function Book({
             if (!listed) return "";
             return resolveListedOrOther(listed, String(fd.get("trimOther") || ""));
           })(),
-          symptoms: String(fd.get("symptoms")),
+          symptoms: normalizeSymptoms(fd.get("symptoms")),
           slot: new Date(String(fd.get("slot"))).toISOString(),
           status: "scheduled",
           providerId: provider.id,
@@ -1058,7 +1059,15 @@ function Book({
           notes: [{ at: Date.now(), text: "Booked from customer app.", by: "system" }],
           notifySms: fd.get("notifySms") === "on",
         };
-        if (!job.year || !job.make || !job.model || !job.symptoms || !fd.get("slot")) {
+        if (
+          missingRequiredBookingFields({
+            year: job.year,
+            make: job.make,
+            model: job.model,
+            slot: fd.get("slot"),
+            symptoms: job.symptoms,
+          }).length
+        ) {
           return onErr(t("err.fillAll"));
         }
         if (Store.slotTaken(provider.id, job.slot)) {
@@ -1119,7 +1128,13 @@ function Book({
       </div>
       <VehiclePicker make={make} setMake={setMake} models={models} />
       <Field label={t("book.whatsGoingOn")}>
-        <textarea name="symptoms" className={inputClass + " min-h-28"} required defaultValue={pending} />
+        <textarea
+          name="symptoms"
+          className={inputClass + " min-h-28"}
+          defaultValue={pending}
+          placeholder={t("book.symptomsPh")}
+        />
+        <p className="mt-2 text-sm text-muted">{t("book.symptomsHint")}</p>
       </Field>
       <Field label={t("book.preferredTime")}>
         <SelectWrap>
@@ -1338,7 +1353,9 @@ function JobDetail({
           <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold badge-${st.badge}`}>
             {statusText(locale, job.status, shop ? "shop" : "customer")}
           </span>
-          <p className="mt-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">{job.symptoms}</p>
+          <p className="mt-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">
+            {job.symptoms || t("book.noSymptoms")}
+          </p>
         </div>
       </div>
       <h2 className="mb-2 mt-4 font-semibold">{t("job.progress")}</h2>
