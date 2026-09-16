@@ -91,6 +91,7 @@ test("sanitizeJobPatch only keeps job ticket fields and the bay photo key", () =
     email: "leak@example.com",
     bio: "profile bio",
     role: "independent",
+    notes: [{ at: 1, text: "must not ride a photo patch", by: "shop" }],
   });
   assert.deepEqual(cleaned, {
     status: "ready",
@@ -99,6 +100,7 @@ test("sanitizeJobPatch only keeps job ticket fields and the bay photo key", () =
   });
   assert.equal("photo" in cleaned, false);
   assert.equal("bio" in cleaned, false);
+  assert.equal("notes" in cleaned, false);
 });
 
 test("legacy job { photo } still maps to jobPhoto when it is not a profile object", () => {

@@ -1,6 +1,7 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
+import { appendJobNote } from "@/lib/job-notes";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
@@ -723,12 +724,13 @@ export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: s
   if (safe.status) job.status = safe.status;
   if (safe.assignedTo !== undefined) job.assignedTo = safe.assignedTo;
   if (safe.jobPhoto !== undefined) Object.assign(job, withJobPhoto(job, safe.jobPhoto));
+  // Do not rewrite notes_json here — addNote is the only writer for ticket notes.
   const sql = await getSql();
   await sql.query(
     `update mh_jobs set
-      assigned_to = $2, status = $3, notes_json = $4, provider_name = $5
+      assigned_to = $2, status = $3, provider_name = $4
      where id = $1`,
-    [job.id, job.assignedTo || "", job.status, JSON.stringify(job.notes || []), job.providerName],
+    [job.id, job.assignedTo || "", job.status, job.providerName],
   );
   if (safe.jobPhoto !== undefined) {
     try {
@@ -768,9 +770,18 @@ export async function addNote(id: string, text: string, by = "shop") {
   const board = await loadBoard();
   const job = board.jobs.find((j) => j.id === id);
   if (!job) return null;
-  job.notes = job.notes || [];
-  job.notes.push({ at: Date.now(), text, by });
-  return updateJob(id, { notes: job.notes });
+  const noteText = String(text || "").trim();
+  if (!noteText) return job;
+  // Write notes_json directly. Do not go through updateJob / sanitizeJobPatch —
+  // that photo-slot sanitizer drops `notes`, so status auto-notes and Post update
+  // never persisted after profile/bay photo separation.
+  job.notes = appendJobNote(job.notes, noteText, by);
+  const sql = await getSql();
+  await sql.query("update mh_jobs set notes_json = $2 where id = $1", [
+    job.id,
+    JSON.stringify(job.notes),
+  ]);
+  return job;
 }
 
 export function jobCode() {
