@@ -82,6 +82,16 @@ test("clock and hours labels use 12-hour AM/PM in English and Spanish", () => {
   assertMeridiem(hoursEs);
 });
 
+test("theme labels exist in English and Spanish", () => {
+  assert.equal(translate("en", "theme.light"), "Light");
+  assert.equal(translate("en", "theme.dark"), "Dark");
+  assert.equal(translate("en", "account.theme"), "Theme");
+  assert.equal(translate("es", "theme.light"), "Claro");
+  assert.equal(translate("es", "theme.dark"), "Oscuro");
+  assert.equal(translate("es", "account.theme"), "Tema");
+  assert.match(translate("es", "account.themeHint"), /claro|oscuro/i);
+});
+
 test("helper fence, loading, and fallback strings exist in English and Spanish", () => {
   assert.match(translate("en", "diag.refuse"), /cars, vehicles, repair/i);
   assert.match(translate("es", "diag.refuse"), /autos, vehículos, reparación/i);

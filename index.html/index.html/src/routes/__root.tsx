@@ -2,6 +2,8 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { I18nProvider } from "@/lib/i18n-context";
+import { ThemeProvider } from "@/lib/theme-context";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Mechanics Helper";
@@ -27,14 +29,17 @@ export const Route = createRootRoute({
   component: () => (
     <html lang="en" className="antialiased" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
         <PreviewHostBridge />
         <I18nProvider>
-          <AuthProvider>
-            <Outlet />
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <Outlet />
+            </AuthProvider>
+          </ThemeProvider>
         </I18nProvider>
         <Scripts />
       </body>
