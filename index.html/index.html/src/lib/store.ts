@@ -17,6 +17,12 @@ import {
   mhUpdateShop,
 } from "@/lib/mh-api";
 import { jobPhotoOf, profilePhotoOf, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
+import {
+  addSavedVehicle,
+  mergeCustomerVehicles,
+  readSavedVehicles,
+  type VehicleFields,
+} from "@/lib/customer-vehicles";
 import { TIME_12H } from "@/lib/i18n";
 
 export type Role = "customer" | "shop" | "independent";
@@ -314,6 +320,16 @@ export const Store = {
 
   shopRecord(shopId: string) {
     return cache.shops.find((s) => s.id === shopId) || null;
+  },
+
+  customerVehicles(user: User | null): VehicleFields[] {
+    if (!user || user.role !== "customer") return [];
+    return mergeCustomerVehicles(this.providerJobs(user), readSavedVehicles(user.id));
+  },
+
+  addCustomerVehicle(user: User, vehicle: VehicleFields) {
+    addSavedVehicle(user.id, vehicle);
+    return this.customerVehicles(user);
   },
 
   providerJobs(user: User | null) {

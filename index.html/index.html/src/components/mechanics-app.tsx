@@ -8,6 +8,7 @@ import {
   MapPin,
   MessageCircle,
   QrCode,
+  Settings,
   UserRound,
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
@@ -44,6 +45,7 @@ import {
   vehicleLabel,
 } from "@/lib/store";
 import { missingRequiredBookingFields, normalizeSymptoms } from "@/lib/booking";
+import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
 import { trimOptions } from "@/lib/trims";
 import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
 
@@ -426,14 +428,23 @@ function BrandWordmark({ className }: { className?: string }) {
   );
 }
 
-function Top({ title, onBack }: { title: string; onBack: () => void }) {
+function Top({
+  title,
+  onBack,
+  action,
+}: {
+  title: string;
+  onBack: () => void;
+  action?: React.ReactNode;
+}) {
   const { t } = useI18n();
   return (
     <div className="mb-4 flex items-center gap-2.5">
       <button type="button" onClick={onBack} className="grid size-9 place-items-center rounded-[10px] border border-line bg-surface" aria-label={t("nav.back")}>
         <ArrowLeft className="size-4" />
       </button>
-      <h2 className="text-lg font-semibold">{title}</h2>
+      <h2 className="min-w-0 flex-1 text-lg font-semibold">{title}</h2>
+      {action ?? null}
     </div>
   );
 }
@@ -1031,9 +1042,10 @@ function Book({
 }) {
   const { locale, t } = useI18n();
   const providers = Store.listProviders();
-  const [make, setMake] = useState("");
+  const savedVehicles = Store.customerVehicles(user);
+  const [pickedVehicleKey, setPickedVehicleKey] = useState(savedVehicles[0] ? vehicleKey(savedVehicles[0]) : "");
+  const pickedVehicle = savedVehicles.find((v) => vehicleKey(v) === pickedVehicleKey) || null;
   const [pick, setPick] = useState(locked ? `${locked.type}:${locked.id}` : "");
-  const models = make ? VEHICLE_DATA[make] || [] : [];
   const pending = typeof window === "undefined" ? "" : sessionStorage.getItem("mh.symptoms") || "";
   const picked = locked || providers.find((p) => `${p.type}:${p.id}` === pick) || null;
   const dates = localeTag(locale);
@@ -1056,14 +1068,7 @@ function Book({
           name: String(fd.get("name")),
           phone: String(fd.get("phone")).replace(/\D/g, ""),
           email: String(fd.get("email")),
-          year: String(fd.get("year")),
-          make: resolveListedOrOther(String(fd.get("make")), String(fd.get("makeOther") || "")),
-          model: resolveListedOrOther(String(fd.get("model")), String(fd.get("modelOther") || "")),
-          trim: (() => {
-            const listed = String(fd.get("trim") || "").trim();
-            if (!listed) return "";
-            return resolveListedOrOther(listed, String(fd.get("trimOther") || ""));
-          })(),
+          ...vehicleFromPickerForm(fd),
           symptoms: normalizeSymptoms(fd.get("symptoms")),
           slot: new Date(String(fd.get("slot"))).toISOString(),
           status: "scheduled",
@@ -1141,7 +1146,34 @@ function Book({
           <input name="email" type="email" className={inputClass} defaultValue={user.email} />
         </Field>
       </div>
-      <VehiclePicker make={make} setMake={setMake} models={models} />
+      {savedVehicles.length ? (
+        <div className="rounded-xl border border-line bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("book.yourVehicles")}</p>
+          <div className="mt-2 flex flex-col gap-2">
+            {savedVehicles.map((v) => {
+              const key = vehicleKey(v);
+              const active = key === pickedVehicleKey;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left ${
+                    active ? "border-accent bg-accent/10" : "border-line bg-bg2"
+                  }`}
+                  onClick={() => setPickedVehicleKey(key)}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{vehicleLabel(v)}</span>
+                    <span className="text-sm text-muted">{t("book.useVehicle")}</span>
+                  </span>
+                  <img src={carImage(v)} alt="" className="h-10 w-[3.6rem] shrink-0 rounded-lg object-cover" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      <VehiclePicker key={pickedVehicleKey || "new"} defaults={pickedVehicle || undefined} />
       <Field label={t("book.whatsGoingOn")}>
         <textarea
           name="symptoms"
@@ -1485,21 +1517,45 @@ function listedLabel(value: string, t: TranslateFn) {
   return value === OTHER_VALUE ? t("vehicle.other") : value;
 }
 
+function splitFromList(value: string | undefined, list: string[]) {
+  const v = String(value || "").trim();
+  if (!v) return { selected: "", other: "" };
+  if (list.includes(v)) return { selected: v, other: "" };
+  return { selected: OTHER_VALUE, other: v };
+}
+
+function vehicleFromPickerForm(fd: FormData): VehicleFields {
+  return {
+    year: String(fd.get("year") || ""),
+    make: resolveListedOrOther(String(fd.get("make") || ""), String(fd.get("makeOther") || "")),
+    model: resolveListedOrOther(String(fd.get("model") || ""), String(fd.get("modelOther") || "")),
+    trim: (() => {
+      const listed = String(fd.get("trim") || "").trim();
+      if (!listed) return "";
+      return resolveListedOrOther(listed, String(fd.get("trimOther") || ""));
+    })(),
+  };
+}
+
 function VehiclePicker({
-  make,
-  setMake,
-  models,
+  defaults,
+  footerKey = "vehicle.onAppointment",
 }: {
-  make: string;
-  setMake: (v: string) => void;
-  models: string[];
+  defaults?: VehicleFields;
+  footerKey?: MessageKey;
 }) {
-  const [year, setYear] = useState("");
-  const [model, setModel] = useState("");
-  const [trim, setTrim] = useState("");
-  const [makeOther, setMakeOther] = useState("");
-  const [modelOther, setModelOther] = useState("");
-  const [trimOther, setTrimOther] = useState("");
+  const makeSplit = splitFromList(defaults?.make, Object.keys(VEHICLE_DATA));
+  const [make, setMake] = useState(makeSplit.selected);
+  const models = make ? VEHICLE_DATA[make] || [] : [];
+  const modelSplit = splitFromList(defaults?.model, models.length ? models : [OTHER_VALUE]);
+  const [year, setYear] = useState(defaults?.year || "");
+  const [model, setModel] = useState(modelSplit.selected);
+  const trimList = model ? trimOptions(make, model) : [];
+  const trimSplit = splitFromList(defaults?.trim, trimList);
+  const [trim, setTrim] = useState(trimSplit.selected);
+  const [makeOther, setMakeOther] = useState(makeSplit.other);
+  const [modelOther, setModelOther] = useState(modelSplit.other);
+  const [trimOther, setTrimOther] = useState(trimSplit.other);
   const { t } = useI18n();
   const trims = model ? trimOptions(make, model) : [];
   const preview = [
@@ -1657,7 +1713,7 @@ function VehiclePicker({
         ) : null}
       </div>
       <div className="border-t border-line bg-bg2 px-4 py-3">
-        <p className="text-sm text-muted">{t("vehicle.onAppointment")}</p>
+        <p className="text-sm text-muted">{t(footerKey)}</p>
         <p className="text-lg font-semibold leading-tight">{preview || t("vehicle.notChosen")}</p>
       </div>
     </div>
@@ -1766,6 +1822,65 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
   );
 }
 
+function AccountSettingsPanels({
+  user,
+  flash,
+  onSaved,
+}: {
+  user: User;
+  flash: (s: string) => void;
+  onSaved: (u: User) => void;
+}) {
+  const { locale, t } = useI18n();
+  return (
+    <>
+      <div className="rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.language")}</p>
+        <p className="mt-1 mb-3 text-sm text-muted">{t("account.languageHint")}</p>
+        <LanguageToggle />
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.theme")}</p>
+        <p className="mt-1 mb-3 text-sm text-muted">{t("account.themeHint")}</p>
+        <ThemeToggle />
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
+        <p className="mt-2 text-sm text-muted">
+          {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
+        </p>
+        <button
+          type="button"
+          className="mt-3 h-11 w-full rounded-xl border border-line bg-surface2 font-semibold"
+          onClick={async () => {
+            if (typeof Notification === "undefined") {
+              flash(t("toast.alertsUnsupported"));
+              return;
+            }
+            const perm = await Notification.requestPermission();
+            if (perm !== "granted") {
+              await Store.saveAlerts(user, user.pushToken || "", false);
+              return flash(t("toast.alertsOff"));
+            }
+            const token = "web-" + user.id;
+            const res = await Store.saveAlerts(user, token, true);
+            if (!res.ok) return flash(translateStoreError(locale, res.error));
+            onSaved(res.user);
+            try {
+              new Notification(t("app.name"), { body: t("account.alertsNotifBody") });
+            } catch {
+              /* ignore */
+            }
+            flash(t("toast.alertsOn"));
+          }}
+        >
+          {user.alertsOn ? t("account.alertsOnBtn") : t("account.alertsTurnOn")}
+        </button>
+      </div>
+    </>
+  );
+}
+
 function Account({
   user,
   locked,
@@ -1813,6 +1928,9 @@ function Account({
   const [indyClose, setIndyClose] = useState(user.hoursClose || "16:00");
   const [deletePw, setDeletePw] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addingVehicle, setAddingVehicle] = useState(false);
+  const [vehicles, setVehicles] = useState(() => Store.customerVehicles(user));
   void locked;
   const label =
     user.role === "shop"
@@ -1823,9 +1941,32 @@ function Account({
         ? t("account.indyMech")
         : t("account.customer");
 
+  if (settingsOpen) {
+    return (
+      <div data-account-settings="">
+        <Top title={t("account.settings")} onBack={() => setSettingsOpen(false)} />
+        <AccountSettingsPanels user={user} flash={flash} onSaved={onSaved} />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <Top title={t("account.title")} onBack={onBack} />
+      <Top
+        title={t("account.title")}
+        onBack={onBack}
+        action={
+          <button
+            type="button"
+            data-account-settings-open=""
+            className="grid size-9 place-items-center rounded-[10px] border border-line bg-surface"
+            aria-label={t("account.settings")}
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings className="size-4" />
+          </button>
+        }
+      />
       <div className="rounded-xl border border-line bg-surface p-4">
         <div className="flex items-start gap-3">
           <Face src={profilePhoto} name={user.name} size="lg" />
@@ -1870,49 +2011,77 @@ function Account({
           }}
         />
       </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.language")}</p>
-        <p className="mt-1 mb-3 text-sm text-muted">{t("account.languageHint")}</p>
-        <LanguageToggle />
-      </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.theme")}</p>
-        <p className="mt-1 mb-3 text-sm text-muted">{t("account.themeHint")}</p>
-        <ThemeToggle />
-      </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
-        <p className="mt-2 text-sm text-muted">
-          {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
-        </p>
-        <button
-          type="button"
-          className="mt-3 h-11 w-full rounded-xl border border-line bg-surface2 font-semibold"
-          onClick={async () => {
-            if (typeof Notification === "undefined") {
-              flash(t("toast.alertsUnsupported"));
-              return;
-            }
-            const perm = await Notification.requestPermission();
-            if (perm !== "granted") {
-              await Store.saveAlerts(user, user.pushToken || "", false);
-              return flash(t("toast.alertsOff"));
-            }
-            const token = "web-" + user.id;
-            const res = await Store.saveAlerts(user, token, true);
-            if (!res.ok) return flash(translateStoreError(locale, res.error));
-            onSaved(res.user);
-            try {
-              new Notification(t("app.name"), { body: t("account.alertsNotifBody") });
-            } catch {
-              /* ignore */
-            }
-            flash(t("toast.alertsOn"));
-          }}
-        >
-          {user.alertsOn ? t("account.alertsOnBtn") : t("account.alertsTurnOn")}
-        </button>
-      </div>
+      {user.role === "customer" ? (
+        <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-account-vehicles="">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.vehicles")}</p>
+          <p className="mt-1 text-sm text-muted">{t("account.vehiclesHint")}</p>
+          <div className="mt-3 flex flex-col gap-2">
+            {vehicles.length ? (
+              vehicles.map((v) => (
+                <div
+                  key={vehicleKey(v)}
+                  className="flex items-center gap-3 rounded-xl border border-line bg-bg2 p-3"
+                >
+                  <img src={carImage(v)} alt="" className="h-12 w-[4.25rem] shrink-0 rounded-lg object-cover" />
+                  <div className="min-w-0">
+                    <p className="font-semibold">{vehicleLabel(v)}</p>
+                    <p className="text-sm text-muted">{kindText(locale, vehicleKind(v))}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted">{t("account.vehiclesEmpty")}</p>
+            )}
+          </div>
+          {addingVehicle ? (
+            <form
+              className="mt-3"
+              data-add-vehicle-form=""
+              onSubmit={(e) => {
+                e.preventDefault();
+                const next = vehicleFromPickerForm(new FormData(e.currentTarget));
+                if (!isCompleteVehicle(next)) return flash(t("err.fillAll"));
+                setVehicles(Store.addCustomerVehicle(user, next));
+                setAddingVehicle(false);
+                flash(t("account.vehicleSaved"));
+              }}
+            >
+              <VehiclePicker footerKey="account.vehiclePreview" />
+              <button type="submit" className="mt-3 h-11 w-full rounded-xl bg-accent font-semibold text-ink">
+                {t("account.saveVehicle")}
+              </button>
+              <button
+                type="button"
+                className="mt-2 h-11 w-full rounded-xl border border-line bg-surface font-semibold"
+                onClick={() => setAddingVehicle(false)}
+              >
+                {t("account.cancelAdd")}
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              data-add-vehicle=""
+              className="mt-3 h-10 w-full rounded-xl border border-line bg-bg2 text-sm font-semibold"
+              onClick={() => setAddingVehicle(true)}
+            >
+              {t("account.addVehicle")}
+            </button>
+          )}
+        </div>
+      ) : null}
+      <button
+        type="button"
+        data-account-settings-open=""
+        className="mt-3 flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4 text-left"
+        onClick={() => setSettingsOpen(true)}
+      >
+        <span>
+          <span className="block text-sm font-semibold">{t("account.settings")}</span>
+          <span className="mt-1 block text-sm text-muted">{t("account.settingsHint")}</span>
+        </span>
+        <Settings className="size-5 shrink-0 text-muted" />
+      </button>
       {shop && (
         <form
           className="mt-3 rounded-xl border border-line bg-surface p-4"
