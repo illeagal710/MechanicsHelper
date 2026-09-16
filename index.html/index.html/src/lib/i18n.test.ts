@@ -53,6 +53,10 @@ test("production store errors and hours labels translate", () => {
     "Ese horario ya está ocupado. Elige otro.",
   );
   assert.equal(translateStoreError("es", "Password is wrong."), "La contraseña es incorrecta.");
+  assert.equal(
+    translateStoreError("es", "That reset code is wrong or expired."),
+    "Ese código es incorrecto o ya caducó.",
+  );
   assert.match(formatHoursLabel("es", { hoursDays: "123456", hoursOpen: "08:00", hoursClose: "16:00" }), /Lun–Sáb/);
   assert.equal(privacySections("es")[0].title, "Para quién es esto");
 });

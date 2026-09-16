@@ -4,7 +4,10 @@ import {
   mhAddTech,
   mhBoard,
   mhLogin,
+  mhRecoverUsername,
   mhRegister,
+  mhRequestPasswordReset,
+  mhResetPassword,
   mhRotateCode,
   mhUpdateIndy,
   mhUpdateJob,
@@ -372,6 +375,18 @@ export const Store = {
       await this.hydrate();
     }
     return res;
+  },
+
+  requestPasswordReset(emailOrPhone: string) {
+    return mhRequestPasswordReset({ data: { id: emailOrPhone } });
+  },
+
+  resetPassword(emailOrPhone: string, code: string, password: string) {
+    return mhResetPassword({ data: { id: emailOrPhone, code, password } });
+  },
+
+  recoverUsername(emailOrPhone: string) {
+    return mhRecoverUsername({ data: { id: emailOrPhone } });
   },
 
   logout() {

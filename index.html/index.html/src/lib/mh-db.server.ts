@@ -1,4 +1,6 @@
+import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
+import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
@@ -267,6 +269,132 @@ export async function login(emailOrPhone: string, password: string) {
   }
   const { pass: _p, ...rest } = user;
   return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+const RECOVERY_TTL_MS = 15 * 60 * 1000;
+
+export type RecoveryChannel = "email" | "dev" | "stub";
+
+function hashRecoveryCode(code: string) {
+  return createHash("sha256").update("mh-reset|" + String(code || "")).digest("hex");
+}
+
+function recoveryCodesMatch(stored: string, given: string) {
+  const a = Buffer.from(stored);
+  const b = Buffer.from(hashRecoveryCode(given));
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+function freshRecoveryCode() {
+  return String(randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+function loginIdFor(user: User) {
+  const email = (user.email || "").trim();
+  const phone = (user.phone || "").trim();
+  return email || phone;
+}
+
+function recoveryChannel(sentEmail: boolean): RecoveryChannel {
+  if (sentEmail) return "email";
+  if (revealRecoveryCode()) return "dev";
+  return "stub";
+}
+
+async function issueRecoveryCode(user: User, purpose: "password" | "username") {
+  const sql = await getSql();
+  await sql.query("delete from mh_recovery where user_id = $1 and purpose = $2 and used_at is null", [
+    user.id,
+    purpose,
+  ]);
+  const code = freshRecoveryCode();
+  await sql.query(
+    `insert into mh_recovery (id, user_id, purpose, code_hash, expires_at) values ($1,$2,$3,$4,$5)`,
+    ["r-" + Math.random().toString(36).slice(2, 10), user.id, purpose, hashRecoveryCode(code), Date.now() + RECOVERY_TTL_MS],
+  );
+  return code;
+}
+
+async function emailRecovery(user: User, purpose: "password" | "username", code?: string) {
+  const to = (user.email || "").trim();
+  if (!to) return false;
+  const login = loginIdFor(user);
+  const subject =
+    purpose === "password"
+      ? "Mechanics Helper password reset"
+      : "Mechanics Helper username reminder";
+  const text =
+    purpose === "password"
+      ? `Your Mechanics Helper reset code is ${code}. It expires in 15 minutes.\n\nTu código para restablecer la contraseña es ${code}. Caduca en 15 minutos.`
+      : `Your Mechanics Helper login is ${login}.\n\nTu usuario de Mechanics Helper es ${login}.`;
+  const mail = await sendEmail({ to, subject, text });
+  return mail.ok;
+}
+
+export async function requestPasswordReset(emailOrPhone: string) {
+  const id = String(emailOrPhone || "").trim();
+  if (!id) return { ok: false as const, error: "Email or phone is required." };
+  const user = await findUser(id);
+  if (!user) {
+    return {
+      ok: true as const,
+      channel: recoveryChannel(mailerConfigured()),
+    };
+  }
+  const code = await issueRecoveryCode(user, "password");
+  const sent = await emailRecovery(user, "password", code);
+  const channel = recoveryChannel(sent);
+  return {
+    ok: true as const,
+    channel,
+    ...(channel === "dev" ? { devCode: code } : {}),
+  };
+}
+
+export async function resetPassword(emailOrPhone: string, code: string, password: string) {
+  const id = String(emailOrPhone || "").trim();
+  const rawCode = String(code || "").replace(/\s/g, "");
+  if (!id || !rawCode) return { ok: false as const, error: "Email/phone and reset code are required." };
+  if (String(password || "").length < 6) {
+    return { ok: false as const, error: "Password must be at least 6 characters." };
+  }
+  const user = await findUser(id);
+  if (!user) return { ok: false as const, error: "That reset code is wrong or expired." };
+  const sql = await getSql();
+  const rows = await sql.query<Record<string, unknown>>(
+    `select * from mh_recovery
+     where user_id = $1 and purpose = 'password' and used_at is null
+     order by expires_at desc`,
+    [user.id],
+  );
+  const now = Date.now();
+  const match = rows.find((r) => {
+    if (Number(r.expires_at) < now) return false;
+    return recoveryCodesMatch(String(r.code_hash || ""), rawCode);
+  });
+  if (!match) return { ok: false as const, error: "That reset code is wrong or expired." };
+  await sql.query("update mh_users set pass = $2 where id = $1", [user.id, passHash(password)]);
+  await sql.query("update mh_recovery set used_at = $2 where id = $1", [String(match.id), now]);
+  return { ok: true as const };
+}
+
+export async function recoverUsername(emailOrPhone: string) {
+  const id = String(emailOrPhone || "").trim();
+  if (!id) return { ok: false as const, error: "Email or phone is required." };
+  const user = await findUser(id);
+  if (!user) return { ok: true as const, found: false as const };
+  const login = loginIdFor(user);
+  const sent = await emailRecovery(user, "username");
+  return {
+    ok: true as const,
+    found: true as const,
+    name: user.name,
+    email: user.email || "",
+    phone: user.phone || "",
+    login,
+    channel: recoveryChannel(sent),
+  };
 }
 
 export async function register(fields: {
