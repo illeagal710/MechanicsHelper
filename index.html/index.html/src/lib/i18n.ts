@@ -223,6 +223,10 @@ const en = {
   "diag.generic.b1": "A good visit starts with what you feel/hear/smell and when it started.",
   "diag.generic.b2": "I can drop this description into a booking.",
   "diag.generic.chip": "Book this diagnosis",
+  "diag.loading": "Looking that up…",
+  "diag.refuse":
+    "I only help with cars, vehicles, repair, and maintenance. Ask about a noise, a light, a leak, or how the car drives.",
+  "diag.error": "The helper is busy. Using shop rules instead.",
 
   "account.title": "Account",
   "account.noEmail": "No email",
@@ -718,6 +722,10 @@ const es: Record<MessageKey, string> = {
   "diag.generic.b1": "Una buena visita empieza con lo que sientes, oyes u hueles y cuándo empezó.",
   "diag.generic.b2": "Puedo pasar esta descripción a una reserva.",
   "diag.generic.chip": "Reservar este diagnóstico",
+  "diag.loading": "Revisando eso…",
+  "diag.refuse":
+    "Solo ayudo con autos, vehículos, reparación y mantenimiento. Pregúntame por un ruido, una luz, una fuga o cómo se conduce el auto.",
+  "diag.error": "El asistente está ocupado. Uso las reglas del taller.",
 
   "account.title": "Cuenta",
   "account.noEmail": "Sin correo",

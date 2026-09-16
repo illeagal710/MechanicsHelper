@@ -153,3 +153,10 @@ export const mhAddNote = createServerFn({ method: "POST" })
     const db = await import("./mh-db.server");
     return db.addNote(data.id, data.text, data.by || "shop");
   });
+
+export const mhDiagnose = createServerFn({ method: "POST" })
+  .validator((d: { text: string; locale: "en" | "es" }) => d)
+  .handler(async ({ data }) => {
+    const llm = await import("./diagnose-llm.server");
+    return llm.diagnoseWithLlm(data.text, data.locale);
+  });
