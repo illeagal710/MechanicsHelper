@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Download, RefreshCw, Share2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
 import { qrDataUrl, referralUrl } from "@/lib/qr";
 
 export function QrShare({
@@ -15,6 +16,7 @@ export function QrShare({
   canRotate?: boolean;
   rotateHint?: string;
 }) {
+  const { t } = useI18n();
   const [src, setSrc] = useState("");
   const [copied, setCopied] = useState<"code" | "link" | "">("");
   const link = typeof window === "undefined" ? "" : referralUrl(code);
@@ -49,7 +51,7 @@ export function QrShare({
     try {
       await navigator.share({
         title: title,
-        text: `Book with ${title}. Find code ${code}`,
+        text: t("qr.shareText", { title, code }),
         url: link,
       });
     } catch {
@@ -59,20 +61,18 @@ export function QrShare({
 
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Customer find code</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("qr.findCode")}</p>
       <h2 className="mt-1 text-lg font-semibold">{title}</h2>
-      <p className="mt-1 text-sm text-muted">
-        Print, text, or leave on the counter. Customers scan or type this and book you — not a random shop.
-      </p>
+      <p className="mt-1 text-sm text-muted">{t("qr.hint")}</p>
       <div className="mt-4 flex items-center gap-3 rounded-xl bg-bg2 p-3">
         {src ? (
-          <img src={src} alt={`QR code for ${code}`} className="size-36 shrink-0 rounded-lg bg-accent/10 p-1.5" />
+          <img src={src} alt={t("qr.alt", { code })} className="size-36 shrink-0 rounded-lg bg-accent/10 p-1.5" />
         ) : (
           <div className="size-36 shrink-0 animate-pulse rounded-lg bg-surface2" />
         )}
         <div className="min-w-0 flex-1 text-center">
           <div className="font-mono text-3xl font-semibold tracking-[0.18em] text-accent">{code}</div>
-          <p className="mt-1 text-xs text-dim">4-letter find code</p>
+          <p className="mt-1 text-xs text-dim">{t("qr.fourLetter")}</p>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -82,7 +82,7 @@ export function QrShare({
           onClick={() => void copy("code")}
         >
           {copied === "code" ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied === "code" ? "Copied" : "Copy code"}
+          {copied === "code" ? t("qr.copied") : t("qr.copyCode")}
         </button>
         <button
           type="button"
@@ -90,7 +90,7 @@ export function QrShare({
           onClick={() => void copy("link")}
         >
           {copied === "link" ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied === "link" ? "Copied" : "Copy link"}
+          {copied === "link" ? t("qr.copied") : t("qr.copyLink")}
         </button>
         <button
           type="button"
@@ -98,7 +98,7 @@ export function QrShare({
           onClick={download}
         >
           <Download className="size-4" />
-          Save QR
+          {t("qr.saveQr")}
         </button>
         {canNativeShare ? (
           <button
@@ -107,7 +107,7 @@ export function QrShare({
             onClick={() => void shareNative()}
           >
             <Share2 className="size-4" />
-            Share
+            {t("qr.share")}
           </button>
         ) : null}
       </div>
@@ -118,7 +118,7 @@ export function QrShare({
           onClick={onRotate}
         >
           <RefreshCw className="size-4" />
-          Generate a new code
+          {t("qr.newCode")}
         </button>
       ) : null}
       {rotateHint ? <p className="mt-1 text-xs text-dim">{rotateHint}</p> : null}

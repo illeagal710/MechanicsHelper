@@ -621,8 +621,8 @@ export function statusMeta(id: string) {
   return STATUSES.find((s) => s.id === id) || STATUSES[0];
 }
 
-export function fmtWhen(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
+export function fmtWhen(iso: string, locale?: string) {
+  return new Date(iso).toLocaleString(locale || undefined, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -631,8 +631,8 @@ export function fmtWhen(iso: string) {
   });
 }
 
-export function fmtShort(isoOrMs: string | number) {
-  return new Date(isoOrMs).toLocaleString(undefined, {
+export function fmtShort(isoOrMs: string | number, locale?: string) {
+  return new Date(isoOrMs).toLocaleString(locale || undefined, {
     month: "short",
     day: "numeric",
     hour: "numeric",
