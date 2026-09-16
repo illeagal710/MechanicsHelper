@@ -1,0 +1,29 @@
+# Capacitor Android local/build artifacts (keep the android/ project itself).
+node_modules/
+.output/
+dist/
+android/app/build/
+android/app/build/
+android/app/release/
+android/build/
+android/.gradle/
+android/captures/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/keystore.properties
+android/*.jks
+android/*.keystore
+android/app/*.jks
+android/app/*.keystore
+android/**/*.apk
+android/**/*.aab
+android/**/*.ap_
+android/app/src/main/assets/public/native-bridge.js
+
+# Release signing secrets — never commit the real file or the keystore.
+keystore.properties
+*.jks
+*.keystore
+!android/keystore.properties.example
