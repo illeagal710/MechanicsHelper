@@ -18,12 +18,12 @@ import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
 import { ThemeToggle } from "@/lib/theme-context";
+import { PolicyFooterLinks } from "@/components/legal-pages";
 import {
   formatClock,
   formatHoursLabel,
   kindText,
   localeTag,
-  privacySections,
   statusText,
   translateDetail,
   translateNote,
@@ -65,9 +65,7 @@ type View =
   | "shopHome"
   | "shopJob"
   | "share"
-  | "account"
-  | "privacy"
-  | "support";
+  | "account";
 
 function homeFor(role: Role): View {
   if (role === "shop" || role === "independent") return "shopHome";
@@ -201,8 +199,6 @@ export function MechanicsApp() {
             onApply={() => applyCode(codeInput, false)}
             onLogin={() => setView("login")}
             onRegister={() => setView("register")}
-            onPrivacy={() => setView("privacy")}
-            onSupport={() => setView("support")}
           />
         )}
         {view === "login" && (
@@ -353,8 +349,6 @@ export function MechanicsApp() {
               setView("welcome");
               flash(t("toast.accountDeleted"));
             }}
-            onPrivacy={() => setView("privacy")}
-            onSupport={() => setView("support")}
             flash={flash}
             bump={bump}
             onSaved={(u) => {
@@ -363,19 +357,8 @@ export function MechanicsApp() {
             }}
           />
         )}
-        {view === "privacy" && (
-          <LegalPage title={t("legal.privacy")} onBack={() => setView(user ? "account" : "welcome")} />
-        )}
-        {view === "support" && (
-          <SupportPage
-            locked={liveLocked}
-            user={user}
-            onBack={() => setView(user ? "account" : "welcome")}
-            onPrivacy={() => setView("privacy")}
-          />
-        )}
       </main>
-      {user && !["welcome", "login", "register", "recover", "forgotPassword", "forgotUsername", "privacy", "support"].includes(view) && (
+      {user && !["welcome", "login", "register", "recover", "forgotPassword", "forgotUsername"].includes(view) && (
         <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-line bg-bg/95 px-2 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           {isProvider ? (
             <div className="grid grid-cols-3">
@@ -481,8 +464,6 @@ function Welcome({
   onApply,
   onLogin,
   onRegister,
-  onPrivacy,
-  onSupport,
 }: {
   locked: Provider | null;
   codeInput: string;
@@ -490,8 +471,6 @@ function Welcome({
   onApply: () => void;
   onLogin: () => void;
   onRegister: () => void;
-  onPrivacy: () => void;
-  onSupport: () => void;
 }) {
   const { locale, t } = useI18n();
   return (
@@ -555,14 +534,7 @@ function Welcome({
           {t("welcome.createAccount")}
         </button>
       </div>
-      <div className="mt-6 flex justify-center gap-4 text-sm font-semibold text-muted">
-        <button type="button" onClick={onPrivacy} className="underline-offset-2 hover:text-fg hover:underline">
-          {t("welcome.privacy")}
-        </button>
-        <button type="button" onClick={onSupport} className="underline-offset-2 hover:text-fg hover:underline">
-          {t("welcome.support")}
-        </button>
-      </div>
+      <PolicyFooterLinks />
     </div>
   );
 }
@@ -1887,8 +1859,6 @@ function Account({
   onBack,
   onLogout,
   onDeleted,
-  onPrivacy,
-  onSupport,
   flash,
   bump,
   onSaved,
@@ -1898,8 +1868,6 @@ function Account({
   onBack: () => void;
   onLogout: () => void;
   onDeleted: () => void;
-  onPrivacy: () => void;
-  onSupport: () => void;
   flash: (s: string) => void;
   bump: () => void;
   onSaved: (u: User) => void;
@@ -2280,14 +2248,7 @@ function Account({
           <p className="mt-2 text-xs text-dim">{t("account.qrOnShare")}</p>
         </form>
       )}
-      <div className="mt-4 flex justify-center gap-4 text-sm font-semibold text-muted">
-        <button type="button" onClick={onPrivacy} className="hover:text-fg">
-          {t("welcome.privacy")}
-        </button>
-        <button type="button" onClick={onSupport} className="hover:text-fg">
-          {t("welcome.support")}
-        </button>
-      </div>
+      <PolicyFooterLinks className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm font-semibold text-muted" />
       <button type="button" onClick={onLogout} className="mt-4 h-12 w-full rounded-xl border border-line bg-surface font-semibold">
         {t("account.logout")}
       </button>
@@ -2324,88 +2285,6 @@ function Account({
           {deleting ? t("account.deleting") : t("account.deleteBtn")}
         </button>
       </form>
-    </div>
-  );
-}
-
-function LegalPage({ title, onBack }: { title: string; onBack: () => void }) {
-  const { locale, t } = useI18n();
-  return (
-    <div>
-      <Top title={title} onBack={onBack} />
-      <p className="mb-3 text-sm text-muted">{t("legal.updated")}</p>
-      <div className="flex flex-col gap-3">
-        {privacySections(locale).map((s) => (
-          <section key={s.title} className="rounded-xl border border-line bg-surface p-4">
-            <h3 className="font-semibold">{s.title}</h3>
-            <p className="mt-2 text-[15px] leading-relaxed text-muted">{s.body}</p>
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SupportPage({
-  locked,
-  user,
-  onBack,
-  onPrivacy,
-}: {
-  locked: Provider | null;
-  user: User | null;
-  onBack: () => void;
-  onPrivacy: () => void;
-}) {
-  const shop = user?.shopId ? Store.shopRecord(user.shopId) : null;
-  const fromAccount =
-    user?.role === "independent"
-      ? { name: user.businessName || user.name, email: user.supportEmail || user.email, phone: user.supportPhone || user.phone }
-      : shop
-        ? { name: shop.name, email: shop.supportEmail, phone: shop.supportPhone }
-        : null;
-  const { t } = useI18n();
-  const contact = locked
-    ? { name: locked.name, email: locked.supportEmail, phone: locked.supportPhone }
-    : fromAccount;
-  return (
-    <div>
-      <Top title={t("support.title")} onBack={onBack} />
-      <div className="rounded-xl border border-line bg-surface p-4">
-        <p className="text-sm text-muted">{t("support.intro")}</p>
-        {contact ? (
-          <div className="mt-3">
-            <p className="font-semibold">{contact.name}</p>
-            {contact.phone ? (
-              <a className="mt-1 block text-[17px] font-semibold text-accent" href={`tel:${contact.phone}`}>
-                {contact.phone}
-              </a>
-            ) : (
-              <p className="mt-1 text-sm text-muted">{t("support.noPhone")}</p>
-            )}
-            {contact.email ? (
-              <a className="mt-1 block text-[17px] font-semibold text-accent" href={`mailto:${contact.email}`}>
-                {contact.email}
-              </a>
-            ) : (
-              <p className="mt-1 text-sm text-muted">{t("support.noEmail")}</p>
-            )}
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-muted">
-            {t("support.scanFirst")}
-          </p>
-        )}
-      </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4 text-sm leading-relaxed text-muted">
-        <p className="font-semibold text-fg">{t("support.thisApp")}</p>
-        <p className="mt-2">
-          {t("support.body")}
-        </p>
-        <button type="button" onClick={onPrivacy} className="mt-3 font-semibold text-accent">
-          {t("support.readPrivacy")}
-        </button>
-      </div>
     </div>
   );
 }
