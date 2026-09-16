@@ -169,9 +169,9 @@ export function MechanicsApp() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[430px] flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)]">
-      <header className="flex items-center justify-between gap-2 px-4 pt-3 text-xs font-semibold text-muted">
-        <span className="min-w-0 truncate">{t("app.name")}</span>
-        <div className="flex items-center gap-2">
+      <header className="flex items-center justify-between gap-2 px-4 pt-3">
+        <BrandWordmark className="h-[72px] w-auto max-w-[min(220px,58%)] object-contain object-left" />
+        <div className="flex shrink-0 items-center gap-2 text-xs font-semibold text-muted">
           <LanguageToggle compact />
           <span className="font-mono text-dim">{isProvider ? shareCode || t("app.bay") : lockedProvider?.code || t("app.bay")}</span>
         </div>
@@ -400,8 +400,15 @@ function Tab({ active, onClick, icon, label }: { active: boolean; onClick: () =>
   );
 }
 
-function Logo() {
-  return <img src="/img/logo.jpg" alt="" className="size-10 rounded-[11px] object-cover" />;
+function BrandWordmark({ className }: { className?: string }) {
+  const { t } = useI18n();
+  return (
+    <img
+      src="/img/logo-wordmark.png"
+      alt={t("app.name")}
+      className={className ?? "h-16 w-auto max-w-[220px] object-contain object-left"}
+    />
+  );
 }
 
 function Top({ title, onBack }: { title: string; onBack: () => void }) {
@@ -463,12 +470,9 @@ function Welcome({
   const { locale, t } = useI18n();
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2.5">
-        <Logo />
-        <div>
-          <div className="font-bold">{t("app.name")}</div>
-          <div className="text-xs text-muted">{t("app.tagline")}</div>
-        </div>
+      <div className="mb-4">
+        <BrandWordmark className="h-[148px] w-auto max-w-full object-contain object-left" />
+        <div className="mt-1 text-xs text-muted">{t("app.tagline")}</div>
       </div>
       {locked ? (
         <div className="mb-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
@@ -934,10 +938,8 @@ function CustomerHome({
   return (
     <div>
       <div className="mb-4 flex items-center gap-2.5">
-        <Logo />
         <div className="min-w-0 flex-1">
-          <div className="font-bold">{t("app.name")}</div>
-          <div className="truncate text-xs text-muted">{user.name}</div>
+          <div className="truncate text-sm font-semibold">{user.name}</div>
         </div>
         <button type="button" onClick={() => go("account")} className="h-9 rounded-xl border border-line px-3 text-sm font-semibold">
           {t("home.account")}

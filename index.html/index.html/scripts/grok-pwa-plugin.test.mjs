@@ -478,6 +478,11 @@ test("renders the manifest with the per-app name", () => {
   assert.equal(manifest.name, "Wild Race");
   assert.equal(manifest.short_name, "Wild Race");
   assert.equal(manifest.icons[0].src, "/__grok/icon-180.png");
+  assert.equal(manifest.icons[1].src, "/icon-192.png");
+  assert.equal(manifest.icons[2].src, "/icon-512.png");
+  assert.equal(manifest.icons[3].src, "/icon-512-maskable.png");
+  assert.equal(manifest.icons[3].purpose, "maskable");
+  assert.equal(manifest.theme_color, "#071834");
 });
 
 // Tripwires: the deployed-app path only works if Nitro scans server/ — an
