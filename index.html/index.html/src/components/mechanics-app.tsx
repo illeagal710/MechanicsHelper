@@ -26,6 +26,7 @@ import {
   translateNote,
   translateStoreError,
   type MessageKey,
+  type TranslateFn,
 } from "@/lib/i18n";
 import {
   Store,
@@ -41,7 +42,7 @@ import {
   vehicleLabel,
 } from "@/lib/store";
 import { trimOptions } from "@/lib/trims";
-import { VEHICLE_DATA, YEARS, carImage, vehicleKind } from "@/lib/vehicles";
+import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
 
 type View =
   | "welcome"
@@ -1040,13 +1041,12 @@ function Book({
           phone: String(fd.get("phone")).replace(/\D/g, ""),
           email: String(fd.get("email")),
           year: String(fd.get("year")),
-          make: String(fd.get("make")),
-          model: String(fd.get("model")),
+          make: resolveListedOrOther(String(fd.get("make")), String(fd.get("makeOther") || "")),
+          model: resolveListedOrOther(String(fd.get("model")), String(fd.get("modelOther") || "")),
           trim: (() => {
-            const t = String(fd.get("trim") || "").trim();
-            const other = String(fd.get("trimOther") || "").trim();
-            if (!t || t === "Skip or choose trim") return "";
-            return t === "Other" ? other || "Other" : t;
+            const listed = String(fd.get("trim") || "").trim();
+            if (!listed) return "";
+            return resolveListedOrOther(listed, String(fd.get("trimOther") || ""));
           })(),
           symptoms: String(fd.get("symptoms")),
           slot: new Date(String(fd.get("slot"))).toISOString(),
@@ -1449,6 +1449,10 @@ function JobDetail({
   );
 }
 
+function listedLabel(value: string, t: TranslateFn) {
+  return value === OTHER_VALUE ? t("vehicle.other") : value;
+}
+
 function VehiclePicker({
   make,
   setMake,
@@ -1461,10 +1465,19 @@ function VehiclePicker({
   const [year, setYear] = useState("");
   const [model, setModel] = useState("");
   const [trim, setTrim] = useState("");
+  const [makeOther, setMakeOther] = useState("");
+  const [modelOther, setModelOther] = useState("");
   const [trimOther, setTrimOther] = useState("");
   const { t } = useI18n();
   const trims = model ? trimOptions(make, model) : [];
-  const preview = [year, make, model, trim === "Other" ? trimOther : trim].filter(Boolean).join(" ");
+  const preview = [
+    year,
+    resolveListedOrOther(make, makeOther),
+    resolveListedOrOther(model, modelOther),
+    trim ? resolveListedOrOther(trim, trimOther) : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
@@ -1509,8 +1522,11 @@ function VehiclePicker({
               required
               value={make}
               onChange={(e) => {
-                setMake(e.target.value);
-                setModel("");
+                const next = e.target.value;
+                setMake(next);
+                setMakeOther("");
+                setModel(next === OTHER_VALUE ? OTHER_VALUE : "");
+                setModelOther("");
                 setTrim("");
                 setTrimOther("");
               }}
@@ -1518,12 +1534,25 @@ function VehiclePicker({
               <option value="">{t("vehicle.chooseMake")}</option>
               {Object.keys(VEHICLE_DATA).map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {listedLabel(m, t)}
                 </option>
               ))}
             </select>
           </SelectWrap>
         </label>
+        {make === OTHER_VALUE ? (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.whichMake")}</span>
+            <input
+              name="makeOther"
+              className={inputClass}
+              value={makeOther}
+              onChange={(e) => setMakeOther(e.target.value)}
+              placeholder={t("vehicle.typeHere")}
+              autoComplete="off"
+            />
+          </label>
+        ) : null}
         <label className="block">
           <span className="mb-1.5 block text-sm font-semibold text-muted">{t("book.model")}</span>
           <SelectWrap>
@@ -1535,6 +1564,7 @@ function VehiclePicker({
               disabled={!make}
               onChange={(e) => {
                 setModel(e.target.value);
+                setModelOther("");
                 setTrim("");
                 setTrimOther("");
               }}
@@ -1542,12 +1572,25 @@ function VehiclePicker({
               <option value="">{make ? t("vehicle.chooseModel") : t("vehicle.pickMakeFirst")}</option>
               {models.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {listedLabel(m, t)}
                 </option>
               ))}
             </select>
           </SelectWrap>
         </label>
+        {model === OTHER_VALUE ? (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.whichModel")}</span>
+            <input
+              name="modelOther"
+              className={inputClass}
+              value={modelOther}
+              onChange={(e) => setModelOther(e.target.value)}
+              placeholder={t("vehicle.typeHere")}
+              autoComplete="off"
+            />
+          </label>
+        ) : null}
         <label className="block">
           <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.trimOptional")}</span>
           <SelectWrap>
@@ -1559,15 +1602,15 @@ function VehiclePicker({
               onChange={(e) => setTrim(e.target.value)}
             >
               <option value="">{model ? t("vehicle.skipTrim") : t("vehicle.pickModelFirst")}</option>
-              {trims.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {trims.map((trimName) => (
+                <option key={trimName} value={trimName}>
+                  {listedLabel(trimName, t)}
                 </option>
               ))}
             </select>
           </SelectWrap>
         </label>
-        {trim === "Other" ? (
+        {trim === OTHER_VALUE ? (
           <label className="block">
             <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.whichTrim")}</span>
             <input
@@ -1576,6 +1619,7 @@ function VehiclePicker({
               value={trimOther}
               onChange={(e) => setTrimOther(e.target.value)}
               placeholder={t("vehicle.typeHere")}
+              autoComplete="off"
             />
           </label>
         ) : null}

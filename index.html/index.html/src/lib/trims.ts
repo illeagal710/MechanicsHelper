@@ -115,12 +115,52 @@ const MODEL_TRIMS: Record<string, string[]> = {
   "tesla|model y": ["Rear-Wheel Drive", "Long Range", "Performance", "Juniper", "Other"],
   "tesla|model s": ["Long Range", "Plaid", "Other"],
   "tesla|model x": ["Long Range", "Plaid", "Other"],
-  "bmw|3 series": ["330i", "330e", "M340i", "M3", "xDrive", "Other"],
+  "bmw|3 series": ["318i", "320i", "323i", "325i", "328i", "330i", "330e", "335i", "340i", "M340i", "M3", "xi", "xDrive", "Other"],
+  "bmw|5 series": ["525i", "528i", "530i", "530e", "535i", "540i", "545i", "550i", "M5", "xDrive", "Other"],
+  "bmw|x3": ["sDrive30i", "xDrive30i", "xDrive30e", "M40i", "X3 M", "Other"],
   "bmw|x5": ["sDrive40i", "xDrive40i", "xDrive50e", "M60i", "X5 M", "Other"],
-  "mercedes-benz|c-class": ["C300", "C43 AMG", "C63 AMG", "4MATIC", "Other"],
-  "mercedes-benz|e-class": ["E350", "E450", "E53 AMG", "E63 AMG", "4MATIC", "Other"],
+  "mercedes-benz|c-class": [
+    "C220",
+    "C230",
+    "C230 Kompressor",
+    "C240",
+    "C250",
+    "C280",
+    "C300",
+    "C320",
+    "C350",
+    "C400",
+    "C43 AMG",
+    "C55 AMG",
+    "C63 AMG",
+    "C63 S AMG",
+    "Luxury",
+    "Sport",
+    "4MATIC",
+    "Other",
+  ],
+  "mercedes-benz|c230": ["Kompressor", "Sport", "Luxury", "4MATIC", "1.8 Kompressor", "2.3 Kompressor", "Other"],
+  "mercedes-benz|c230 kompressor": ["Sport", "Luxury", "Kompressor", "1.8T", "2.3 Kompressor", "4MATIC", "Other"],
+  "mercedes-benz|c320": ["Luxury", "Sport", "4MATIC", "3.2 V6", "Other"],
+  "mercedes-benz|c240": ["Luxury", "Sport", "4MATIC", "2.6 V6", "Other"],
+  "mercedes-benz|c250": ["Luxury", "Sport", "4MATIC", "1.8T", "Other"],
+  "mercedes-benz|c280": ["Luxury", "Sport", "4MATIC", "3.0 V6", "Other"],
+  "mercedes-benz|c350": ["Luxury", "Sport", "4MATIC", "3.5 V6", "Other"],
+  "mercedes-benz|e-class": ["E320", "E350", "E400", "E450", "E500", "E550", "E53 AMG", "E55 AMG", "E63 AMG", "4MATIC", "Other"],
+  "mercedes-benz|m-class": ["ML320", "ML350", "ML430", "ML500", "ML550", "ML63 AMG", "4MATIC", "Other"],
+  "mercedes-benz|clk": ["CLK320", "CLK350", "CLK430", "CLK500", "CLK55 AMG", "CLK63 AMG", "Other"],
+  "mercedes-benz|slk": ["SLK230", "SLK230 Kompressor", "SLK320", "SLK350", "SLK55 AMG", "Other"],
+  "chevrolet|silverado": ["WT", "Custom", "LT", "RST", "LTZ", "Trail Boss", "ZR2", "High Country", "2.7T", "5.3 V8", "6.2 V8", "3.0 Duramax", "EV", "4WD", "Other"],
+  "chevrolet|c/k 1500": ["Base", "WT", "LS", "LT", "Z71", "5.0 V8", "5.7 V8", "6.2 V8", "6.5 Diesel", "4WD", "Other"],
+  "gmc|sierra": ["Pro", "SLE", "Elevation", "SLT", "AT4", "AT4X", "Denali", "Denali Ultimate", "2.7T", "5.3 V8", "6.2 V8", "3.0 diesel", "4WD", "Other"],
+  "nissan|ariya": ["Engage", "Venture+", "Evolve+", "Empower+", "Platinum+", "Electric", "AWD", "Other"],
+  "honda|crx": ["HF", "Si", "1.6 I4", "Other"],
+  "toyota|t100": ["Base", "SR5", "DX", "3.0 V6", "4WD", "Other"],
   "lexus|rx": ["350", "350h", "450h", "500h", "F Sport", "Luxury", "AWD", "Other"],
   "lexus|es": ["250", "300h", "350", "F Sport", "Luxury", "Other"],
+  "lexus|is": ["250", "300", "350", "500", "F Sport", "IS F", "AWD", "Other"],
+  "acura|mdx": ["Base", "Technology", "A-Spec", "Advance", "Type S", "SH-AWD", "Other"],
+  "acura|tl": ["Base", "Type S", "3.2", "3.5", "SH-AWD", "Other"],
 };
 
 function unique(list: string[]) {
@@ -137,7 +177,7 @@ function unique(list: string[]) {
 }
 
 export function trimOptions(make: string, model: string) {
-  if (!make || !model || model === "Other") return MAKE_DEFAULTS[make] || GENERIC;
+  if (!make || !model || model === "Other" || make === "Other") return MAKE_DEFAULTS[make] || GENERIC;
   const key = `${make}|${model}`.toLowerCase();
   const stripped = `${make}|${model.replace(/\s+(hybrid|hatchback|coupe|sportback|unlimited)$/i, "")}`.toLowerCase();
   return unique(MODEL_TRIMS[key] || MODEL_TRIMS[stripped] || MAKE_DEFAULTS[make] || GENERIC);

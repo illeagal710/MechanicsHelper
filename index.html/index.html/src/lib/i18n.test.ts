@@ -91,6 +91,14 @@ test("profile vs bay photo labels exist in English and Spanish", () => {
   assert.match(translate("es", "job.photoHint"), /ticket/);
 });
 
+test("Other vehicle free-text labels exist in English and Spanish", () => {
+  assert.equal(translate("en", "vehicle.whichMake"), "Which make?");
+  assert.equal(translate("en", "vehicle.whichModel"), "Which model?");
+  assert.equal(translate("es", "vehicle.whichMake"), "¿Qué marca?");
+  assert.equal(translate("es", "vehicle.whichModel"), "¿Qué modelo?");
+  assert.equal(translate("es", "vehicle.other"), "Otro");
+});
+
 test("booking slot timestamps format 12-hour AM/PM via locale tags", () => {
   const morning = new Date(2026, 8, 17, 8, 0, 0).toISOString();
   const afternoon = new Date(2026, 8, 17, 13, 0, 0).toISOString();
