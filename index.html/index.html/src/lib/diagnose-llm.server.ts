@@ -8,7 +8,7 @@ import {
   type DiagReply,
   type DiagUrgency,
 } from "./diagnose.ts";
-import { translate, type Locale } from "./i18n.ts";
+import { type Locale } from "./i18n.ts";
 
 export const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 export const DEFAULT_GROQ_MODEL = "llama-3.1-8b-instant";
@@ -136,8 +136,8 @@ async function callGroq(
 
 /**
  * Server-side diagnose: Groq when GROQ_API_KEY is set, keyword rules otherwise.
- * 429 / provider errors fall back to diagnoseLocal. Non-car topics are fenced
- * before any network call.
+ * 429 / provider errors fall back to diagnoseLocal with the keyword answer only
+ * (no busy / shop-rules prefix). Non-car topics are fenced before any network call.
  */
 export async function diagnoseWithLlm(
   text: string,
@@ -152,11 +152,6 @@ export async function diagnoseWithLlm(
   if (!apiKey) return local;
 
   const llm = await callGroq(text, locale, apiKey, readModel(opts), opts?.fetch ?? fetch);
-  if (!llm) {
-    return {
-      ...local,
-      text: `${translate(locale, "diag.error")}\n\n${local.text}`,
-    };
-  }
+  if (!llm) return local;
   return llm;
 }

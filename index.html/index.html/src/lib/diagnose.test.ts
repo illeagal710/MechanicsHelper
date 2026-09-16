@@ -68,17 +68,32 @@ test("keyword reply still matches brake and overheating rules", () => {
 });
 
 test("missing GROQ_API_KEY falls back to keyword diagnose.ts", async () => {
+  const local = diagnoseLocal("Brake noise", "en");
   const res = await diagnoseWithLlm("Brake noise", "en", { apiKey: "" });
   assert.equal(res.source, "keyword");
+  assert.equal(res.text, local.text);
+  assertNoBusyPrefix(res.text);
   assert.match(res.text, /Brake noise can be cheap wear indicators/i);
   assert.ok(res.chips.some((c) => /book brake inspection/i.test(c)));
 });
 
+function assertNoBusyPrefix(text: string) {
+  assert.doesNotMatch(text, /helper is busy/i);
+  assert.doesNotMatch(text, /Using shop rules/i);
+  assert.doesNotMatch(text, /shop rules instead/i);
+  assert.doesNotMatch(text, /asistente está ocupado/i);
+  assert.doesNotMatch(text, /reglas del taller/i);
+}
+
 test("missing GROQ_API_KEY still answers 2018 civic not starting", async () => {
-  const res = await diagnoseWithLlm("2018 civic not starting", "en", { apiKey: "" });
+  const exact = "2018 civic not starting";
+  const res = await diagnoseWithLlm(exact, "en", { apiKey: "" });
+  const local = diagnoseLocal(exact, "en");
   assert.notEqual(res.source, "refuse");
   assert.equal(res.source, "keyword");
+  assert.equal(res.text, local.text);
   assert.match(res.text, /no-start is very bookable/i);
+  assertNoBusyPrefix(res.text);
   assert.ok(res.chips.some(isBookChip));
 });
 
@@ -95,34 +110,57 @@ test("missing key still refuses non-car topics without calling Groq", async () =
   assert.equal(called, 0);
   assert.equal(res.source, "refuse");
   assert.equal(res.text, translate("en", "diag.refuse"));
+  assertNoBusyPrefix(res.text);
 });
 
-test("HTTP 429 falls back to keyword rules", async () => {
+test("HTTP 429 falls back to keyword rules without a busy prefix", async () => {
   let called = 0;
   const fetchMock: typeof fetch = async (input) => {
     called += 1;
     assert.equal(String(input), GROQ_CHAT_URL);
     return new Response("rate limited", { status: 429 });
   };
+  const local = diagnoseLocal("Brake noise", "en");
   const res = await diagnoseWithLlm("Brake noise", "en", {
     apiKey: "gsk_test",
     fetch: fetchMock,
   });
   assert.equal(called, 1);
   assert.equal(res.source, "keyword");
-  assert.match(res.text, /shop rules/i);
+  assert.equal(res.text, local.text);
+  assertNoBusyPrefix(res.text);
   assert.match(res.text, /Brake noise can be cheap wear indicators/i);
   assert.ok(res.chips.some(isBookChip));
 });
 
-test("provider error falls back to keyword rules", async () => {
+test("provider error falls back to keyword rules without a busy prefix", async () => {
   const fetchMock: typeof fetch = async () => new Response("nope", { status: 500 });
-  const res = await diagnoseWithLlm("Check engine light", "en", {
+  const exact = "2018 civic not starting";
+  const local = diagnoseLocal(exact, "en");
+  const res = await diagnoseWithLlm(exact, "en", {
+    apiKey: "gsk_test",
+    fetch: fetchMock,
+  });
+  assert.notEqual(res.source, "refuse");
+  assert.equal(res.source, "keyword");
+  assert.equal(res.text, local.text);
+  assertNoBusyPrefix(res.text);
+  assert.match(res.text, /no-start is very bookable/i);
+  assert.ok(res.chips.some(isBookChip));
+});
+
+test("Spanish Groq failure returns only the keyword answer", async () => {
+  const fetchMock: typeof fetch = async () => new Response("rate limited", { status: 429 });
+  const prompt = "Mi Honda no arranca";
+  const local = diagnoseLocal(prompt, "es");
+  const res = await diagnoseWithLlm(prompt, "es", {
     apiKey: "gsk_test",
     fetch: fetchMock,
   });
   assert.equal(res.source, "keyword");
-  assert.match(res.text, /stored fault code/i);
+  assert.equal(res.text, local.text);
+  assertNoBusyPrefix(res.text);
+  assert.ok(res.chips.some(isBookChip));
 });
 
 test("successful Groq JSON is used and keeps a Book chip", async () => {
