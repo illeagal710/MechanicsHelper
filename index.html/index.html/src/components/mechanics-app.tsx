@@ -470,10 +470,7 @@ function Welcome({
   const { locale, t } = useI18n();
   return (
     <div>
-      <div className="mb-4">
-        <BrandWordmark className="h-[148px] w-auto max-w-full object-contain object-left" />
-        <div className="mt-1 text-xs text-muted">{t("app.tagline")}</div>
-      </div>
+      <p className="mb-4 text-xs text-muted">{t("app.tagline")}</p>
       {locked ? (
         <div className="mb-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-accent">{t("welcome.referred")}</p>
