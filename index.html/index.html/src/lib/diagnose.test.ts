@@ -38,6 +38,27 @@ test("fence allows year+model and no-start phrases", () => {
   assert.equal(diagnoseLocal("What's the capital of France?", "en").source, "refuse");
 });
 
+test("2018 civic is a car topic and gets a vehicle answer, not refuse or tell-me-more", () => {
+  assert.equal(isCarTopic("2018 civic"), true);
+  const civic = diagnoseLocal("2018 civic", "en");
+  assert.notEqual(civic.source, "refuse");
+  assert.equal(civic.source, "keyword");
+  assert.doesNotMatch(civic.text, /give me a bit more/i);
+  assert.match(civic.text, /enough to start a ticket/i);
+  assert.ok(civic.chips.some(isBookChip));
+});
+
+test("grinds when stopping is a car topic and uses the brake keyword path", () => {
+  assert.equal(isCarTopic("grinds when stopping"), true);
+  assert.equal(isCarTopic("grinding when I brake"), true);
+  assert.equal(isCarTopic("squeaks when braking"), true);
+  const grind = diagnoseLocal("grinds when stopping", "en");
+  assert.notEqual(grind.source, "refuse");
+  assert.equal(grind.source, "keyword");
+  assert.match(grind.text, /Brake noise can be cheap wear indicators/i);
+  assert.ok(grind.chips.some((c) => /book brake inspection/i.test(c)));
+});
+
 test("fence refuses non-car topics in English and Spanish", () => {
   assert.equal(isCarTopic("What's the capital of France?"), false);
   assert.equal(isOffTopic("What's the capital of France?"), true);
@@ -61,6 +82,10 @@ test("keyword reply still matches brake and overheating rules", () => {
   assert.equal(brake.source, "keyword");
   assert.match(brake.text, /Brake noise can be cheap wear indicators/i);
   assert.ok(brake.chips.some(isBookChip));
+
+  const grind = reply("grinds when stopping", "en");
+  assert.match(grind.text, /Brake noise can be cheap wear indicators/i);
+  assert.ok(grind.chips.some(isBookChip));
 
   const hot = reply("se calienta", "es");
   assert.equal(hot.urgency, "urgent");
@@ -161,6 +186,79 @@ test("Spanish Groq failure returns only the keyword answer", async () => {
   assert.equal(res.text, local.text);
   assertNoBusyPrefix(res.text);
   assert.ok(res.chips.some(isBookChip));
+});
+
+test("year+model and grind phrases reach Groq when a key is set", async () => {
+  const seen: string[] = [];
+  const fetchMock: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String((init as RequestInit)?.body || "{}")) as {
+      messages?: { role?: string; content?: string }[];
+    };
+    seen.push(body.messages?.find((m) => m.role === "user")?.content || "");
+    return new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                text: "Shop answer for that vehicle.",
+                chips: ["Book a look"],
+                urgency: "normal",
+                refused: false,
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  const civic = await diagnoseWithLlm("2018 civic", "en", { apiKey: "gsk_test", fetch: fetchMock });
+  const grind = await diagnoseWithLlm("grinds when stopping", "en", {
+    apiKey: "gsk_test",
+    fetch: fetchMock,
+  });
+  assert.deepEqual(seen, ["2018 civic", "grinds when stopping"]);
+  assert.equal(civic.source, "llm");
+  assert.equal(grind.source, "llm");
+  assert.match(civic.text, /Shop answer for that vehicle/);
+});
+
+test("Groq refuse on a car topic falls back to keyword, not refuse()", async () => {
+  const fetchMock: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({ refused: true, text: "nope" }) } }],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  const civic = await diagnoseWithLlm("2018 civic", "en", { apiKey: "gsk_test", fetch: fetchMock });
+  assert.notEqual(civic.source, "refuse");
+  assert.equal(civic.source, "keyword");
+  assert.match(civic.text, /enough to start a ticket/i);
+  assertNoBusyPrefix(civic.text);
+
+  const grind = await diagnoseWithLlm("grinds when stopping", "en", {
+    apiKey: "gsk_test",
+    fetch: fetchMock,
+  });
+  assert.notEqual(grind.source, "refuse");
+  assert.equal(grind.source, "keyword");
+  assert.match(grind.text, /Brake noise can be cheap wear indicators/i);
+  assertNoBusyPrefix(grind.text);
+});
+
+test("missing key still answers 2018 civic and grinds when stopping", async () => {
+  const civic = await diagnoseWithLlm("2018 civic", "en", { apiKey: "" });
+  assert.notEqual(civic.source, "refuse");
+  assert.equal(civic.text, diagnoseLocal("2018 civic", "en").text);
+  assert.doesNotMatch(civic.text, /give me a bit more/i);
+  assertNoBusyPrefix(civic.text);
+
+  const grind = await diagnoseWithLlm("grinds when stopping", "en", { apiKey: "" });
+  assert.notEqual(grind.source, "refuse");
+  assert.match(grind.text, /Brake noise can be cheap wear indicators/i);
+  assertNoBusyPrefix(grind.text);
 });
 
 test("successful Groq JSON is used and keeps a Book chip", async () => {
