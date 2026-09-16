@@ -34,7 +34,7 @@ const en = {
   "welcome.title1": "Sign in to book",
   "welcome.title2": "or run the bay.",
   "welcome.body":
-    "Customers track repairs. Shops and independents share a find code so people land on the right bay.",
+    "Customers track repairs. Shops and independents each get a QR or referral code so people land on the right bay.",
   "welcome.haveCode": "Have a shop or mechanic code?",
   "welcome.codePlaceholder": "RIV4 or LEON",
   "welcome.find": "Find",
@@ -596,7 +596,7 @@ const es: Record<MessageKey, string> = {
   "welcome.title1": "Inicia sesión para reservar",
   "welcome.title2": "o atender el taller.",
   "welcome.body":
-    "Los clientes siguen las reparaciones. Talleres e independientes comparten un código para que la gente llegue al lugar correcto.",
+    "Los clientes siguen las reparaciones. Cada taller e independiente recibe un QR o un código de referido para que la gente llegue al lugar correcto.",
   "welcome.haveCode": "¿Tienes un código de taller o mecánico?",
   "welcome.codePlaceholder": "RIV4 o LEON",
   "welcome.find": "Buscar",
