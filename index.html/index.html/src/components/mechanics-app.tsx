@@ -8,6 +8,7 @@ import {
   MapPin,
   MessageCircle,
   QrCode,
+  Settings,
   UserRound,
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
@@ -426,14 +427,23 @@ function BrandWordmark({ className }: { className?: string }) {
   );
 }
 
-function Top({ title, onBack }: { title: string; onBack: () => void }) {
+function Top({
+  title,
+  onBack,
+  action,
+}: {
+  title: string;
+  onBack: () => void;
+  action?: React.ReactNode;
+}) {
   const { t } = useI18n();
   return (
     <div className="mb-4 flex items-center gap-2.5">
       <button type="button" onClick={onBack} className="grid size-9 place-items-center rounded-[10px] border border-line bg-surface" aria-label={t("nav.back")}>
         <ArrowLeft className="size-4" />
       </button>
-      <h2 className="text-lg font-semibold">{title}</h2>
+      <h2 className="min-w-0 flex-1 text-lg font-semibold">{title}</h2>
+      {action ?? null}
     </div>
   );
 }
@@ -1766,6 +1776,65 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
   );
 }
 
+function AccountSettingsPanels({
+  user,
+  flash,
+  onSaved,
+}: {
+  user: User;
+  flash: (s: string) => void;
+  onSaved: (u: User) => void;
+}) {
+  const { locale, t } = useI18n();
+  return (
+    <>
+      <div className="rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.language")}</p>
+        <p className="mt-1 mb-3 text-sm text-muted">{t("account.languageHint")}</p>
+        <LanguageToggle />
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.theme")}</p>
+        <p className="mt-1 mb-3 text-sm text-muted">{t("account.themeHint")}</p>
+        <ThemeToggle />
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
+        <p className="mt-2 text-sm text-muted">
+          {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
+        </p>
+        <button
+          type="button"
+          className="mt-3 h-11 w-full rounded-xl border border-line bg-surface2 font-semibold"
+          onClick={async () => {
+            if (typeof Notification === "undefined") {
+              flash(t("toast.alertsUnsupported"));
+              return;
+            }
+            const perm = await Notification.requestPermission();
+            if (perm !== "granted") {
+              await Store.saveAlerts(user, user.pushToken || "", false);
+              return flash(t("toast.alertsOff"));
+            }
+            const token = "web-" + user.id;
+            const res = await Store.saveAlerts(user, token, true);
+            if (!res.ok) return flash(translateStoreError(locale, res.error));
+            onSaved(res.user);
+            try {
+              new Notification(t("app.name"), { body: t("account.alertsNotifBody") });
+            } catch {
+              /* ignore */
+            }
+            flash(t("toast.alertsOn"));
+          }}
+        >
+          {user.alertsOn ? t("account.alertsOnBtn") : t("account.alertsTurnOn")}
+        </button>
+      </div>
+    </>
+  );
+}
+
 function Account({
   user,
   locked,
@@ -1813,6 +1882,7 @@ function Account({
   const [indyClose, setIndyClose] = useState(user.hoursClose || "16:00");
   const [deletePw, setDeletePw] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   void locked;
   const label =
     user.role === "shop"
@@ -1823,9 +1893,32 @@ function Account({
         ? t("account.indyMech")
         : t("account.customer");
 
+  if (settingsOpen) {
+    return (
+      <div data-account-settings="">
+        <Top title={t("account.settings")} onBack={() => setSettingsOpen(false)} />
+        <AccountSettingsPanels user={user} flash={flash} onSaved={onSaved} />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <Top title={t("account.title")} onBack={onBack} />
+      <Top
+        title={t("account.title")}
+        onBack={onBack}
+        action={
+          <button
+            type="button"
+            data-account-settings-open=""
+            className="grid size-9 place-items-center rounded-[10px] border border-line bg-surface"
+            aria-label={t("account.settings")}
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings className="size-4" />
+          </button>
+        }
+      />
       <div className="rounded-xl border border-line bg-surface p-4">
         <div className="flex items-start gap-3">
           <Face src={profilePhoto} name={user.name} size="lg" />
@@ -1870,49 +1963,18 @@ function Account({
           }}
         />
       </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.language")}</p>
-        <p className="mt-1 mb-3 text-sm text-muted">{t("account.languageHint")}</p>
-        <LanguageToggle />
-      </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.theme")}</p>
-        <p className="mt-1 mb-3 text-sm text-muted">{t("account.themeHint")}</p>
-        <ThemeToggle />
-      </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
-        <p className="mt-2 text-sm text-muted">
-          {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
-        </p>
-        <button
-          type="button"
-          className="mt-3 h-11 w-full rounded-xl border border-line bg-surface2 font-semibold"
-          onClick={async () => {
-            if (typeof Notification === "undefined") {
-              flash(t("toast.alertsUnsupported"));
-              return;
-            }
-            const perm = await Notification.requestPermission();
-            if (perm !== "granted") {
-              await Store.saveAlerts(user, user.pushToken || "", false);
-              return flash(t("toast.alertsOff"));
-            }
-            const token = "web-" + user.id;
-            const res = await Store.saveAlerts(user, token, true);
-            if (!res.ok) return flash(translateStoreError(locale, res.error));
-            onSaved(res.user);
-            try {
-              new Notification(t("app.name"), { body: t("account.alertsNotifBody") });
-            } catch {
-              /* ignore */
-            }
-            flash(t("toast.alertsOn"));
-          }}
-        >
-          {user.alertsOn ? t("account.alertsOnBtn") : t("account.alertsTurnOn")}
-        </button>
-      </div>
+      <button
+        type="button"
+        data-account-settings-open=""
+        className="mt-3 flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4 text-left"
+        onClick={() => setSettingsOpen(true)}
+      >
+        <span>
+          <span className="block text-sm font-semibold">{t("account.settings")}</span>
+          <span className="mt-1 block text-sm text-muted">{t("account.settingsHint")}</span>
+        </span>
+        <Settings className="size-5 shrink-0 text-muted" />
+      </button>
       {shop && (
         <form
           className="mt-3 rounded-xl border border-line bg-surface p-4"

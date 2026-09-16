@@ -92,6 +92,13 @@ test("theme labels exist in English and Spanish", () => {
   assert.match(translate("es", "account.themeHint"), /claro|oscuro/i);
 });
 
+test("Account Settings label exists in English and Spanish", () => {
+  assert.equal(translate("en", "account.settings"), "Settings");
+  assert.equal(translate("es", "account.settings"), "Ajustes");
+  assert.match(translate("en", "account.settingsHint"), /language|theme|alert/i);
+  assert.match(translate("es", "account.settingsHint"), /idioma|tema|alerta/i);
+});
+
 test("helper fence, loading, and fallback strings exist in English and Spanish", () => {
   assert.match(translate("en", "diag.refuse"), /cars, vehicles, repair/i);
   assert.match(translate("es", "diag.refuse"), /autos, vehículos, reparación/i);

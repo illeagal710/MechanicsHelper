@@ -233,6 +233,8 @@ const en = {
   "diag.error": "The helper is busy. Using shop rules instead.",
 
   "account.title": "Account",
+  "account.settings": "Settings",
+  "account.settingsHint": "Language, theme, and app alerts.",
   "account.noEmail": "No email",
   "account.noPhone": "No phone",
   "account.shopOwner": "Shop owner",
@@ -738,6 +740,8 @@ const es: Record<MessageKey, string> = {
   "diag.error": "El asistente está ocupado. Uso las reglas del taller.",
 
   "account.title": "Cuenta",
+  "account.settings": "Ajustes",
+  "account.settingsHint": "Idioma, tema y alertas de la app.",
   "account.noEmail": "Sin correo",
   "account.noPhone": "Sin teléfono",
   "account.shopOwner": "Dueño del taller",
