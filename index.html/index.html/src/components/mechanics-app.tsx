@@ -13,7 +13,7 @@ import {
 import { QrShare } from "@/components/qr-share";
 import { Face, PhotoPicker } from "@/components/photo-input";
 import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, jobPhotoOf } from "@/lib/photos";
-import { diagnoseLocal, greet, isBookChip } from "@/lib/diagnose";
+import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
 import {
@@ -1666,11 +1666,6 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
     });
   }, [locale]);
 
-  const userText = messages
-    .filter((m) => m.role === "user")
-    .map((m) => m.text)
-    .join(" — ");
-
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
@@ -1705,7 +1700,11 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
                     type="button"
                     disabled={busy}
                     className="rounded-full border border-line bg-bg2 px-3.5 py-2 text-[15px] font-semibold text-fg disabled:opacity-50"
-                    onClick={() => (isBookChip(c) ? onBook(userText || c) : send(c))}
+                    onClick={() =>
+                      isBookChip(c)
+                        ? onBook(bookingSymptomsFromChat(messages, i) || c)
+                        : send(c)
+                    }
                   >
                     {c}
                   </button>

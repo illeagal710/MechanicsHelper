@@ -275,6 +275,17 @@ function normalized(text: string): string {
   return (text || "").toLowerCase();
 }
 
+export function bookingSymptomsFromChat(
+  messages: { role: string; text: string }[],
+  bookAt: number,
+): string {
+  return messages
+    .slice(0, Math.max(0, bookAt))
+    .filter((m) => m.role === "user")
+    .map((m) => m.text)
+    .join(" — ");
+}
+
 export function isBookChip(text: string): boolean {
   return /book|reservar/i.test(text);
 }

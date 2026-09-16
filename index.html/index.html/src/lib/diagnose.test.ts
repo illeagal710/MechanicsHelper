@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  bookingSymptomsFromChat,
   diagnoseLocal,
   isBookChip,
   isCarTopic,
@@ -129,4 +130,16 @@ test("successful Groq JSON is used and keeps a Book chip", async () => {
 test("refuse() copy is bilingual", () => {
   assert.match(refuse("en").text, /cars, vehicles, repair/i);
   assert.match(refuse("es").text, /autos, vehículos, reparación/i);
+});
+
+test("Book chip prefills only user text from before that reply", () => {
+  const chat = [
+    { role: "bot", text: "greet" },
+    { role: "user", text: "Brake noise" },
+    { role: "bot", text: "pads" },
+    { role: "user", text: "What's the capital of France?" },
+    { role: "bot", text: "refuse" },
+  ];
+  assert.equal(bookingSymptomsFromChat(chat, 2), "Brake noise");
+  assert.equal(bookingSymptomsFromChat(chat, 4), "Brake noise — What's the capital of France?");
 });
