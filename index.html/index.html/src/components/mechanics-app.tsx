@@ -47,6 +47,13 @@ import {
 import { missingRequiredBookingFields, normalizeSymptoms } from "@/lib/booking";
 import { resolveBookingProvider } from "@/lib/booking-provider";
 import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
+import {
+  PIPELINE_STATUSES,
+  canDeclineStatus,
+  declineReasonFromNotes,
+  shopBoardJobs,
+  type ShopBoardFilter,
+} from "@/lib/job-status";
 import { trimOptions } from "@/lib/trims";
 import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
 
@@ -1244,7 +1251,7 @@ function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () 
   const { locale } = useI18n();
   const st = statusMeta(job.status);
   return (
-    <button type="button" onClick={onClick} className="tap w-full rounded-2xl border border-line bg-surface p-3.5 text-left">
+    <button type="button" onClick={onClick} className="tap w-full rounded-2xl border border-line bg-surface p-3.5 text-left" data-job-id={job.id} data-job-status={job.status}>
       <div className="flex gap-3">
         <img
           src={ticketVehiclePhotoOf(job)}
@@ -1301,12 +1308,12 @@ function ShopHome({
   tick: number;
 }) {
   const { t } = useI18n();
-  const [filter, setFilter] = useState<"active" | "ready" | "all">("active");
-  const jobs = Store.providerJobs(user).slice().sort((a, b) => +new Date(a.slot) - +new Date(b.slot));
-  const active = jobs.filter((j) => j.status !== "done");
+  const [filter, setFilter] = useState<ShopBoardFilter>("active");
+  const jobs = Store.providerJobs(user);
+  const active = shopBoardJobs(jobs, "active");
   const ready = jobs.filter((j) => j.status === "ready").length;
   const busy = jobs.filter((j) => ["enroute", "checkedin", "diagnosing", "parts", "repair"].includes(j.status)).length;
-  const list = filter === "ready" ? jobs.filter((j) => j.status === "ready") : filter === "all" ? jobs : active;
+  const list = shopBoardJobs(jobs, filter);
   const title = user.role === "independent" ? user.businessName || t("shop.independent") : user.shopName || t("shop.shop");
   const publicBio =
     user.role === "independent"
@@ -1353,9 +1360,9 @@ function ShopHome({
         </div>
       </div>
       <div className="mb-3 flex rounded-xl bg-bg2 p-1">
-        {(["active", "ready", "all"] as const).map((f) => (
-          <button key={f} type="button" onClick={() => setFilter(f)} className={`flex-1 rounded-lg py-2 text-xs font-semibold ${filter === f ? "bg-surface2" : "text-muted"}`}>
-            {f === "active" ? t("shop.open") : f === "ready" ? t("shop.ready") : t("shop.all")}
+        {(["active", "ready", "history"] as const).map((f) => (
+          <button key={f} type="button" data-shop-filter={f} onClick={() => setFilter(f)} className={`flex-1 rounded-lg py-2 text-xs font-semibold ${filter === f ? "bg-surface2" : "text-muted"}`}>
+            {f === "active" ? t("shop.open") : f === "ready" ? t("shop.ready") : t("shop.history")}
           </button>
         ))}
       </div>
@@ -1363,7 +1370,11 @@ function ShopHome({
         {list.map((j) => (
           <JobCard key={j.id} job={j} shop onClick={() => onOpen(j.id)} />
         ))}
-        {!list.length && <p className="p-6 text-center text-sm text-muted">{t("shop.empty")}</p>}
+        {!list.length && (
+          <p className="p-6 text-center text-sm text-muted">
+            {filter === "history" ? t("shop.historyEmpty") : t("shop.empty")}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -1391,9 +1402,12 @@ function JobDetail({
   const job = Store.load().jobs.find((j) => j.id === id);
   if (!job) return <p className="text-muted">{t("job.notFound")}</p>;
   const st = statusMeta(job.status);
-  const idx = (["scheduled", "enroute", "checkedin", "diagnosing", "parts", "repair", "ready", "done"] as const).indexOf(job.status);
+  const idx = (PIPELINE_STATUSES as readonly string[]).indexOf(job.status);
   const shopRec = user?.shopId ? Store.shopRecord(user.shopId) : null;
   const dates = localeTag(locale);
+  const declined = job.status === "declined";
+  const declineReason = declineReasonFromNotes(job.notes);
+  const showDecline = shop && canDeclineStatus(job.status);
   return (
     <div>
       <Top title={job.id} onBack={onBack} />
@@ -1444,43 +1458,85 @@ function JobDetail({
         )}
       </div>
       <h2 className="mb-2 mt-4 font-semibold">{t("job.progress")}</h2>
-      <div>
-        {(["scheduled", "enroute", "checkedin", "diagnosing", "parts", "repair", "ready", "done"] as const).map((s, i) => {
-          const meta = statusMeta(s);
-          const on = i <= idx;
-          const row = (
-            <div className="grid grid-cols-[18px_1fr] gap-3 pb-3 text-left">
-              <div className={`mt-0.5 size-[18px] rounded-full border-2 ${on ? "border-accent bg-accent" : "border-dim"}`} />
-              <div>
-                <div className={`text-sm font-semibold ${job.status === s ? "text-accent" : ""}`}>
-                  {statusText(locale, s, shop ? "shop" : "customer")}
+      {declined ? (
+        <div className="mb-3 rounded-xl border border-danger/40 bg-danger/10 p-4" data-ticket-status="declined">
+          <p className="text-sm font-semibold text-danger">
+            {statusText(locale, "declined", shop ? "shop" : "customer")}
+          </p>
+          <p className="mt-1 text-sm text-muted">{t("job.declinedBanner")}</p>
+          {declineReason ? (
+            <p className="mt-2 text-sm text-fg">{t("job.declinedReason", { reason: declineReason })}</p>
+          ) : null}
+        </div>
+      ) : (
+        <div>
+          {PIPELINE_STATUSES.map((s, i) => {
+            const meta = statusMeta(s);
+            const on = i <= idx;
+            const row = (
+              <div className="grid grid-cols-[18px_1fr] gap-3 pb-3 text-left">
+                <div className={`mt-0.5 size-[18px] rounded-full border-2 ${on ? "border-accent bg-accent" : "border-dim"}`} />
+                <div>
+                  <div className={`text-sm font-semibold ${job.status === s ? "text-accent" : ""}`}>
+                    {statusText(locale, s, shop ? "shop" : "customer")}
+                  </div>
+                  {i === idx && (
+                    <div className="text-xs text-dim">{t("job.current", { when: fmtShort(job.notes.slice(-1)[0]?.at || job.createdAt, dates) })}</div>
+                  )}
+                  {shop && i !== idx ? <div className="text-xs text-dim">{t("job.tapToSet")}</div> : null}
                 </div>
-                {i === idx && (
-                  <div className="text-xs text-dim">{t("job.current", { when: fmtShort(job.notes.slice(-1)[0]?.at || job.createdAt, dates) })}</div>
-                )}
-                {shop && i !== idx ? <div className="text-xs text-dim">{t("job.tapToSet")}</div> : null}
               </div>
-            </div>
-          );
-          if (!shop) return <div key={s}>{row}</div>;
-          return (
+            );
+            if (!shop) return <div key={s}>{row}</div>;
+            return (
+              <button
+                key={s}
+                type="button"
+                className="tap w-full"
+                onClick={async () => {
+                  await Store.updateJob(job.id, { status: s });
+                  await Store.addNote(job.id, "Status set to " + meta.label, "shop");
+                  flash?.(t("toast.statusUpdated"));
+                  bump();
+                }}
+              >
+                {row}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {showDecline && (
+        <div className="mt-1 rounded-xl border border-line bg-surface p-4" data-ticket-action="decline">
+          <p className="text-sm font-semibold">{t("job.decline")}</p>
+          <p className="mt-1 text-sm text-muted">{t("job.declineHint")}</p>
+          <form
+            className="mt-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const reason = String(new FormData(e.currentTarget).get("reason") || "").trim();
+              const res = await Store.declineJob(job.id, reason);
+              if (!res.ok) {
+                flash?.(translateStoreError(locale, res.error));
+                return;
+              }
+              flash?.(t("toast.bookingDeclined"));
+              bump();
+            }}
+          >
+            <Field label={t("job.declineReason")}>
+              <textarea name="reason" className={inputClass + " min-h-20"} placeholder={t("job.declineReasonPh")} />
+            </Field>
             <button
-              key={s}
-              type="button"
-              className="tap w-full"
-              onClick={async () => {
-                await Store.updateJob(job.id, { status: s });
-                await Store.addNote(job.id, "Status set to " + meta.label, "shop");
-                flash?.(t("toast.statusUpdated"));
-                bump();
-              }}
+              type="submit"
+              className="mt-2 h-12 w-full rounded-xl border border-danger/50 bg-danger/10 font-semibold text-danger"
             >
-              {row}
+              {t("job.declineConfirm")}
             </button>
-          );
-        })}
-      </div>
-      {shop && user?.role === "shop" && shopRec && (
+          </form>
+        </div>
+      )}
+      {shop && user?.role === "shop" && shopRec && !declined && (
         <Field label={t("job.assign")}>
           <select
             className={inputClass}
@@ -1498,7 +1554,7 @@ function JobDetail({
           </select>
         </Field>
       )}
-      {shop && (
+      {shop && !declined && (
         <div className="mt-3">
           <form
             className="mt-3"

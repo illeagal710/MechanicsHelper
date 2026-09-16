@@ -3,6 +3,7 @@ import { getSql } from "@/lib/db";
 import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
 import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
+import { applyDecline, slotTakenAmong } from "@/lib/job-status";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
@@ -234,6 +235,45 @@ export async function ensureSeeded() {
         { at: now - 86400000, text: "Booked online.", by: "system" },
         { at: now - 3600000 * 2, text: "Service complete. Cabin filter replaced.", by: "shop" },
       ],
+    },
+    {
+      id: "MH-4810",
+      createdAt: now - 86400000 * 12,
+      providerId: "s-main",
+      providerType: "shop",
+      providerName: "Riverside Auto",
+      assignedTo: "Alex Ruiz",
+      name: "Maya Chen",
+      phone: "5550148821",
+      email: "maya@example.com",
+      year: "2018",
+      make: "Honda",
+      model: "Civic",
+      symptoms: "Battery died overnight. Jump start plus test.",
+      slot: slotDays(-8, "10:00"),
+      status: "done",
+      notes: [
+        { at: now - 86400000 * 12, text: "Booked online.", by: "system" },
+        { at: now - 86400000 * 8, text: "Status set to Completed", by: "shop" },
+      ],
+    },
+    {
+      id: "MH-4823",
+      createdAt: now - 3600000,
+      providerId: "s-main",
+      providerType: "shop",
+      providerName: "Riverside Auto",
+      assignedTo: "",
+      name: "Priya Shah",
+      phone: "5550167742",
+      email: "priya@example.com",
+      year: "2021",
+      make: "Subaru",
+      model: "Outback",
+      symptoms: "A/C blows warm on the highway.",
+      slot: slotDays(2, "13:00"),
+      status: "scheduled",
+      notes: [{ at: now - 3600000, text: "Booked from customer app.", by: "system" }],
     },
   ];
   for (const j of jobs) {
@@ -703,13 +743,7 @@ export async function addJob(job: Job) {
   await ensureSeeded();
   job = { ...job, symptoms: normalizeSymptoms(job.symptoms) };
   const board = await loadBoard();
-  const t = new Date(job.slot).getTime();
-  const taken = board.jobs.some(
-    (j) =>
-      j.providerId === job.providerId &&
-      j.status !== "done" &&
-      new Date(j.slot).getTime() === t,
-  );
+  const taken = slotTakenAmong(board.jobs, job.providerId, job.slot);
   if (taken) {
     return { ok: false as const, error: "That time is already booked. Pick another slot." };
   }
@@ -784,6 +818,36 @@ export async function addNote(id: string, text: string, by = "shop") {
     JSON.stringify(job.notes),
   ]);
   return job;
+}
+
+export async function declineJob(id: string, reason = "") {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const result = applyDecline(job, reason);
+  if (!result.ok) return result;
+  const sql = await getSql();
+  await sql.query("update mh_jobs set status = $2, notes_json = $3 where id = $1", [
+    job.id,
+    result.job.status,
+    JSON.stringify(result.job.notes),
+  ]);
+  job.status = result.job.status;
+  job.notes = result.job.notes;
+  let mail: "sent" | "skip" | "fail" = "skip";
+  if (result.mail.send) {
+    try {
+      const sent = await sendEmail({
+        to: result.mail.to,
+        subject: result.mail.subject,
+        text: result.mail.text,
+      });
+      mail = sent.ok ? "sent" : sent.skipped ? "skip" : "fail";
+    } catch {
+      mail = "skip";
+    }
+  }
+  return { ok: true as const, job, mail };
 }
 
 export function jobCode() {

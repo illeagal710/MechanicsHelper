@@ -1,6 +1,7 @@
 import {
   mhAddJob,
   mhAddNote,
+  mhDeclineJob,
   mhAddTech,
   mhBoard,
   mhLogin,
@@ -24,18 +25,11 @@ import {
   type VehicleFields,
 } from "@/lib/customer-vehicles";
 import { TIME_12H } from "@/lib/i18n";
+import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
 
 export type Role = "customer" | "shop" | "independent";
 
-export type StatusId =
-  | "scheduled"
-  | "enroute"
-  | "checkedin"
-  | "diagnosing"
-  | "parts"
-  | "repair"
-  | "ready"
-  | "done";
+export type StatusId = JobStatusId;
 
 export type User = {
   id: string;
@@ -182,6 +176,7 @@ export const STATUSES: {
   { id: "repair", label: "In repair", customer: "Work is underway", badge: "repair" },
   { id: "ready", label: "Ready for pickup", customer: "Your vehicle is ready", badge: "ready" },
   { id: "done", label: "Completed", customer: "Picked up — thank you", badge: "done" },
+  { id: "declined", label: "Declined", customer: "The shop declined this booking", badge: "declined" },
 ];
 
 type DB = { shops: Shop[]; users: User[]; jobs: Job[] };
@@ -378,15 +373,7 @@ export const Store = {
   },
 
   slotTaken(providerId: string | undefined, slotIso: string) {
-    if (!providerId) return false;
-    const t = new Date(slotIso).getTime();
-    if (!Number.isFinite(t)) return false;
-    return cache.jobs.some(
-      (j) =>
-        j.providerId === providerId &&
-        j.status !== "done" &&
-        new Date(j.slot).getTime() === t,
-    );
+    return slotTakenAmong(cache.jobs, providerId, slotIso);
   },
 
   hoursFor(providerId: string | undefined) {
@@ -602,6 +589,12 @@ export const Store = {
     const saved = await mhAddNote({ data: { id, text, by } });
     await this.hydrate();
     return saved;
+  },
+
+  async declineJob(id: string, reason = "") {
+    const res = await mhDeclineJob({ data: { id, reason } });
+    await this.hydrate();
+    return res;
   },
 };
 
