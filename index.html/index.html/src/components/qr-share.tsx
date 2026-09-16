@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Download, Printer, RefreshCw, Share2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
 import { qrDataUrl, qrPrintDataUrl, referralUrl } from "@/lib/qr";
 
 export function QrShare({
@@ -15,6 +16,7 @@ export function QrShare({
   canRotate?: boolean;
   rotateHint?: string;
 }) {
+  const { t } = useI18n();
   const [src, setSrc] = useState("");
   const [copied, setCopied] = useState<"code" | "link" | "">("");
   const link = typeof window === "undefined" ? "" : referralUrl(code);
@@ -62,7 +64,10 @@ export function QrShare({
     }
     const safeTitle = title.replace(/</g, "");
     const safeCode = code.replace(/</g, "");
-    win.document.write(`<!doctype html><html><head><title>${safeCode} print</title>
+    const scan = t("qr.printScan").replace(/</g, "");
+    const hint = t("qr.printHint").replace(/</g, "");
+    const printTitle = t("qr.printTitle", { code: safeCode }).replace(/</g, "");
+    win.document.write(`<!doctype html><html><head><title>${printTitle}</title>
 <style>
   @page { size: letter; margin: 0.6in; }
   body { font-family: system-ui, sans-serif; text-align: center; color: #111; }
@@ -72,11 +77,11 @@ export function QrShare({
   .code { font-family: ui-monospace, monospace; font-size: 42px; letter-spacing: 0.18em; font-weight: 700; margin: 10px 0 4px; }
   .hint { font-size: 14px; }
 </style></head><body>
-  <p class="hint">Scan to book</p>
+  <p class="hint">${scan}</p>
   <h1>${safeTitle}</h1>
   <img src="${png}" alt="QR" />
   <div class="code">${safeCode}</div>
-  <p class="hint">Or type this find code in Mechanics Helper.</p>
+  <p class="hint">${hint}</p>
   <script>window.onload = function () { window.print(); }<\/script>
 </body></html>`);
     win.document.close();
@@ -86,7 +91,7 @@ export function QrShare({
     try {
       await navigator.share({
         title: title,
-        text: `Book with ${title}. Find code ${code}`,
+        text: t("qr.shareText", { title, code }),
         url: link,
       });
     } catch {
@@ -96,20 +101,18 @@ export function QrShare({
 
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Customer find code</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("qr.findCode")}</p>
       <h2 className="mt-1 text-lg font-semibold">{title}</h2>
-      <p className="mt-1 text-sm text-muted">
-        Print, text, or leave on the counter. Customers scan or type this and book you — not a random shop.
-      </p>
+      <p className="mt-1 text-sm text-muted">{t("qr.hint")}</p>
       <div className="mt-4 flex items-center gap-3 rounded-xl bg-bg2 p-3">
         {src ? (
-          <img src={src} alt={`QR code for ${code}`} className="size-36 shrink-0 rounded-lg bg-accent/10 p-1.5" />
+          <img src={src} alt={t("qr.alt", { code })} className="size-36 shrink-0 rounded-lg bg-accent/10 p-1.5" />
         ) : (
           <div className="size-36 shrink-0 animate-pulse rounded-lg bg-surface2" />
         )}
         <div className="min-w-0 flex-1 text-center">
           <div className="font-mono text-3xl font-semibold tracking-[0.18em] text-accent">{code}</div>
-          <p className="mt-1 text-xs text-dim">4-letter find code</p>
+          <p className="mt-1 text-xs text-dim">{t("qr.fourLetter")}</p>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -119,7 +122,7 @@ export function QrShare({
           onClick={() => void copy("code")}
         >
           {copied === "code" ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied === "code" ? "Copied" : "Copy code"}
+          {copied === "code" ? t("qr.copied") : t("qr.copyCode")}
         </button>
         <button
           type="button"
@@ -127,7 +130,7 @@ export function QrShare({
           onClick={() => void copy("link")}
         >
           {copied === "link" ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied === "link" ? "Copied" : "Copy link"}
+          {copied === "link" ? t("qr.copied") : t("qr.copyLink")}
         </button>
         <button
           type="button"
@@ -135,7 +138,7 @@ export function QrShare({
           onClick={download}
         >
           <Download className="size-4" />
-          Save QR
+          {t("qr.saveQr")}
         </button>
         <button
           type="button"
@@ -143,7 +146,7 @@ export function QrShare({
           onClick={() => void printSheet()}
         >
           <Printer className="size-4" />
-          Print sheet
+          {t("qr.printSheet")}
         </button>
         {canNativeShare ? (
           <button
@@ -152,7 +155,7 @@ export function QrShare({
             onClick={() => void shareNative()}
           >
             <Share2 className="size-4" />
-            Share
+            {t("qr.share")}
           </button>
         ) : null}
       </div>
@@ -161,14 +164,12 @@ export function QrShare({
           type="button"
           className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-muted"
           onClick={() => {
-            const ok = window.confirm(
-              "Generate a new code?\n\nThrow away or cover the old QR. Any sticker, paper, or saved QR with the old code will not work anymore. Print a new sheet after this.",
-            );
-           if (ok) void onRotate();
+            const ok = window.confirm(t("qr.rotateConfirm"));
+            if (ok) void onRotate();
           }}
         >
           <RefreshCw className="size-4" />
-          New code + QR
+          {t("qr.newCodeQr")}
         </button>
       ) : null}
       {rotateHint ? <p className="mt-1 text-xs text-dim">{rotateHint}</p> : null}
