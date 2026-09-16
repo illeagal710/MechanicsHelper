@@ -12,6 +12,7 @@ import {
   mhSavePush,
   mhUpdateShop,
 } from "@/lib/mh-api";
+import { TIME_12H } from "@/lib/i18n";
 
 export type Role = "customer" | "shop" | "independent";
 
@@ -551,8 +552,7 @@ export function fmtWhen(iso: string, locale?: string) {
     weekday: "short",
     month: "short",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+    ...TIME_12H,
   });
 }
 
@@ -560,8 +560,7 @@ export function fmtShort(isoOrMs: string | number, locale?: string) {
   return new Date(isoOrMs).toLocaleString(locale || undefined, {
     month: "short",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+    ...TIME_12H,
   });
 }
 

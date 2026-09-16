@@ -14,6 +14,7 @@ import { QrShare } from "@/components/qr-share";
 import { greet, isBookChip, reply } from "@/lib/diagnose";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
 import {
+  formatClock,
   formatHoursLabel,
   kindText,
   localeTag,
@@ -1948,7 +1949,7 @@ function HoursEditor({
               <select className={selectClass} value={open} onChange={(e) => onOpen(e.target.value)}>
                 {times.map((time) => (
                   <option key={time} value={time}>
-                    {t("hours.opens", { time })}
+                    {t("hours.opens", { time: formatClock(locale, time) })}
                   </option>
                 ))}
               </select>
@@ -1957,7 +1958,7 @@ function HoursEditor({
               <select className={selectClass} value={close} onChange={(e) => onClose(e.target.value)}>
                 {times.map((time) => (
                   <option key={time} value={time}>
-                    {t("hours.closes", { time })}
+                    {t("hours.closes", { time: formatClock(locale, time) })}
                   </option>
                 ))}
               </select>

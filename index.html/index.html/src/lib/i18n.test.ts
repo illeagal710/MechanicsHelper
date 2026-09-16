@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  TIME_12H,
+  formatClock,
   formatHoursLabel,
   interpolate,
+  localeTag,
   messages,
   privacySections,
   statusText,
@@ -52,4 +55,42 @@ test("production store errors and hours labels translate", () => {
   assert.equal(translateStoreError("es", "Password is wrong."), "La contraseña es incorrecta.");
   assert.match(formatHoursLabel("es", { hoursDays: "123456", hoursOpen: "08:00", hoursClose: "16:00" }), /Lun–Sáb/);
   assert.equal(privacySections("es")[0].title, "Para quién es esto");
+});
+
+function assertMeridiem(label: string) {
+  assert.match(label, /[AaPp]\.?\s*[Mm]/);
+  assert.doesNotMatch(label, /\b(?:1[3-9]|2[0-3]):/);
+}
+
+test("clock and hours labels use 12-hour AM/PM in English and Spanish", () => {
+  assert.match(formatClock("en", "08:00"), /8:00\s*AM/i);
+  assert.match(formatClock("en", "13:00"), /1:00\s*PM/i);
+  assertMeridiem(formatClock("es", "08:00"));
+  assertMeridiem(formatClock("es", "13:00"));
+  assert.match(formatClock("es", "13:00"), /1:00/);
+
+  const hoursEn = formatHoursLabel("en", { hoursDays: "123456", hoursOpen: "08:00", hoursClose: "16:00" });
+  const hoursEs = formatHoursLabel("es", { hoursDays: "123456", hoursOpen: "08:00", hoursClose: "16:00" });
+  assert.match(hoursEn, /8:00\s*AM/i);
+  assert.match(hoursEn, /4:00\s*PM/i);
+  assert.doesNotMatch(hoursEn, /16:/);
+  assert.doesNotMatch(hoursEs, /16:/);
+  assertMeridiem(hoursEs);
+});
+
+test("booking slot timestamps format 12-hour AM/PM via locale tags", () => {
+  const morning = new Date(2026, 8, 17, 8, 0, 0).toISOString();
+  const afternoon = new Date(2026, 8, 17, 13, 0, 0).toISOString();
+  const fmt = (iso: string, locale: string) =>
+    new Date(iso).toLocaleString(locale, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      ...TIME_12H,
+    });
+  assert.match(fmt(morning, localeTag("en")), /8:00\s*AM/i);
+  assert.match(fmt(afternoon, localeTag("en")), /1:00\s*PM/i);
+  assertMeridiem(fmt(morning, localeTag("es")));
+  assertMeridiem(fmt(afternoon, localeTag("es")));
+  assert.match(fmt(afternoon, localeTag("es")), /1:00/);
 });
