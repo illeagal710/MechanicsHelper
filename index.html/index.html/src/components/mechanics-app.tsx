@@ -45,6 +45,7 @@ import {
   vehicleLabel,
 } from "@/lib/store";
 import { missingRequiredBookingFields, normalizeSymptoms } from "@/lib/booking";
+import { resolveBookingProvider } from "@/lib/booking-provider";
 import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
 import { trimOptions } from "@/lib/trims";
 import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
@@ -114,8 +115,23 @@ export function MechanicsApp() {
 
   function enter(u: User) {
     setUser(u);
+    const fromLock = lockedProvider || Store.findProviderByCode(Store.getLinkedCode(u));
+    const resolved = resolveBookingProvider({
+      user: u,
+      locked: fromLock,
+      providers: Store.listProviders(),
+      jobs: Store.providerJobs(u),
+      linkedCode: Store.getLinkedCode(u),
+      allowSavedBay: !Store.wasUnlinked(u),
+    });
+    if (resolved) {
+      setLockedProvider(resolved);
+      if (u.role === "customer" && (lockedProvider || Store.getLinkedCode(u) || Store.getRefCode())) {
+        Store.setLinkedCode(u, resolved.code);
+      }
+    }
     const next = homeFor(u.role);
-    if (u.role === "customer" && lockedProvider) setView("book");
+    if (u.role === "customer" && (lockedProvider || Store.getRefCode())) setView("book");
     else setView(next);
     flash(t("toast.hi", { name: u.name.split(" ")[0] }));
   }
@@ -127,15 +143,26 @@ export function MechanicsApp() {
       if (!live) return;
       const fromUrl = readRefFromUrl();
       if (fromUrl) Store.setRefCode(fromUrl);
-      const code = fromUrl || Store.getRefCode();
-      if (code) {
-        const p = Store.findProviderByCode(code);
-        if (p) setLockedProvider(p);
-      }
       const s = Store.getSession();
+      if (s) setUser(s);
+      const urlProvider = Store.findProviderByCode(fromUrl || Store.getRefCode());
+      const existingLink = fromUrl || Store.getRefCode() || (s ? Store.getLinkedCode(s) : "");
+      const resolved = s
+        ? resolveBookingProvider({
+            user: s,
+            locked: urlProvider,
+            providers: Store.listProviders(),
+            jobs: Store.providerJobs(s),
+            linkedCode: Store.getLinkedCode(s),
+            allowSavedBay: !Store.wasUnlinked(s),
+          })
+        : urlProvider;
+      if (resolved) {
+        setLockedProvider(resolved);
+        if (s?.role === "customer" && existingLink) Store.setLinkedCode(s, resolved.code);
+      }
       if (s) {
-        setUser(s);
-        setView(s.role === "customer" && Store.getRefCode() ? "book" : homeFor(s.role));
+        setView(s.role === "customer" && (fromUrl || Store.getRefCode()) ? "book" : homeFor(s.role));
       }
       bump();
     })();
@@ -156,7 +183,7 @@ export function MechanicsApp() {
       flash(t("toast.noCode"));
       return;
     }
-    Store.setRefCode(p.code);
+    Store.setLinkedCode(user, p.code);
     setLockedProvider(p);
     flash(t("toast.found", { name: p.name }));
     if (goBook && user?.role === "customer") setView("book");
@@ -238,7 +265,7 @@ export function MechanicsApp() {
             setCodeInput={setCodeInput}
             onApply={() => applyCode(codeInput)}
             onClear={() => {
-              Store.setRefCode("");
+              Store.setLinkedCode(user, "");
               setLockedProvider(null);
               setCodeInput("");
               flash(t("toast.unlocked"));
@@ -250,11 +277,7 @@ export function MechanicsApp() {
           <Book
             user={user}
             locked={liveLocked}
-            onClear={() => {
-              Store.setRefCode("");
-              setLockedProvider(null);
-              flash(t("toast.pickAny"));
-            }}
+            onLink={(code) => applyCode(code)}
             onBack={() => setView("home")}
             onBooked={(j) => {
               setDraft(j);
@@ -1000,14 +1023,14 @@ function CustomerHome({
 function Book({
   user,
   locked,
-  onClear,
+  onLink,
   onBack,
   onBooked,
   onErr,
 }: {
   user: User;
   locked: Provider | null;
-  onClear: () => void;
+  onLink: (code: string) => void;
   onBack: () => void;
   onBooked: (j: Job) => void;
   onErr: (s: string) => void;
@@ -1017,10 +1040,51 @@ function Book({
   const savedVehicles = Store.customerVehicles(user);
   const [pickedVehicleKey, setPickedVehicleKey] = useState(savedVehicles[0] ? vehicleKey(savedVehicles[0]) : "");
   const pickedVehicle = savedVehicles.find((v) => vehicleKey(v) === pickedVehicleKey) || null;
-  const [pick, setPick] = useState(locked ? `${locked.type}:${locked.id}` : "");
+  const [linkCode, setLinkCode] = useState("");
   const pending = typeof window === "undefined" ? "" : sessionStorage.getItem("mh.symptoms") || "";
-  const picked = locked || providers.find((p) => `${p.type}:${p.id}` === pick) || null;
+  const provider = resolveBookingProvider({
+    user,
+    locked,
+    providers,
+    jobs: Store.providerJobs(user),
+    linkedCode: Store.getLinkedCode(user),
+    allowSavedBay: !Store.wasUnlinked(user),
+  });
   const dates = localeTag(locale);
+
+  if (!provider) {
+    return (
+      <div>
+        <Top title={t("book.title")} onBack={onBack} />
+        <div className="rounded-xl border border-line bg-surface p-4" data-book-link-shop="">
+          <p className="text-sm font-semibold">{t("book.linkTitle")}</p>
+          <p className="mt-1 text-sm text-muted">{t("book.linkHint")}</p>
+          <div className="mt-3 flex gap-2">
+            <input
+              className={inputClass}
+              placeholder={t("welcome.codePlaceholder")}
+              value={linkCode}
+              autoCapitalize="characters"
+              onChange={(e) => setLinkCode(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onLink(linkCode);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => onLink(linkCode)}
+              className="h-12 shrink-0 rounded-xl bg-accent px-4 font-semibold text-ink"
+            >
+              {t("book.linkCta")}
+            </button>
+          </div>
+          <button type="button" onClick={onBack} className="mt-3 text-sm font-semibold text-accent">
+            {t("book.backHome")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -1029,10 +1093,6 @@ function Book({
         e.preventDefault();
         const f = e.currentTarget;
         const fd = new FormData(f);
-        const raw = locked ? `${locked.type}:${locked.id}` : String(fd.get("provider") || "");
-        const [ptype, pid] = raw.split(":");
-        const provider = providers.find((p) => p.id === pid && p.type === ptype);
-        if (!provider) return onErr(t("err.chooseProvider"));
         const job: Job = {
           id: Store.jobCode(),
           userId: user.id,
@@ -1069,44 +1129,15 @@ function Book({
         if (saved && typeof saved === "object" && "ok" in saved && saved.ok === false) {
           return onErr(translateStoreError(locale, saved.error));
         }
+        Store.setLinkedCode(user, provider.code);
         sessionStorage.removeItem("mh.symptoms");
         onBooked(job);
       }}
     >
       <Top title={t("book.title")} onBack={onBack} />
-      {locked ? (
-        <div className="rounded-xl border border-accent/40 bg-accent/10 p-3 text-sm">
-          <div className="flex items-center gap-3">
-            <Face src={locked.photo} name={locked.name} size="sm" />
-            <div>
-              {t("book.booking", { name: locked.name, code: locked.code })}
-            </div>
-          </div>
-          {locked.bio ? <p className="mt-2 text-muted">{locked.bio}</p> : null}
-          <p className="mt-1 text-sm text-muted">{formatHoursLabel(locale, locked)}</p>
-          <button type="button" onClick={onClear} className="mt-1 block text-sm font-semibold text-accent">
-            {t("book.chooseElse")}
-          </button>
-        </div>
-      ) : (
-        <Field label={t("book.who")}>
-          <select
-            name="provider"
-            className={inputClass}
-            required
-            value={pick}
-            onChange={(e) => setPick(e.target.value)}
-          >
-            <option value="">{t("book.chooseProvider")}</option>
-            {providers.map((p) => (
-              <option key={p.type + p.id} value={`${p.type}:${p.id}`}>
-                {p.name} · {p.code}
-              </option>
-            ))}
-          </select>
-          {picked?.bio ? <p className="mt-2 text-sm text-muted">{picked.bio}</p> : null}
-        </Field>
-      )}
+      <p className="text-sm text-muted" data-booking-bay="">
+        {t("book.withShop", { name: provider.name })}
+      </p>
       <Field label={t("book.yourName")}>
         <input name="name" className={inputClass} defaultValue={user.name} required />
       </Field>
@@ -1157,16 +1188,16 @@ function Book({
       </Field>
       <Field label={t("book.preferredTime")}>
         <SelectWrap>
-          <select name="slot" className={selectClass} required defaultValue="" disabled={!picked}>
-            <option value="">{picked ? t("book.chooseOpenTime") : t("book.pickShopFirst")}</option>
-            {Store.openSlots(picked?.id).map((d) => (
+          <select name="slot" className={selectClass} required defaultValue="">
+            <option value="">{t("book.chooseOpenTime")}</option>
+            {Store.openSlots(provider.id).map((d) => (
               <option key={d.toISOString()} value={d.toISOString()}>
                 {fmtWhen(d.toISOString(), dates)}
               </option>
             ))}
           </select>
         </SelectWrap>
-        {picked && Store.openSlots(picked.id).length === 0 ? (
+        {Store.openSlots(provider.id).length === 0 ? (
           <p className="mt-2 text-sm text-accent2">{t("book.bayFull")}</p>
         ) : (
           <p className="mt-2 text-sm text-muted">{t("book.takenHint")}</p>
