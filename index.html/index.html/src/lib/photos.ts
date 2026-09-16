@@ -37,7 +37,8 @@ export function withJobPhoto<T extends Pick<Job, "jobPhoto" | "photo">>(job: T, 
 
 /**
  * Strip anything that is not a job-ticket field so a profile `photo` cannot
- * ride along on a bay update (and vice versa).
+ * ride along on a bay update (and vice versa). Notes are intentionally omitted:
+ * persist them with `addNote` → `notes_json`, never via this client patch.
  */
 export function sanitizeJobPatch(patch: Record<string, unknown> | null | undefined): JobMediaPatch {
   const out: JobMediaPatch = {};
