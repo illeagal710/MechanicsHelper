@@ -16,6 +16,7 @@ import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, jobPhotoOf } from "@/lib/photos";
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
+import { ThemeToggle } from "@/lib/theme-context";
 import {
   formatClock,
   formatHoursLabel,
@@ -166,14 +167,27 @@ export function MechanicsApp() {
   const liveLocked = lockedProvider
     ? Store.findProviderByCode(lockedProvider.code) || lockedProvider
     : null;
+  const showWordmark =
+    view === "welcome" ||
+    view === "login" ||
+    view === "register" ||
+    view === "recover" ||
+    view === "forgotPassword" ||
+    view === "forgotUsername";
+  const bayLabel = isProvider ? shareCode || t("app.bay") : lockedProvider?.code || t("app.bay");
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[430px] flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)]">
-      <header className="flex items-center justify-between gap-2 px-4 pt-3">
-        <BrandWordmark className="h-[72px] w-auto max-w-[min(220px,58%)] object-contain object-left" />
+      <header className="flex items-center justify-between gap-2 px-4 pt-3" data-app-header="">
+        {showWordmark ? (
+          <BrandWordmark className="h-[72px] w-auto max-w-[min(220px,58%)] object-contain object-left" />
+        ) : (
+          <span className="font-mono text-xs font-semibold text-dim">{bayLabel}</span>
+        )}
         <div className="flex shrink-0 items-center gap-2 text-xs font-semibold text-muted">
+          <ThemeToggle compact />
           <LanguageToggle compact />
-          <span className="font-mono text-dim">{isProvider ? shareCode || t("app.bay") : lockedProvider?.code || t("app.bay")}</span>
+          {showWordmark ? <span className="font-mono text-dim">{bayLabel}</span> : null}
         </div>
       </header>
       <main className={`flex-1 overflow-y-auto px-4 pb-36 pt-3 ${view === "welcome" || view === "login" || view === "register" || view === "recover" || view === "forgotPassword" || view === "forgotUsername" ? "pb-16" : ""}`}>
@@ -406,6 +420,7 @@ function BrandWordmark({ className }: { className?: string }) {
     <img
       src="/img/logo-wordmark.png"
       alt={t("app.name")}
+      data-brand-wordmark=""
       className={className ?? "h-16 w-auto max-w-[220px] object-contain object-left"}
     />
   );
@@ -437,7 +452,7 @@ const inputClass =
 
 const selectClass =
   inputClass +
-  " appearance-none pr-11 font-semibold tracking-tight [color-scheme:dark]";
+  " appearance-none pr-11 font-semibold tracking-tight";
 
 function SelectWrap({ children }: { children: React.ReactNode }) {
   return (
@@ -1861,6 +1876,11 @@ function Account({
         <LanguageToggle />
       </div>
       <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.theme")}</p>
+        <p className="mt-1 mb-3 text-sm text-muted">{t("account.themeHint")}</p>
+        <ThemeToggle />
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
         <p className="mt-2 text-sm text-muted">
           {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
@@ -2130,7 +2150,7 @@ function Account({
         <button
           type="submit"
           disabled={deleting}
-          className="mt-3 h-12 w-full rounded-xl border border-red-500/40 bg-red-500/10 font-semibold text-red-200"
+          className="mt-3 h-12 w-full rounded-xl border border-red-500/40 bg-red-500/10 font-semibold text-danger"
         >
           {deleting ? t("account.deleting") : t("account.deleteBtn")}
         </button>

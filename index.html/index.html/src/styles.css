@@ -1,19 +1,89 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@500;600&display=swap");
 @import "tailwindcss";
 
-@theme {
-  --color-bg: #071834;
-  --color-bg2: #121a2b;
-  --color-surface: #172033;
-  --color-surface2: #1c2740;
-  --color-line: rgb(255 255 255 / 0.08);
-  --color-fg: #f3f6fb;
-  --color-muted: #93a0b8;
-  --color-dim: #6b7890;
-  --color-accent: #f59e0b;
-  --color-accent2: #fb923c;
-  --color-good: #34d399;
-  --color-ink: #1a0b00;
+/* Runtime theme tokens. Dark values match the previous live navy/gold look. */
+:root {
+  color-scheme: dark;
+  --mh-page: #05070c;
+  --mh-bg: #071834;
+  --mh-bg2: #121a2b;
+  --mh-surface: #172033;
+  --mh-surface2: #1c2740;
+  --mh-line: rgb(255 255 255 / 0.08);
+  --mh-fg: #f3f6fb;
+  --mh-muted: #93a0b8;
+  --mh-dim: #6b7890;
+  --mh-accent: #f59e0b;
+  --mh-accent2: #fb923c;
+  --mh-good: #34d399;
+  --mh-ink: #1a0b00;
+  --mh-danger: #fecaca;
+  --mh-option-bg: #121a2b;
+  --mh-option-fg: #f3f6fb;
+  --mh-badge-scheduled-bg: #1e2a44;
+  --mh-badge-scheduled-fg: #93c5fd;
+  --mh-badge-enroute-bg: #1a2e3a;
+  --mh-badge-enroute-fg: #67e8f9;
+  --mh-badge-diagnosing-bg: #2a2410;
+  --mh-badge-diagnosing-fg: #fcd34d;
+  --mh-badge-parts-bg: #2a1d10;
+  --mh-badge-parts-fg: #fdba74;
+  --mh-badge-repair-bg: #1a2438;
+  --mh-badge-repair-fg: #a5b4fc;
+  --mh-badge-ready-bg: #10291f;
+  --mh-badge-ready-fg: #6ee7b7;
+  --mh-badge-done-bg: #1a2030;
+  --mh-badge-done-fg: #94a3b8;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --mh-page: #d9e2ef;
+  --mh-bg: #f7f9fc;
+  --mh-bg2: #e8eef6;
+  --mh-surface: #ffffff;
+  --mh-surface2: #eef3fa;
+  --mh-line: rgb(7 24 52 / 0.12);
+  --mh-fg: #0c1a33;
+  --mh-muted: #4a5a73;
+  --mh-dim: #66758c;
+  --mh-accent: #f59e0b;
+  --mh-accent2: #ea580c;
+  --mh-good: #059669;
+  --mh-ink: #1a0b00;
+  --mh-danger: #b91c1c;
+  --mh-option-bg: #ffffff;
+  --mh-option-fg: #0c1a33;
+  --mh-badge-scheduled-bg: #dbeafe;
+  --mh-badge-scheduled-fg: #1e40af;
+  --mh-badge-enroute-bg: #cffafe;
+  --mh-badge-enroute-fg: #0e7490;
+  --mh-badge-diagnosing-bg: #fef3c7;
+  --mh-badge-diagnosing-fg: #b45309;
+  --mh-badge-parts-bg: #ffedd5;
+  --mh-badge-parts-fg: #c2410c;
+  --mh-badge-repair-bg: #e0e7ff;
+  --mh-badge-repair-fg: #4338ca;
+  --mh-badge-ready-bg: #d1fae5;
+  --mh-badge-ready-fg: #047857;
+  --mh-badge-done-bg: #e2e8f0;
+  --mh-badge-done-fg: #334155;
+}
+
+@theme inline {
+  --color-bg: var(--mh-bg);
+  --color-bg2: var(--mh-bg2);
+  --color-surface: var(--mh-surface);
+  --color-surface2: var(--mh-surface2);
+  --color-line: var(--mh-line);
+  --color-fg: var(--mh-fg);
+  --color-muted: var(--mh-muted);
+  --color-dim: var(--mh-dim);
+  --color-accent: var(--mh-accent);
+  --color-accent2: var(--mh-accent2);
+  --color-good: var(--mh-good);
+  --color-ink: var(--mh-ink);
+  --color-danger: var(--mh-danger);
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --radius-xl: 1.125rem;
@@ -26,7 +96,7 @@
   body {
     margin: 0;
     min-height: 100dvh;
-    background: #05070c;
+    background: var(--mh-page);
     color: var(--color-fg);
     font-family: var(--font-sans);
   }
@@ -44,17 +114,17 @@
     background-image: none;
   }
   select option {
-    background: #121a2b;
-    color: #f3f6fb;
+    background: var(--mh-option-bg);
+    color: var(--mh-option-fg);
   }
-  .badge-scheduled { background: #1e2a44; color: #93c5fd; }
-  .badge-enroute { background: #1a2e3a; color: #67e8f9; }
-  .badge-checkedin { background: #1a2e3a; color: #67e8f9; }
-  .badge-diagnosing { background: #2a2410; color: #fcd34d; }
-  .badge-parts { background: #2a1d10; color: #fdba74; }
-  .badge-repair { background: #1a2438; color: #a5b4fc; }
-  .badge-ready { background: #10291f; color: #6ee7b7; }
-  .badge-done { background: #1a2030; color: #94a3b8; }
+  .badge-scheduled { background: var(--mh-badge-scheduled-bg); color: var(--mh-badge-scheduled-fg); }
+  .badge-enroute { background: var(--mh-badge-enroute-bg); color: var(--mh-badge-enroute-fg); }
+  .badge-checkedin { background: var(--mh-badge-enroute-bg); color: var(--mh-badge-enroute-fg); }
+  .badge-diagnosing { background: var(--mh-badge-diagnosing-bg); color: var(--mh-badge-diagnosing-fg); }
+  .badge-parts { background: var(--mh-badge-parts-bg); color: var(--mh-badge-parts-fg); }
+  .badge-repair { background: var(--mh-badge-repair-bg); color: var(--mh-badge-repair-fg); }
+  .badge-ready { background: var(--mh-badge-ready-bg); color: var(--mh-badge-ready-fg); }
+  .badge-done { background: var(--mh-badge-done-bg); color: var(--mh-badge-done-fg); }
 }
 
 @layer utilities {

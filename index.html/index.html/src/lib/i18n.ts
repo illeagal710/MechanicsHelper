@@ -15,6 +15,10 @@ const en = {
   "lang.enShort": "EN",
   "lang.esShort": "ES",
 
+  "theme.groupAria": "Theme",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+
   "nav.jobs": "Jobs",
   "nav.share": "Share",
   "nav.account": "Account",
@@ -237,6 +241,8 @@ const en = {
   "account.customer": "Customer",
   "account.language": "Language",
   "account.languageHint": "Choose English or Spanish. Your choice is saved on this device.",
+  "account.theme": "Theme",
+  "account.themeHint": "Choose Light or Dark. Your choice is saved on this device.",
   "account.publicShop": "Public shop profile",
   "account.shopName": "Shop name",
   "account.bioCustomers": "Bio — what customers see",
@@ -514,6 +520,10 @@ const es: Record<MessageKey, string> = {
   "lang.enShort": "EN",
   "lang.esShort": "ES",
 
+  "theme.groupAria": "Tema",
+  "theme.light": "Claro",
+  "theme.dark": "Oscuro",
+
   "nav.jobs": "Trabajos",
   "nav.share": "Compartir",
   "nav.account": "Cuenta",
@@ -736,6 +746,8 @@ const es: Record<MessageKey, string> = {
   "account.customer": "Cliente",
   "account.language": "Idioma",
   "account.languageHint": "Elige inglés o español. Tu elección se guarda en este dispositivo.",
+  "account.theme": "Tema",
+  "account.themeHint": "Elige claro u oscuro. Tu elección se guarda en este dispositivo.",
   "account.publicShop": "Perfil público del taller",
   "account.shopName": "Nombre del taller",
   "account.bioCustomers": "Bio — lo que ven los clientes",
