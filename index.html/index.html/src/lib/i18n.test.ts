@@ -99,6 +99,15 @@ test("Account Settings label exists in English and Spanish", () => {
   assert.match(translate("es", "account.settingsHint"), /idioma|tema|alerta/i);
 });
 
+test("customer Account vehicle labels exist in English and Spanish", () => {
+  assert.equal(translate("en", "account.vehicles"), "My vehicles");
+  assert.equal(translate("es", "account.vehicles"), "Mis vehículos");
+  assert.equal(translate("en", "account.addVehicle"), "+ Add vehicle");
+  assert.equal(translate("es", "account.addVehicle"), "+ Agregar vehículo");
+  assert.equal(translate("en", "book.yourVehicles"), "Your vehicles");
+  assert.equal(translate("es", "book.yourVehicles"), "Tus vehículos");
+});
+
 test("helper fence, loading, and fallback strings exist in English and Spanish", () => {
   assert.match(translate("en", "diag.refuse"), /cars, vehicles, repair/i);
   assert.match(translate("es", "diag.refuse"), /autos, vehículos, reparación/i);
