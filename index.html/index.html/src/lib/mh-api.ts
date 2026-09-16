@@ -47,6 +47,7 @@ export const mhUpdateShop = createServerFn({ method: "POST" })
       name?: string;
       bio?: string;
       photo?: string;
+      profilePhoto?: string;
       supportEmail?: string;
       supportPhone?: string;
       hoursDays?: string;
@@ -67,6 +68,7 @@ export const mhUpdateIndy = createServerFn({ method: "POST" })
       bio?: string;
       serviceMode?: User["serviceMode"];
       photo?: string;
+      profilePhoto?: string;
       supportEmail?: string;
       supportPhone?: string;
       hoursDays?: string;
@@ -77,6 +79,13 @@ export const mhUpdateIndy = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const db = await import("./mh-db.server");
     return db.updateIndependentProfile(data.userId, data);
+  });
+
+export const mhUpdateUserPhoto = createServerFn({ method: "POST" })
+  .validator((d: { userId: string; profilePhoto: string }) => d)
+  .handler(async ({ data }) => {
+    const db = await import("./mh-db.server");
+    return db.updateUserPhoto(data.userId, data.profilePhoto);
   });
 
 export const mhAddTech = createServerFn({ method: "POST" })
@@ -94,7 +103,7 @@ export const mhAddJob = createServerFn({ method: "POST" })
   });
 
 export const mhUpdateJob = createServerFn({ method: "POST" })
-  .validator((d: { id: string; patch: Partial<Job> }) => d)
+  .validator((d: { id: string; patch: Partial<Job> & { jobPhoto?: string } }) => d)
   .handler(async ({ data }) => {
     const db = await import("./mh-db.server");
     return db.updateJob(data.id, data.patch);

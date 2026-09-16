@@ -11,6 +11,8 @@ import {
   UserRound,
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
+import { Face, PhotoPicker } from "@/components/photo-input";
+import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, jobPhotoOf } from "@/lib/photos";
 import { greet, isBookChip, reply } from "@/lib/diagnose";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
 import {
@@ -35,7 +37,6 @@ import {
   type User,
   fmtShort,
   fmtWhen,
-  resizePhoto,
   statusMeta,
   vehicleLabel,
 } from "@/lib/store";
@@ -398,18 +399,6 @@ function Tab({ active, onClick, icon, label }: { active: boolean; onClick: () =>
 
 function Logo() {
   return <img src="/img/logo.jpg" alt="" className="size-10 rounded-[11px] object-cover" />;
-}
-
-function Face({ src, name, size = "md" }: { src?: string; name: string; size?: "sm" | "md" | "lg" }) {
-  const box = size === "lg" ? "size-16" : size === "sm" ? "size-10" : "size-14";
-  if (src) {
-    return <img src={src} alt="" className={`${box} shrink-0 rounded-2xl border border-line object-cover`} />;
-  }
-  return (
-    <div className={`${box} grid shrink-0 place-items-center rounded-2xl border border-line bg-surface2 text-lg font-bold text-accent`}>
-      {(name || "?").slice(0, 1).toUpperCase()}
-    </div>
-  );
 }
 
 function Top({ title, onBack }: { title: string; onBack: () => void }) {
@@ -1192,7 +1181,7 @@ function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () 
   return (
     <button type="button" onClick={onClick} className="tap w-full rounded-2xl border border-line bg-surface p-3.5 text-left">
       <div className="flex gap-3">
-        <img src={carImage(job)} alt="" className="h-14 w-[4.25rem] shrink-0 rounded-xl object-cover" />
+        <img src={jobPhotoOf(job) || carImage(job)} alt="" className="h-14 w-[4.25rem] shrink-0 rounded-xl object-cover" />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h3 className="truncate font-semibold">{shop ? job.name : vehicleLabel(job)}</h3>
@@ -1339,7 +1328,7 @@ function JobDetail({
     <div>
       <Top title={job.id} onBack={onBack} />
       <div className="overflow-hidden rounded-xl border border-line bg-surface">
-        <img src={job.photo || carImage(job)} alt="" className="h-36 w-full object-cover" />
+        <img src={jobPhotoOf(job) || carImage(job)} alt="" className="h-36 w-full object-cover" />
         <div className="p-4">
           <p className="text-[10px] font-bold uppercase tracking-wide text-dim">{kindText(locale, vehicleKind(job))}</p>
           <h2 className="text-lg font-semibold">{vehicleLabel(job)}</h2>
@@ -1408,30 +1397,24 @@ function JobDetail({
         </Field>
       )}
       {shop && (
+        <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+          <PhotoPicker
+            slot={BAY_PHOTO_SLOT}
+            value={jobPhotoOf(job)}
+            name={vehicleLabel(job)}
+            label={t("job.photoLabel")}
+            hint={t("job.photoHint")}
+            onErr={(msg) => flash?.(translateStoreError(locale, msg))}
+            onPick={async (dataUrl) => {
+              await Store.saveJobPhoto(job.id, dataUrl);
+              flash?.(t("toast.bayPhotoSaved"));
+              bump();
+            }}
+          />
+        </div>
+      )}
+      {shop && (
         <div className="mt-3">
-          <Field label={t("job.photoLabel")}>
-            <label className="tap flex h-12 items-center justify-center rounded-xl border border-line bg-surface font-semibold">
-              {job.photo ? t("job.replacePhoto") : t("job.addPhoto")}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!file) return;
-                  try {
-                    const photo = await resizePhoto(file);
-                    await Store.updateJob(job.id, { photo });
-                    flash?.(t("toast.photoOnTicket"));
-                    bump();
-                  } catch (err) {
-                    flash?.(err instanceof Error ? translateStoreError(locale, err.message) : t("err.photoFail"));
-                  }
-                }}
-              />
-            </label>
-          </Field>
           <form
             className="mt-3"
             onSubmit={async (e) => {
@@ -1706,8 +1689,9 @@ function Account({
   const [indyBio, setIndyBio] = useState(user.bio || "");
   const [mode, setMode] = useState<User["serviceMode"]>(user.serviceMode || "both");
   const [techName, setTechName] = useState("");
-  const [shopPhoto, setShopPhoto] = useState(shop?.photo || "");
-  const [indyPhoto, setIndyPhoto] = useState(user.photo || "");
+  const [profilePhoto, setProfilePhoto] = useState(
+    user.role === "shop" && user.shopRole === "owner" ? shop?.photo || "" : user.photo || "",
+  );
   const [shopSupportEmail, setShopSupportEmail] = useState(shop?.supportEmail || "");
   const [shopSupportPhone, setShopSupportPhone] = useState(shop?.supportPhone || "");
   const [indySupportEmail, setIndySupportEmail] = useState(user.supportEmail || user.email || "");
@@ -1734,13 +1718,48 @@ function Account({
     <div>
       <Top title={t("account.title")} onBack={onBack} />
       <div className="rounded-xl border border-line bg-surface p-4">
-        <h2 className="text-lg font-semibold">{user.name}</h2>
-        <p className="text-sm text-muted">
-          {user.email || t("account.noEmail")}
-          <br />
-          {user.phone || t("account.noPhone")}
-        </p>
-        <span className="mt-2 inline-flex rounded-full bg-surface2 px-2 py-0.5 text-[11px] font-semibold">{label}</span>
+        <div className="flex items-start gap-3">
+          <Face src={profilePhoto} name={user.name} size="lg" />
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">{user.name}</h2>
+            <p className="text-sm text-muted">
+              {user.email || t("account.noEmail")}
+              <br />
+              {user.phone || t("account.noPhone")}
+            </p>
+            <span className="mt-2 inline-flex rounded-full bg-surface2 px-2 py-0.5 text-[11px] font-semibold">{label}</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+        <PhotoPicker
+          slot={PROFILE_PHOTO_SLOT}
+          value={profilePhoto}
+          name={user.role === "independent" ? bizName || user.name : shop?.name || user.name}
+          label={
+            user.role === "shop" && user.shopRole === "owner"
+              ? t("photo.shopLabel")
+              : t("photo.profileLabel")
+          }
+          hint={
+            user.role === "independent"
+              ? t("photo.indyHint")
+              : user.role === "shop" && user.shopRole === "owner"
+                ? t("photo.shopHint")
+                : t("photo.profileHint")
+          }
+          onErr={(msg) => flash(translateStoreError(locale, msg))}
+          onPick={async (dataUrl) => {
+            const res = await Store.saveProfilePhoto(user, dataUrl);
+            if (!res.ok) {
+              flash(translateStoreError(locale, res.error));
+              return;
+            }
+            setProfilePhoto(dataUrl);
+            onSaved(res.user);
+            flash(t("toast.profilePhotoSaved"));
+          }}
+        />
       </div>
       <div className="mt-3 rounded-xl border border-line bg-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.language")}</p>
@@ -1789,7 +1808,7 @@ function Account({
             const res = await Store.updateShopProfile(user, {
               name: shopName,
               bio: shopBio,
-              photo: shopPhoto,
+              profilePhoto,
               supportEmail: shopSupportEmail,
               supportPhone: shopSupportPhone,
               hoursDays: shopDays,
@@ -1803,30 +1822,6 @@ function Account({
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.publicShop")}</p>
           <div className="mt-3 flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <Face src={shopPhoto || shop.photo} name={shop.name} size="lg" />
-            {canEditShop ? (
-              <label className="text-sm font-semibold text-accent">
-                {t("account.changeLogo")}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!file) return;
-                    try {
-                      setShopPhoto(await resizePhoto(file));
-                      flash(t("toast.photoReadyShop"));
-                    } catch (err) {
-                      flash(err instanceof Error ? translateStoreError(locale, err.message) : t("err.photoFail"));
-                    }
-                  }}
-                />
-              </label>
-            ) : null}
-          </div>
           {canEditShop ? (
             <Field label={t("account.shopName")}>
               <input className={inputClass} value={shopName} onChange={(e) => setShopName(e.target.value)} required />
@@ -1929,7 +1924,7 @@ function Account({
               businessName: bizName,
               bio: indyBio,
               serviceMode: mode,
-              photo: indyPhoto,
+              profilePhoto,
               supportEmail: indySupportEmail,
               supportPhone: indySupportPhone,
               hoursDays: indyDays,
@@ -1943,28 +1938,6 @@ function Account({
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.publicMech")}</p>
           <div className="mt-3 flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <Face src={indyPhoto} name={bizName || user.name} size="lg" />
-            <label className="text-sm font-semibold text-accent">
-              {t("account.changePhoto")}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!file) return;
-                  try {
-                    setIndyPhoto(await resizePhoto(file));
-                    flash(t("toast.photoReady"));
-                  } catch (err) {
-                    flash(err instanceof Error ? translateStoreError(locale, err.message) : t("err.photoFail"));
-                  }
-                }}
-              />
-            </label>
-          </div>
           <Field label={t("account.bizName")}>
             <input className={inputClass} value={bizName} onChange={(e) => setBizName(e.target.value)} required />
           </Field>
