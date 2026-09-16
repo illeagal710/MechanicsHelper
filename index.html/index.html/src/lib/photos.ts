@@ -1,11 +1,21 @@
 import type { Job, Shop, StatusId, User } from "@/lib/store";
+import { carImage } from "./vehicles.ts";
 
 /** Account / shop / mechanic identity photo. Never a bay/job image. */
 export const PROFILE_PHOTO_SLOT = "profile" as const;
 /** Job ticket / status photo from the bay. Never the account avatar. */
 export const BAY_PHOTO_SLOT = "bay" as const;
+/** Ticket header / hero: the vehicle (car) picture. Never bay/work media. */
+export const VEHICLE_PHOTO_SLOT = "vehicle" as const;
 
 export type PhotoSlot = typeof PROFILE_PHOTO_SLOT | typeof BAY_PHOTO_SLOT;
+
+export type TicketPhotoSlots = {
+  /** Image above year/make/model. Never the mechanic's bay/work photo. */
+  vehicle: string;
+  /** Work / parts photo from the bay. Independent of the vehicle hero. */
+  bay: string;
+};
 
 export type JobMediaPatch = {
   status?: StatusId;
@@ -28,6 +38,28 @@ export function profilePhotoOf(user: User | null | undefined, shop?: Shop | null
 export function jobPhotoOf(job: Pick<Job, "jobPhoto" | "photo"> | null | undefined): string {
   if (!job) return "";
   return String(job.jobPhoto || job.photo || "");
+}
+
+/**
+ * Ticket header / hero above the vehicle name.
+ * Uses stock car art (sedan/suv/…) — never jobPhoto / photo (the bay slot).
+ * Empty when there is no job; callers may show a placeholder.
+ */
+export function ticketVehiclePhotoOf(
+  job: { make?: string; model?: string; jobPhoto?: string; photo?: string } | null | undefined,
+): string {
+  if (!job) return "";
+  return carImage({ make: job.make, model: job.model });
+}
+
+/** Two independent ticket images: car hero vs bay/work photo. */
+export function ticketPhotoSlots(
+  job: (Pick<Job, "jobPhoto" | "photo"> & { make?: string; model?: string }) | null | undefined,
+): TicketPhotoSlots {
+  return {
+    vehicle: ticketVehiclePhotoOf(job),
+    bay: jobPhotoOf(job),
+  };
 }
 
 export function withJobPhoto<T extends Pick<Job, "jobPhoto" | "photo">>(job: T, photo: string): T {

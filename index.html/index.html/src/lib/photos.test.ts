@@ -3,11 +3,15 @@ import { test } from "node:test";
 import {
   BAY_PHOTO_SLOT,
   PROFILE_PHOTO_SLOT,
+  VEHICLE_PHOTO_SLOT,
   jobPhotoOf,
   profilePhotoOf,
   sanitizeJobPatch,
+  ticketPhotoSlots,
+  ticketVehiclePhotoOf,
   withJobPhoto,
 } from "./photos.ts";
+import { carImage } from "./vehicles.ts";
 import type { Job, Shop, User } from "./store.ts";
 
 const customer: User = {
@@ -61,8 +65,10 @@ const job: Job = {
   jobPhoto: "data:bay",
 };
 
-test("profile and bay slots are distinct keys", () => {
+test("profile, bay, and vehicle ticket slots are distinct keys", () => {
   assert.notEqual(PROFILE_PHOTO_SLOT, BAY_PHOTO_SLOT);
+  assert.notEqual(VEHICLE_PHOTO_SLOT, BAY_PHOTO_SLOT);
+  assert.notEqual(VEHICLE_PHOTO_SLOT, PROFILE_PHOTO_SLOT);
 });
 
 test("shop owner profile photo is the shop logo, not the user or job photo", () => {
@@ -122,4 +128,39 @@ test("withJobPhoto writes both jobPhoto and legacy photo aliases on the job only
   assert.equal(next.jobPhoto, "data:new-bay");
   assert.equal(next.photo, "data:new-bay");
   assert.equal(jobPhotoOf(next), "data:new-bay");
+});
+
+test("ticket hero and bay photo are independent slots", () => {
+  const slots = ticketPhotoSlots(job);
+  assert.equal(slots.bay, "data:bay");
+  assert.equal(slots.vehicle, carImage(job));
+  assert.notEqual(slots.vehicle, slots.bay);
+  assert.doesNotMatch(slots.vehicle, /data:bay/);
+});
+
+test("saving a bay photo does not replace the vehicle hero", () => {
+  const before = ticketVehiclePhotoOf(job);
+  const after = withJobPhoto(job, "data:wooden-door");
+  assert.equal(ticketVehiclePhotoOf(after), before);
+  assert.equal(ticketVehiclePhotoOf(after), carImage(job));
+  assert.equal(jobPhotoOf(after), "data:wooden-door");
+  const slots = ticketPhotoSlots(after);
+  assert.equal(slots.vehicle, carImage(job));
+  assert.equal(slots.bay, "data:wooden-door");
+  assert.notEqual(slots.vehicle, slots.bay);
+});
+
+test("ticket hero stays vehicle art when the bay slot is empty", () => {
+  const emptyBay = { ...job, photo: "", jobPhoto: "" };
+  const slots = ticketPhotoSlots(emptyBay);
+  assert.equal(slots.bay, "");
+  assert.equal(slots.vehicle, carImage(emptyBay));
+  assert.ok(slots.vehicle.length > 0);
+});
+
+test("ticketVehiclePhotoOf ignores jobPhoto even if it looks like a car picture", () => {
+  const spoofed = withJobPhoto(job, "/img/car-sedan.jpg");
+  assert.equal(jobPhotoOf(spoofed), "/img/car-sedan.jpg");
+  assert.equal(ticketVehiclePhotoOf(spoofed), carImage(job));
+  assert.equal(ticketPhotoSlots(spoofed).vehicle, carImage(job));
 });
