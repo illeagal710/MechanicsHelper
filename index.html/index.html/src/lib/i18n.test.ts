@@ -15,6 +15,19 @@ import {
   translateStoreError,
 } from "./i18n.ts";
 
+test("landing welcome body uses Leon QR/referral copy in English and Spanish", () => {
+  assert.equal(
+    translate("en", "welcome.body"),
+    "Customers track repairs. Shops and independents each get a QR or referral code so people land on the right bay.",
+  );
+  assert.equal(
+    translate("es", "welcome.body"),
+    "Los clientes siguen las reparaciones. Cada taller e independiente recibe un QR o un código de referido para que la gente llegue al lugar correcto.",
+  );
+  assert.doesNotMatch(translate("en", "welcome.body"), /find code/i);
+  assert.doesNotMatch(translate("es", "welcome.body"), /comparten un código/);
+});
+
 test("English and Spanish dictionaries share the same keys", () => {
   const enKeys = Object.keys(messages.en).sort();
   const esKeys = Object.keys(messages.es).sort();
