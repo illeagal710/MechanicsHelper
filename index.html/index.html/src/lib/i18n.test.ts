@@ -53,12 +53,18 @@ test("store errors and known notes translate without changing source text", () =
   );
   assert.equal(translateNote("es", "Booked from customer app."), "Reservado desde la app del cliente.");
   assert.equal(translateNote("es", "Status set to Scheduled"), "Estado cambiado a Programado");
+  assert.equal(translateNote("es", "Booking declined."), "Cita rechazada.");
+  assert.equal(translateNote("es", "Booking declined: Bay is full."), "Cita rechazada: Bay is full.");
   assert.equal(translateDetail("es", "Mobile mechanic"), "Mecánico a domicilio");
 });
 
 test("status labels stay distinct between shop and customer", () => {
   assert.equal(statusText("en", "ready", "shop"), "Ready for pickup");
   assert.equal(statusText("es", "ready", "customer"), "Tu vehículo está listo");
+  assert.equal(statusText("en", "declined", "shop"), "Declined");
+  assert.equal(statusText("es", "declined", "customer"), "El taller rechazó esta cita");
+  assert.equal(statusText("en", "done", "shop"), "Completed");
+  assert.equal(statusText("es", "done", "customer"), "Recogido — gracias");
 });
 
 test("production store errors and hours labels translate", () => {
@@ -140,6 +146,21 @@ test("helper fence, loading, and fallback strings exist in English and Spanish",
   assert.equal(translate("es", "diag.loading"), "Revisando eso…");
   assert.match(translate("en", "diag.error"), /shop rules/i);
   assert.match(translate("es", "diag.error"), /reglas del taller/i);
+});
+
+test("shop history and decline copy exists in English and Spanish", () => {
+  assert.equal(translate("en", "shop.history"), "History");
+  assert.equal(translate("es", "shop.history"), "Historial");
+  assert.equal(translate("en", "job.decline"), "Decline booking");
+  assert.equal(translate("es", "job.decline"), "Rechazar cita");
+  assert.equal(translate("en", "job.declineConfirm"), "Decline this booking");
+  assert.equal(translate("es", "job.declineConfirm"), "Rechazar esta cita");
+  assert.match(translate("en", "job.declineHint"), /time slot|customer/i);
+  assert.match(translate("es", "job.declineHint"), /horario|cliente/i);
+  assert.equal(
+    translateStoreError("es", "Only incoming or scheduled bookings can be declined."),
+    "Solo se pueden rechazar citas nuevas o programadas.",
+  );
 });
 
 test("linked customer booking copy hides the shop directory in English and Spanish", () => {

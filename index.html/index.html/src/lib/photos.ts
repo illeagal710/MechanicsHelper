@@ -1,4 +1,5 @@
 import type { Job, Shop, StatusId, User } from "@/lib/store";
+import { isJobStatus } from "./job-status.ts";
 import { carImage } from "./vehicles.ts";
 
 /** Account / shop / mechanic identity photo. Never a bay/job image. */
@@ -77,16 +78,7 @@ export function sanitizeJobPatch(patch: Record<string, unknown> | null | undefin
   if (!patch || typeof patch !== "object") return out;
 
   const status = patch.status;
-  if (
-    status === "scheduled" ||
-    status === "enroute" ||
-    status === "checkedin" ||
-    status === "diagnosing" ||
-    status === "parts" ||
-    status === "repair" ||
-    status === "ready" ||
-    status === "done"
-  ) {
+  if (isJobStatus(status)) {
     out.status = status;
   }
 

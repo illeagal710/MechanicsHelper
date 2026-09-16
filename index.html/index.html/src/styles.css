@@ -34,6 +34,8 @@
   --mh-badge-ready-fg: #6ee7b7;
   --mh-badge-done-bg: #1a2030;
   --mh-badge-done-fg: #94a3b8;
+  --mh-badge-declined-bg: #2a1518;
+  --mh-badge-declined-fg: #fecaca;
 }
 
 html[data-theme="light"] {
@@ -68,6 +70,8 @@ html[data-theme="light"] {
   --mh-badge-ready-fg: #047857;
   --mh-badge-done-bg: #e2e8f0;
   --mh-badge-done-fg: #334155;
+  --mh-badge-declined-bg: #fee2e2;
+  --mh-badge-declined-fg: #b91c1c;
 }
 
 @theme inline {
@@ -125,6 +129,7 @@ html[data-theme="light"] {
   .badge-repair { background: var(--mh-badge-repair-bg); color: var(--mh-badge-repair-fg); }
   .badge-ready { background: var(--mh-badge-ready-bg); color: var(--mh-badge-ready-fg); }
   .badge-done { background: var(--mh-badge-done-bg); color: var(--mh-badge-done-fg); }
+  .badge-declined { background: var(--mh-badge-declined-bg); color: var(--mh-badge-declined-fg); }
 }
 
 @layer utilities {

@@ -154,6 +154,13 @@ export const mhAddNote = createServerFn({ method: "POST" })
     return db.addNote(data.id, data.text, data.by || "shop");
   });
 
+export const mhDeclineJob = createServerFn({ method: "POST" })
+  .validator((d: { id: string; reason?: string }) => d)
+  .handler(async ({ data }) => {
+    const db = await import("./mh-db.server");
+    return db.declineJob(data.id, data.reason || "");
+  });
+
 export const mhDiagnose = createServerFn({ method: "POST" })
   .validator((d: { text: string; locale: "en" | "es" }) => d)
   .handler(async ({ data }) => {

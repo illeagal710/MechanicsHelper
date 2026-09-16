@@ -166,7 +166,9 @@ const en = {
   "shop.inBay": "In bay",
   "shop.ready": "Ready",
   "shop.all": "All",
+  "shop.history": "History",
   "shop.empty": "No jobs in this filter.",
+  "shop.historyEmpty": "No completed or declined jobs yet.",
   "shop.independent": "Independent",
   "shop.shop": "Shop",
   "share.title": "Share with customers",
@@ -187,6 +189,13 @@ const en = {
   "job.updates": "Updates",
   "job.shopUpdate": "Shop update",
   "job.system": "System",
+  "job.decline": "Decline booking",
+  "job.declineHint": "Frees this time slot and notifies the customer.",
+  "job.declineReason": "Reason (optional)",
+  "job.declineReasonPh": "Bay is full that morning.",
+  "job.declineConfirm": "Decline this booking",
+  "job.declinedBanner": "This booking was declined.",
+  "job.declinedReason": "Reason: {reason}",
 
   "diag.title": "Shop helper",
   "diag.helper": "Helper",
@@ -299,6 +308,7 @@ const en = {
   "toast.newCode": "New code: {code}",
   "toast.assigned": "Assigned",
   "toast.statusUpdated": "Status updated",
+  "toast.bookingDeclined": "Booking declined",
   "toast.updateSent": "Update sent to customer",
   "toast.shopSaved": "Shop profile saved",
   "toast.techAdded": "Technician added",
@@ -320,6 +330,8 @@ const en = {
   "err.emailOrPhoneRequired": "Email or phone is required.",
   "err.resetCodeRequired": "Email/phone and reset code are required.",
   "err.resetCodeWrong": "That reset code is wrong or expired.",
+  "err.cannotDecline": "Only incoming or scheduled bookings can be declined.",
+  "err.jobNotFound": "Job not found.",
 
   "status.scheduled.label": "Scheduled",
   "status.scheduled.customer": "Appointment booked",
@@ -337,6 +349,8 @@ const en = {
   "status.ready.customer": "Your vehicle is ready",
   "status.done.label": "Completed",
   "status.done.customer": "Picked up — thank you",
+  "status.declined.label": "Declined",
+  "status.declined.customer": "The shop declined this booking",
 
   "kind.truck": "truck",
   "kind.van": "van",
@@ -352,6 +366,8 @@ const en = {
   "note.bookedApp": "Booked from customer app.",
   "note.bookedOnline": "Booked online.",
   "note.statusSet": "Status set to {label}",
+  "note.bookingDeclined": "Booking declined.",
+  "note.bookingDeclinedReason": "Booking declined: {reason}",
 
   "vehicle.other": "Other",
 
@@ -736,7 +752,9 @@ const es: Record<MessageKey, string> = {
   "shop.inBay": "En bahía",
   "shop.ready": "Listos",
   "shop.all": "Todos",
+  "shop.history": "Historial",
   "shop.empty": "No hay trabajos en este filtro.",
+  "shop.historyEmpty": "Aún no hay trabajos completados o rechazados.",
   "shop.independent": "Independiente",
   "shop.shop": "Taller",
   "share.title": "Compartir con clientes",
@@ -757,6 +775,13 @@ const es: Record<MessageKey, string> = {
   "job.updates": "Actualizaciones",
   "job.shopUpdate": "Actualización del taller",
   "job.system": "Sistema",
+  "job.decline": "Rechazar cita",
+  "job.declineHint": "Libera este horario y avisa al cliente.",
+  "job.declineReason": "Motivo (opcional)",
+  "job.declineReasonPh": "La bahía está llena esa mañana.",
+  "job.declineConfirm": "Rechazar esta cita",
+  "job.declinedBanner": "Esta cita fue rechazada.",
+  "job.declinedReason": "Motivo: {reason}",
 
   "diag.title": "Asistente del taller",
   "diag.helper": "Asistente",
@@ -869,6 +894,7 @@ const es: Record<MessageKey, string> = {
   "toast.newCode": "Código nuevo: {code}",
   "toast.assigned": "Asignado",
   "toast.statusUpdated": "Estado actualizado",
+  "toast.bookingDeclined": "Cita rechazada",
   "toast.updateSent": "Actualización enviada al cliente",
   "toast.shopSaved": "Perfil del taller guardado",
   "toast.techAdded": "Técnico agregado",
@@ -890,6 +916,8 @@ const es: Record<MessageKey, string> = {
   "err.emailOrPhoneRequired": "Se requiere correo o teléfono.",
   "err.resetCodeRequired": "Se requieren correo/teléfono y el código.",
   "err.resetCodeWrong": "Ese código es incorrecto o ya caducó.",
+  "err.cannotDecline": "Solo se pueden rechazar citas nuevas o programadas.",
+  "err.jobNotFound": "Trabajo no encontrado.",
 
   "status.scheduled.label": "Programado",
   "status.scheduled.customer": "Cita reservada",
@@ -907,6 +935,8 @@ const es: Record<MessageKey, string> = {
   "status.ready.customer": "Tu vehículo está listo",
   "status.done.label": "Completado",
   "status.done.customer": "Recogido — gracias",
+  "status.declined.label": "Rechazada",
+  "status.declined.customer": "El taller rechazó esta cita",
 
   "kind.truck": "camioneta",
   "kind.van": "van",
@@ -922,6 +952,8 @@ const es: Record<MessageKey, string> = {
   "note.bookedApp": "Reservado desde la app del cliente.",
   "note.bookedOnline": "Reservado en línea.",
   "note.statusSet": "Estado cambiado a {label}",
+  "note.bookingDeclined": "Cita rechazada.",
+  "note.bookingDeclinedReason": "Cita rechazada: {reason}",
 
   "vehicle.other": "Otro",
 
@@ -1165,6 +1197,8 @@ const STORE_ERROR_KEYS: Record<string, MessageKey> = {
   "Email or phone is required.": "err.emailOrPhoneRequired",
   "Email/phone and reset code are required.": "err.resetCodeRequired",
   "That reset code is wrong or expired.": "err.resetCodeWrong",
+  "Only incoming or scheduled bookings can be declined.": "err.cannotDecline",
+  "Job not found.": "err.jobNotFound",
 };
 
 const DETAIL_KEYS: Record<string, MessageKey> = {
@@ -1188,6 +1222,7 @@ const STATUS_LABEL_EN: Record<string, string> = {
   "In repair": "repair",
   "Ready for pickup": "ready",
   Completed: "done",
+  Declined: "declined",
 };
 
 export type TranslateFn = (key: MessageKey, vars?: Record<string, string | number>) => string;
@@ -1244,6 +1279,11 @@ export function translateDetail(locale: Locale, detail: string): string {
 export function translateNote(locale: Locale, text: string): string {
   const direct = NOTE_KEYS[text];
   if (direct) return translate(locale, direct);
+  if (text === "Booking declined.") return translate(locale, "note.bookingDeclined");
+  const declinedMatch = text.match(/^Booking declined: (.+)$/);
+  if (declinedMatch) {
+    return translate(locale, "note.bookingDeclinedReason", { reason: declinedMatch[1] });
+  }
   const statusMatch = text.match(/^Status set to (.+)$/);
   if (statusMatch) {
     const id = STATUS_LABEL_EN[statusMatch[1]];
