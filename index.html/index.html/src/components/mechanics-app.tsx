@@ -11,12 +11,23 @@ import {
   UserRound,
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
-import { greet, reply } from "@/lib/diagnose";
+import { greet, isBookChip, reply } from "@/lib/diagnose";
+import { LanguageToggle, useI18n } from "@/lib/i18n-context";
+import {
+  formatHoursLabel,
+  kindText,
+  localeTag,
+  privacySections,
+  statusText,
+  translateDetail,
+  translateNote,
+  translateStoreError,
+  type MessageKey,
+} from "@/lib/i18n";
 import {
   Store,
   BIO_MAX,
   DAY_BITS,
-  hoursLabel,
   type Job,
   type Provider,
   type Role,
@@ -27,7 +38,6 @@ import {
   statusMeta,
   vehicleLabel,
 } from "@/lib/store";
-import { PRIVACY_SECTIONS } from "@/lib/legal";
 import { trimOptions } from "@/lib/trims";
 import { VEHICLE_DATA, YEARS, carImage, vehicleKind } from "@/lib/vehicles";
 
@@ -77,6 +87,7 @@ function slots() {
 }
 
 export function MechanicsApp() {
+  const { t } = useI18n();
   const [view, setView] = useState<View>("welcome");
   const [user, setUser] = useState<User | null>(null);
   const [toast, setToast] = useState("");
@@ -97,7 +108,7 @@ export function MechanicsApp() {
     const next = homeFor(u.role);
     if (u.role === "customer" && lockedProvider) setView("book");
     else setView(next);
-    flash("Hi " + u.name.split(" ")[0]);
+    flash(t("toast.hi", { name: u.name.split(" ")[0] }));
   }
 
   useEffect(() => {
@@ -133,12 +144,12 @@ export function MechanicsApp() {
   function applyCode(raw: string, goBook = true) {
     const p = Store.findProviderByCode(raw);
     if (!p) {
-      flash("No shop or mechanic with that code.");
+      flash(t("toast.noCode"));
       return;
     }
     Store.setRefCode(p.code);
     setLockedProvider(p);
-    flash("Found " + p.name);
+    flash(t("toast.found", { name: p.name }));
     if (goBook && user?.role === "customer") setView("book");
   }
 
@@ -150,9 +161,12 @@ export function MechanicsApp() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[430px] flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)]">
-      <header className="flex items-center justify-between px-5 pt-3 text-xs font-semibold text-muted">
-        <span>Mechanics Helper</span>
-        <span className="font-mono text-dim">{isProvider ? shareCode || "Bay" : lockedProvider?.code || "Bay"}</span>
+      <header className="flex items-center justify-between gap-2 px-4 pt-3 text-xs font-semibold text-muted">
+        <span className="min-w-0 truncate">{t("app.name")}</span>
+        <div className="flex items-center gap-2">
+          <LanguageToggle compact />
+          <span className="font-mono text-dim">{isProvider ? shareCode || t("app.bay") : lockedProvider?.code || t("app.bay")}</span>
+        </div>
       </header>
       <main className={`flex-1 overflow-y-auto px-4 pb-36 pt-3 ${view === "welcome" || view === "login" || view === "register" ? "pb-16" : ""}`}>
         {view === "welcome" && (
@@ -189,7 +203,7 @@ export function MechanicsApp() {
               Store.setRefCode("");
               setLockedProvider(null);
               setCodeInput("");
-              flash("Shop unlocked — pick anyone");
+              flash(t("toast.unlocked"));
             }}
             go={setView}
           />
@@ -201,7 +215,7 @@ export function MechanicsApp() {
             onClear={() => {
               Store.setRefCode("");
               setLockedProvider(null);
-              flash("Pick any shop or mechanic");
+              flash(t("toast.pickAny"));
             }}
             onBack={() => setView("home")}
             onBooked={(j) => {
@@ -261,21 +275,21 @@ export function MechanicsApp() {
         )}
         {view === "share" && user && shareCode && (
           <div>
-            <Top title="QR & referral" onBack={() => setView("shopHome")} />
+            <Top title={t("share.titleQr")} onBack={() => setView("shopHome")} />
             <QrShare
               key={shareCode}
               code={shareCode}
-              title={user.role === "independent" ? user.businessName || user.name : user.shopName || "Your shop"}
+              title={user.role === "independent" ? user.businessName || user.name : user.shopName || t("share.yourShop")}
               canRotate={user.role === "independent" || user.shopRole === "owner"}
               rotateHint={
                 user.role === "shop"
-                  ? "A new code also replaces the employee join code. Old printed QRs stop working."
-                  : "Old printed QRs stop working after you generate a new code."
+                  ? t("share.rotateShop")
+                  : t("share.rotateIndy")
               }
               onRotate={async () => {
                 const next = await Store.rotateCustomerCode(user);
                 setUser(Store.getSession());
-                flash("New code: " + next);
+                flash(t("toast.newCode", { code: next }));
                 bump();
               }}
             />
@@ -295,7 +309,7 @@ export function MechanicsApp() {
               setUser(null);
               setLockedProvider(null);
               setView("welcome");
-              flash("Account deleted");
+              flash(t("toast.accountDeleted"));
             }}
             onPrivacy={() => setView("privacy")}
             onSupport={() => setView("support")}
@@ -308,7 +322,7 @@ export function MechanicsApp() {
           />
         )}
         {view === "privacy" && (
-          <LegalPage title="Privacy" onBack={() => setView(user ? "account" : "welcome")} />
+          <LegalPage title={t("legal.privacy")} onBack={() => setView(user ? "account" : "welcome")} />
         )}
         {view === "support" && (
           <SupportPage
@@ -323,17 +337,17 @@ export function MechanicsApp() {
         <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-line bg-bg/95 px-2 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           {isProvider ? (
             <div className="grid grid-cols-3">
-              <Tab active={view === "shopHome" || view === "shopJob"} onClick={() => setView("shopHome")} icon={<ClipboardList className="size-5" />} label="Jobs" />
-              <Tab active={view === "share"} onClick={() => setView("share")} icon={<QrCode className="size-5" />} label="QR" />
-              <Tab active={view === "account"} onClick={() => setView("account")} icon={<UserRound className="size-5" />} label="Account" />
+              <Tab active={view === "shopHome" || view === "shopJob"} onClick={() => setView("shopHome")} icon={<ClipboardList className="size-5" />} label={t("nav.jobs")} />
+              <Tab active={view === "share"} onClick={() => setView("share")} icon={<QrCode className="size-5" />} label={t("nav.qr")} />
+              <Tab active={view === "account"} onClick={() => setView("account")} icon={<UserRound className="size-5" />} label={t("nav.account")} />
             </div>
           ) : (
             <div className="grid grid-cols-5">
-              <Tab active={view === "home"} onClick={() => setView("home")} icon={<House className="size-5" />} label="Home" />
-              <Tab active={view === "diagnose"} onClick={() => setView("diagnose")} icon={<MessageCircle className="size-5" />} label="Helper" />
-              <Tab active={view === "book" || view === "confirm"} onClick={() => setView("book")} icon={<CalendarPlus className="size-5" />} label="Book" />
-              <Tab active={view === "track" || view === "job"} onClick={() => setView("track")} icon={<MapPin className="size-5" />} label="My car" />
-              <Tab active={view === "account"} onClick={() => setView("account")} icon={<UserRound className="size-5" />} label="Account" />
+              <Tab active={view === "home"} onClick={() => setView("home")} icon={<House className="size-5" />} label={t("nav.home")} />
+              <Tab active={view === "diagnose"} onClick={() => setView("diagnose")} icon={<MessageCircle className="size-5" />} label={t("diag.helper")} />
+              <Tab active={view === "book" || view === "confirm"} onClick={() => setView("book")} icon={<CalendarPlus className="size-5" />} label={t("nav.book")} />
+              <Tab active={view === "track" || view === "job"} onClick={() => setView("track")} icon={<MapPin className="size-5" />} label={t("nav.myCar")} />
+              <Tab active={view === "account"} onClick={() => setView("account")} icon={<UserRound className="size-5" />} label={t("nav.account")} />
             </div>
           )}
         </nav>
@@ -377,9 +391,10 @@ function Face({ src, name, size = "md" }: { src?: string; name: string; size?: "
 }
 
 function Top({ title, onBack }: { title: string; onBack: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="mb-4 flex items-center gap-2.5">
-      <button type="button" onClick={onBack} className="grid size-9 place-items-center rounded-[10px] border border-line bg-surface" aria-label="Back">
+      <button type="button" onClick={onBack} className="grid size-9 place-items-center rounded-[10px] border border-line bg-surface" aria-label={t("nav.back")}>
         <ArrowLeft className="size-4" />
       </button>
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -431,27 +446,30 @@ function Welcome({
   onPrivacy: () => void;
   onSupport: () => void;
 }) {
+  const { locale, t } = useI18n();
   return (
     <div>
       <div className="mb-4 flex items-center gap-2.5">
         <Logo />
         <div>
-          <div className="font-bold">Mechanics Helper</div>
-          <div className="text-xs text-muted">Shop · Independent · Customer</div>
+          <div className="font-bold">{t("app.name")}</div>
+          <div className="text-xs text-muted">{t("app.tagline")}</div>
         </div>
       </div>
       {locked ? (
         <div className="mb-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-accent">You were referred</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-accent">{t("welcome.referred")}</p>
           <div className="mt-2 flex items-start gap-3">
             <Face src={locked.photo} name={locked.name} size="lg" />
             <div className="min-w-0">
               <h2 className="text-xl font-semibold">{locked.name}</h2>
-              <p className="mt-1 text-sm text-muted">{locked.detail} · code {locked.code}</p>
+              <p className="mt-1 text-sm text-muted">
+                {t("welcome.referredCode", { detail: translateDetail(locale, locked.detail), code: locked.code })}
+              </p>
             </div>
           </div>
           {locked.bio ? <p className="mt-2 text-sm text-fg">{locked.bio}</p> : null}
-          <p className="mt-2 text-sm text-muted">{locked.hoursLabel || hoursLabel(locked)}</p>
+          <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, locked)}</p>
           {(locked.supportPhone || locked.supportEmail) && (
             <p className="mt-2 text-sm text-muted">
               {locked.supportPhone ? locked.supportPhone : ""}
@@ -459,24 +477,24 @@ function Welcome({
               {locked.supportEmail ? locked.supportEmail : ""}
             </p>
           )}
-          <p className="mt-2 text-sm text-muted">Log in as a customer to book this mechanic.</p>
+          <p className="mt-2 text-sm text-muted">{t("welcome.referredLogin")}</p>
         </div>
       ) : (
         <div className="rounded-2xl border border-line bg-linear-to-br from-surface2 to-bg2 p-5">
           <h1 className="text-[26px] font-bold leading-tight tracking-tight">
-            Sign in to book
+            {t("welcome.title1")}
             <br />
-            or run the bay.
+            {t("welcome.title2")}
           </h1>
-          <p className="mt-2 text-sm text-muted">Customers track repairs. Shops and independents share a find code so people land on the right bay.</p>
+          <p className="mt-2 text-sm text-muted">{t("welcome.body")}</p>
         </div>
       )}
       <div className="mt-4 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Have a shop or mechanic code?</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
           <input
             className={inputClass}
-            placeholder="RIV4 or LEON"
+            placeholder={t("welcome.codePlaceholder")}
             value={codeInput}
             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
@@ -484,24 +502,24 @@ function Welcome({
             }}
           />
           <button type="button" onClick={onApply} className="h-12 shrink-0 rounded-xl bg-accent px-4 font-semibold text-ink">
-            Find
+            {t("welcome.find")}
           </button>
         </div>
       </div>
       <div className="mt-4 flex flex-col gap-2.5">
         <button type="button" onClick={onLogin} className="h-12 rounded-xl bg-accent font-semibold text-ink">
-          Log in
+          {t("welcome.login")}
         </button>
         <button type="button" onClick={onRegister} className="h-12 rounded-xl border border-line bg-surface font-semibold">
-          Create an account
+          {t("welcome.createAccount")}
         </button>
       </div>
       <div className="mt-6 flex justify-center gap-4 text-sm font-semibold text-muted">
         <button type="button" onClick={onPrivacy} className="underline-offset-2 hover:text-fg hover:underline">
-          Privacy
+          {t("welcome.privacy")}
         </button>
         <button type="button" onClick={onSupport} className="underline-offset-2 hover:text-fg hover:underline">
-          Support
+          {t("welcome.support")}
         </button>
       </div>
     </div>
@@ -519,6 +537,7 @@ function Login({
   onErr: (s: string) => void;
   onRegister: () => void;
 }) {
+  const { locale, t } = useI18n();
   return (
     <form
       className="flex flex-col gap-3"
@@ -526,22 +545,22 @@ function Login({
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
         const res = await Store.login(String(fd.get("id")), String(fd.get("pw")));
-        if (!res.ok) return onErr(res.error);
+        if (!res.ok) return onErr(translateStoreError(locale, res.error));
         onOk(res.user);
       }}
     >
-      <Top title="Log in" onBack={onBack} />
-      <Field label="Email or phone">
+      <Top title={t("login.title")} onBack={onBack} />
+      <Field label={t("login.id")}>
         <input name="id" className={inputClass} autoComplete="username" required />
       </Field>
-      <Field label="Password">
+      <Field label={t("login.password")}>
         <input name="pw" type="password" className={inputClass} autoComplete="current-password" required />
       </Field>
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
-        Log in
+        {t("login.submit")}
       </button>
       <button type="button" onClick={onRegister} className="h-12 rounded-xl border border-line bg-surface font-semibold">
-        Need an account?
+        {t("login.needAccount")}
       </button>
     </form>
   );
@@ -556,6 +575,7 @@ function Register({
   onOk: (u: User) => void;
   onErr: (s: string) => void;
 }) {
+  const { locale, t } = useI18n();
   const [role, setRole] = useState<Role>("customer");
   const [join, setJoin] = useState<"create" | "join">("create");
   return (
@@ -576,33 +596,33 @@ function Register({
           businessName: String(fd.get("biz") || ""),
           serviceMode: (String(fd.get("mode") || "both") as User["serviceMode"]),
         });
-        if (!res.ok) return onErr(res.error);
+        if (!res.ok) return onErr(translateStoreError(locale, res.error));
         onOk(res.user);
       }}
     >
-      <Top title="Create account" onBack={onBack} />
-      <Field label="Full name">
+      <Top title={t("register.title")} onBack={onBack} />
+      <Field label={t("register.name")}>
         <input name="name" className={inputClass} required />
       </Field>
-      <Field label="Email">
+      <Field label={t("register.email")}>
         <input name="email" type="email" className={inputClass} />
       </Field>
-      <Field label="Phone">
+      <Field label={t("register.phone")}>
         <input name="phone" inputMode="tel" className={inputClass} />
       </Field>
-      <Field label="Password">
+      <Field label={t("register.password")}>
         <input name="pw" type="password" className={inputClass} required />
       </Field>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">I am</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("register.iAm")}</p>
       <div className="flex rounded-xl bg-bg2 p-1">
         {(["customer", "shop", "independent"] as Role[]).map((r) => (
           <button
             key={r}
             type="button"
             onClick={() => setRole(r)}
-            className={`flex-1 rounded-lg py-2 text-xs font-semibold capitalize ${role === r ? "bg-surface2" : "text-muted"}`}
+            className={`flex-1 rounded-lg py-2 text-xs font-semibold ${role === r ? "bg-surface2" : "text-muted"}`}
           >
-            {r === "independent" ? "Independent" : r === "shop" ? "Shop" : "Customer"}
+            {r === "independent" ? t("register.roleIndependent") : r === "shop" ? t("register.roleShop") : t("register.roleCustomer")}
           </button>
         ))}
       </div>
@@ -610,39 +630,39 @@ function Register({
         <>
           <div className="flex rounded-xl bg-bg2 p-1">
             <button type="button" onClick={() => setJoin("create")} className={`flex-1 rounded-lg py-2 text-xs font-semibold ${join === "create" ? "bg-surface2" : "text-muted"}`}>
-              Create shop
+              {t("register.createShop")}
             </button>
             <button type="button" onClick={() => setJoin("join")} className={`flex-1 rounded-lg py-2 text-xs font-semibold ${join === "join" ? "bg-surface2" : "text-muted"}`}>
-              Join shop
+              {t("register.joinShop")}
             </button>
           </div>
           {join === "create" ? (
-            <Field label="Shop name">
-              <input name="shopName" className={inputClass} placeholder="Riverside Auto" />
+            <Field label={t("register.shopName")}>
+              <input name="shopName" className={inputClass} placeholder={t("register.shopNamePh")} />
             </Field>
           ) : (
-            <Field label="Shop team code">
-              <input name="shopCode" className={inputClass} placeholder="RIV4" />
+            <Field label={t("register.shopCode")}>
+              <input name="shopCode" className={inputClass} placeholder={t("register.shopCodePh")} />
             </Field>
           )}
         </>
       )}
       {role === "independent" && (
         <>
-          <Field label="Business name">
-            <input name="biz" className={inputClass} placeholder="Leon Mobile Repair" />
+          <Field label={t("register.bizName")}>
+            <input name="biz" className={inputClass} placeholder={t("register.bizPh")} />
           </Field>
-          <Field label="How you work">
+          <Field label={t("register.howYouWork")}>
             <select name="mode" className={inputClass}>
-              <option value="mobile">I go to the customer</option>
-              <option value="shop">They come to me</option>
-              <option value="both">Both</option>
+              <option value="mobile">{t("register.modeMobile")}</option>
+              <option value="shop">{t("register.modeShop")}</option>
+              <option value="both">{t("register.modeBoth")}</option>
             </select>
           </Field>
         </>
       )}
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
-        Create account
+        {t("register.submit")}
       </button>
     </form>
   );
@@ -665,46 +685,47 @@ function CustomerHome({
   onClear: () => void;
   go: (v: View) => void;
 }) {
+  const { locale, t } = useI18n();
   return (
     <div>
       <div className="mb-4 flex items-center gap-2.5">
         <Logo />
         <div className="min-w-0 flex-1">
-          <div className="font-bold">Mechanics Helper</div>
+          <div className="font-bold">{t("app.name")}</div>
           <div className="truncate text-xs text-muted">{user.name}</div>
         </div>
         <button type="button" onClick={() => go("account")} className="h-9 rounded-xl border border-line px-3 text-sm font-semibold">
-          Account
+          {t("home.account")}
         </button>
       </div>
       {locked ? (
         <div className="mb-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-accent">Booking with</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-accent">{t("home.bookingWith")}</p>
           <div className="mt-2 flex items-start gap-3">
             <Face src={locked.photo} name={locked.name} size="lg" />
             <div className="min-w-0">
               <h2 className="text-xl font-semibold">{locked.name}</h2>
-              <p className="text-sm text-muted">{locked.detail} · {locked.code}</p>
+              <p className="text-sm text-muted">{translateDetail(locale, locked.detail)} · {locked.code}</p>
             </div>
           </div>
           {locked.bio ? <p className="mt-2 text-sm text-fg">{locked.bio}</p> : null}
-          <p className="mt-2 text-sm text-muted">{locked.hoursLabel || hoursLabel(locked)}</p>
+          <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, locked)}</p>
           <button type="button" onClick={onClear} className="mt-2 text-sm font-semibold text-accent">
-            Choose a different shop
+            {t("home.chooseDifferent")}
           </button>
         </div>
       ) : (
         <div className="rounded-2xl border border-line bg-surface p-5">
-          <h1 className="text-[26px] font-bold leading-tight">Get the car in. Stay in the loop.</h1>
-          <p className="mt-2 text-sm text-muted">Ask the helper, book a bay, and watch progress instead of calling the desk.</p>
+          <h1 className="text-[26px] font-bold leading-tight">{t("home.headline")}</h1>
+          <p className="mt-2 text-sm text-muted">{t("home.sub")}</p>
         </div>
       )}
       <div className="mt-4 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Have a shop or mechanic code?</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
           <input
             className={inputClass}
-            placeholder="RIV4 or LEON"
+            placeholder={t("welcome.codePlaceholder")}
             value={codeInput}
             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
@@ -712,22 +733,22 @@ function CustomerHome({
             }}
           />
           <button type="button" onClick={onApply} className="h-12 shrink-0 rounded-xl bg-accent px-4 font-semibold text-ink">
-            Find
+            {t("welcome.find")}
           </button>
         </div>
       </div>
       <div className="mt-3 grid gap-2.5">
         <button type="button" onClick={() => go("book")} className="tap rounded-2xl bg-accent px-4 py-3.5 text-left">
-          <p className="font-semibold text-ink">Book an appointment</p>
-          <p className="mt-0.5 text-sm text-ink/70">Pick the car, a time, and the shop.</p>
+          <p className="font-semibold text-ink">{t("home.bookAppt")}</p>
+          <p className="mt-0.5 text-sm text-ink/70">{t("home.bookSub")}</p>
         </button>
         <button type="button" onClick={() => go("track")} className="tap rounded-2xl border border-line bg-surface px-4 py-3.5 text-left">
-          <p className="font-semibold">My car</p>
-          <p className="mt-0.5 text-sm text-muted">See status, parts, and ready for pickup.</p>
+          <p className="font-semibold">{t("nav.myCar")}</p>
+          <p className="mt-0.5 text-sm text-muted">{t("home.trackSub")}</p>
         </button>
         <button type="button" onClick={() => go("diagnose")} className="tap rounded-2xl border border-line bg-surface px-4 py-3.5 text-left">
-          <p className="font-semibold">Ask the helper</p>
-          <p className="mt-0.5 text-sm text-muted">Describe the noise. Not a certified inspection.</p>
+          <p className="font-semibold">{t("home.askHelper")}</p>
+          <p className="mt-0.5 text-sm text-muted">{t("home.helperSub")}</p>
         </button>
       </div>
     </div>
@@ -749,12 +770,14 @@ function Book({
   onBooked: (j: Job) => void;
   onErr: (s: string) => void;
 }) {
+  const { locale, t } = useI18n();
   const providers = Store.listProviders();
   const [make, setMake] = useState("");
   const [pick, setPick] = useState(locked ? `${locked.type}:${locked.id}` : "");
   const models = make ? VEHICLE_DATA[make] || [] : [];
   const pending = typeof window === "undefined" ? "" : sessionStorage.getItem("mh.symptoms") || "";
   const picked = locked || providers.find((p) => `${p.type}:${p.id}` === pick) || null;
+  const dates = localeTag(locale);
 
   return (
     <form
@@ -766,7 +789,7 @@ function Book({
         const raw = locked ? `${locked.type}:${locked.id}` : String(fd.get("provider") || "");
         const [ptype, pid] = raw.split(":");
         const provider = providers.find((p) => p.id === pid && p.type === ptype);
-        if (!provider) return onErr("Choose a shop or mechanic");
+        if (!provider) return onErr(t("err.chooseProvider"));
         const job: Job = {
           id: Store.jobCode(),
           userId: user.id,
@@ -794,36 +817,36 @@ function Book({
           notifySms: fd.get("notifySms") === "on",
         };
         if (!job.year || !job.make || !job.model || !job.symptoms || !fd.get("slot")) {
-          return onErr("Fill in all fields");
+          return onErr(t("err.fillAll"));
         }
         if (Store.slotTaken(provider.id, job.slot)) {
-          return onErr("That time is already booked. Pick another slot.");
+          return onErr(t("err.slotTaken"));
         }
         const saved = await Store.addJob(job);
         if (saved && typeof saved === "object" && "ok" in saved && saved.ok === false) {
-          return onErr(saved.error);
+          return onErr(translateStoreError(locale, saved.error));
         }
         sessionStorage.removeItem("mh.symptoms");
         onBooked(job);
       }}
     >
-      <Top title="New appointment" onBack={onBack} />
+      <Top title={t("book.title")} onBack={onBack} />
       {locked ? (
         <div className="rounded-xl border border-accent/40 bg-accent/10 p-3 text-sm">
           <div className="flex items-center gap-3">
             <Face src={locked.photo} name={locked.name} size="sm" />
             <div>
-              Booking <span className="font-semibold">{locked.name}</span> · {locked.code}
+              {t("book.booking", { name: locked.name, code: locked.code })}
             </div>
           </div>
           {locked.bio ? <p className="mt-2 text-muted">{locked.bio}</p> : null}
-          <p className="mt-1 text-sm text-muted">{locked.hoursLabel || hoursLabel(locked)}</p>
+          <p className="mt-1 text-sm text-muted">{formatHoursLabel(locale, locked)}</p>
           <button type="button" onClick={onClear} className="mt-1 block text-sm font-semibold text-accent">
-            Choose someone else
+            {t("book.chooseElse")}
           </button>
         </div>
       ) : (
-        <Field label="Who should get this job?">
+        <Field label={t("book.who")}>
           <select
             name="provider"
             className={inputClass}
@@ -831,7 +854,7 @@ function Book({
             value={pick}
             onChange={(e) => setPick(e.target.value)}
           >
-            <option value="">Choose a shop or mechanic</option>
+            <option value="">{t("book.chooseProvider")}</option>
             {providers.map((p) => (
               <option key={p.type + p.id} value={`${p.type}:${p.id}`}>
                 {p.name} · {p.code}
@@ -841,75 +864,77 @@ function Book({
           {picked?.bio ? <p className="mt-2 text-sm text-muted">{picked.bio}</p> : null}
         </Field>
       )}
-      <Field label="Your name">
+      <Field label={t("book.yourName")}>
         <input name="name" className={inputClass} defaultValue={user.name} required />
       </Field>
       <div className="grid grid-cols-2 gap-2.5">
-        <Field label="Phone">
+        <Field label={t("book.phone")}>
           <input name="phone" className={inputClass} defaultValue={user.phone} required />
         </Field>
-        <Field label="Email">
+        <Field label={t("book.email")}>
           <input name="email" type="email" className={inputClass} defaultValue={user.email} />
         </Field>
       </div>
       <VehiclePicker make={make} setMake={setMake} models={models} />
-      <Field label="What’s going on?">
+      <Field label={t("book.whatsGoingOn")}>
         <textarea name="symptoms" className={inputClass + " min-h-28"} required defaultValue={pending} />
       </Field>
-      <Field label="Preferred time">
+      <Field label={t("book.preferredTime")}>
         <SelectWrap>
           <select name="slot" className={selectClass} required defaultValue="" disabled={!picked}>
-            <option value="">{picked ? "Choose an open time" : "Pick a shop first"}</option>
+            <option value="">{picked ? t("book.chooseOpenTime") : t("book.pickShopFirst")}</option>
             {Store.openSlots(picked?.id).map((d) => (
               <option key={d.toISOString()} value={d.toISOString()}>
-                {fmtWhen(d.toISOString())}
+                {fmtWhen(d.toISOString(), dates)}
               </option>
             ))}
           </select>
         </SelectWrap>
         {picked && Store.openSlots(picked.id).length === 0 ? (
-          <p className="mt-2 text-sm text-accent2">This bay is full for the next week. Try another shop or check back later.</p>
+          <p className="mt-2 text-sm text-accent2">{t("book.bayFull")}</p>
         ) : (
-          <p className="mt-2 text-sm text-muted">Taken times are removed so two cars cannot grab the same slot.</p>
+          <p className="mt-2 text-sm text-muted">{t("book.takenHint")}</p>
         )}
       </Field>
       <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
         <input type="checkbox" name="notifySms" defaultChecked className="mt-1 size-4 accent-amber-400" />
         <span>
-          Text me when they are on the way, waiting on parts, or the car is ready. App alerts too if this phone allows them.
+          {t("book.notifySms")}
         </span>
       </label>
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
-        Request appointment
+        {t("book.request")}
       </button>
     </form>
   );
 }
 
 function Confirm({ job, onTrack, onHome }: { job: Job; onTrack: () => void; onHome: () => void }) {
+  const { locale, t } = useI18n();
   return (
     <div>
-      <Top title="You’re on the board" onBack={onHome} />
+      <Top title={t("confirm.title")} onBack={onHome} />
       <div className="rounded-2xl border border-accent/30 bg-accent/10 p-4 text-center">
-        <p className="text-sm text-muted">Job code — save this</p>
+        <p className="text-sm text-muted">{t("confirm.saveCode")}</p>
         <p className="font-mono text-3xl tracking-[0.18em] text-accent">{job.id}</p>
-        <p className="mt-1 text-sm text-muted">Going to {job.providerName}</p>
+        <p className="mt-1 text-sm text-muted">{t("confirm.goingTo", { name: job.providerName })}</p>
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border border-line bg-surface">
         <img src={carImage(job)} alt="" className="h-36 w-full object-cover" />
         <div className="p-4">
           <h3 className="font-semibold">{vehicleLabel(job)}</h3>
-          <p className="text-sm text-muted">{fmtWhen(job.slot)}</p>
+          <p className="text-sm text-muted">{fmtWhen(job.slot, localeTag(locale))}</p>
         </div>
       </div>
       <button type="button" onClick={onTrack} className="mt-4 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
-        Track this job
+        {t("confirm.track")}
       </button>
     </div>
   );
 }
 
 function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () => void }) {
+  const { locale } = useI18n();
   const st = statusMeta(job.status);
   return (
     <button type="button" onClick={onClick} className="tap w-full rounded-2xl border border-line bg-surface p-3.5 text-left">
@@ -919,7 +944,7 @@ function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () 
           <div className="flex items-start justify-between gap-2">
             <h3 className="truncate font-semibold">{shop ? job.name : vehicleLabel(job)}</h3>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold badge-${st.badge}`}>
-              {shop ? st.label : st.customer}
+              {statusText(locale, job.status, shop ? "shop" : "customer")}
             </span>
           </div>
           <p className="truncate text-sm text-muted">
@@ -927,7 +952,7 @@ function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () 
             {!shop && job.providerName ? ` · ${job.providerName}` : ""}
             {job.assignedTo ? ` · ${job.assignedTo}` : ""}
           </p>
-          <p className="mt-1 text-sm font-medium text-fg/80">{fmtWhen(job.slot)}</p>
+          <p className="mt-1 text-sm font-medium text-fg/80">{fmtWhen(job.slot, localeTag(locale))}</p>
           <p className="font-mono text-xs text-dim">{job.id}</p>
         </div>
       </div>
@@ -936,14 +961,15 @@ function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () 
 }
 
 function Track({ user, onOpen, onBack }: { user: User; onOpen: (id: string) => void; onBack: () => void }) {
+  const { t } = useI18n();
   const [q, setQ] = useState("");
   const jobs = useMemo(() => (q ? Store.findJobs(q, user) : Store.providerJobs(user)), [q, user]);
   return (
     <div>
-      <Top title="Track a repair" onBack={onBack} />
-      <input className={inputClass} placeholder="Job code or phone" value={q} onChange={(e) => setQ(e.target.value)} />
+      <Top title={t("track.title")} onBack={onBack} />
+      <input className={inputClass} placeholder={t("track.placeholder")} value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="mt-3 flex flex-col gap-2.5">
-        {jobs.length ? jobs.map((j) => <JobCard key={j.id} job={j} shop={false} onClick={() => onOpen(j.id)} />) : <p className="p-6 text-center text-sm text-muted">{q ? "No jobs matched that code or phone." : "No cars on the board yet. Book one and it shows up here."}</p>}
+        {jobs.length ? jobs.map((j) => <JobCard key={j.id} job={j} shop={false} onClick={() => onOpen(j.id)} />) : <p className="p-6 text-center text-sm text-muted">{q ? t("track.emptySearch") : t("track.emptyBoard")}</p>}
       </div>
     </div>
   );
@@ -962,13 +988,14 @@ function ShopHome({
   shareCode: string;
   tick: number;
 }) {
+  const { t } = useI18n();
   const [filter, setFilter] = useState<"active" | "ready" | "all">("active");
   const jobs = Store.providerJobs(user).slice().sort((a, b) => +new Date(a.slot) - +new Date(b.slot));
   const active = jobs.filter((j) => j.status !== "done");
   const ready = jobs.filter((j) => j.status === "ready").length;
   const busy = jobs.filter((j) => ["enroute", "checkedin", "diagnosing", "parts", "repair"].includes(j.status)).length;
   const list = filter === "ready" ? jobs.filter((j) => j.status === "ready") : filter === "all" ? jobs : active;
-  const title = user.role === "independent" ? user.businessName || "Independent" : user.shopName || "Shop";
+  const title = user.role === "independent" ? user.businessName || t("shop.independent") : user.shopName || t("shop.shop");
   const publicBio =
     user.role === "independent"
       ? user.bio || ""
@@ -986,7 +1013,7 @@ function ShopHome({
         />
         <div className="min-w-0">
           <div className="font-bold">{title}</div>
-          <div className="text-xs text-muted">{user.role === "independent" ? "Your jobs" : user.name}</div>
+          <div className="text-xs text-muted">{user.role === "independent" ? t("shop.yourJobs") : user.name}</div>
         </div>
       </div>
       {publicBio ? <p className="mb-3 text-sm text-muted">{publicBio}</p> : null}
@@ -995,28 +1022,28 @@ function ShopHome({
         onClick={onShare}
         className="mb-3 w-full rounded-xl border border-line bg-surface p-4 text-left"
       >
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Find code</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("shop.findCodeShort")}</p>
         <p className="font-mono text-2xl tracking-[0.2em] text-accent">{shareCode || "—"}</p>
-        <p className="mt-1 text-sm text-muted">QR, print sheet, and new codes are on the QR tab.</p>
+        <p className="mt-1 text-sm text-muted">{t("shop.qrTabHint")}</p>
       </button>
       <div className="mb-3 grid grid-cols-3 gap-2">
         <div className="rounded-xl border border-line bg-surface py-3 text-center">
           <div className="text-xl font-bold">{active.length}</div>
-          <div className="text-[11px] text-muted">Open</div>
+          <div className="text-[11px] text-muted">{t("shop.open")}</div>
         </div>
         <div className="rounded-xl border border-line bg-surface py-3 text-center">
           <div className="text-xl font-bold">{busy}</div>
-          <div className="text-[11px] text-muted">{user.role === "independent" ? "Active" : "In bay"}</div>
+          <div className="text-[11px] text-muted">{user.role === "independent" ? t("shop.active") : t("shop.inBay")}</div>
         </div>
         <div className={`rounded-xl border py-3 text-center ${ready ? "border-accent/40 bg-accent/10" : "border-line bg-surface"}`}>
           <div className={`text-xl font-bold ${ready ? "text-accent" : ""}`}>{ready}</div>
-          <div className="text-[11px] text-muted">Ready</div>
+          <div className="text-[11px] text-muted">{t("shop.ready")}</div>
         </div>
       </div>
       <div className="mb-3 flex rounded-xl bg-bg2 p-1">
         {(["active", "ready", "all"] as const).map((f) => (
-          <button key={f} type="button" onClick={() => setFilter(f)} className={`flex-1 rounded-lg py-2 text-xs font-semibold capitalize ${filter === f ? "bg-surface2" : "text-muted"}`}>
-            {f === "active" ? "Open" : f}
+          <button key={f} type="button" onClick={() => setFilter(f)} className={`flex-1 rounded-lg py-2 text-xs font-semibold ${filter === f ? "bg-surface2" : "text-muted"}`}>
+            {f === "active" ? t("shop.open") : f === "ready" ? t("shop.ready") : t("shop.all")}
           </button>
         ))}
       </div>
@@ -1024,7 +1051,7 @@ function ShopHome({
         {list.map((j) => (
           <JobCard key={j.id} job={j} shop onClick={() => onOpen(j.id)} />
         ))}
-        {!list.length && <p className="p-6 text-center text-sm text-muted">No jobs in this filter.</p>}
+        {!list.length && <p className="p-6 text-center text-sm text-muted">{t("shop.empty")}</p>}
       </div>
     </div>
   );
@@ -1047,30 +1074,32 @@ function JobDetail({
   flash?: (s: string) => void;
   tick?: number;
 }) {
+  const { locale, t } = useI18n();
   void tick;
   const job = Store.load().jobs.find((j) => j.id === id);
-  if (!job) return <p className="text-muted">Job not found.</p>;
+  if (!job) return <p className="text-muted">{t("job.notFound")}</p>;
   const st = statusMeta(job.status);
   const idx = (["scheduled", "enroute", "checkedin", "diagnosing", "parts", "repair", "ready", "done"] as const).indexOf(job.status);
   const shopRec = user?.shopId ? Store.shopRecord(user.shopId) : null;
+  const dates = localeTag(locale);
   return (
     <div>
       <Top title={job.id} onBack={onBack} />
       <div className="overflow-hidden rounded-xl border border-line bg-surface">
         <img src={job.photo || carImage(job)} alt="" className="h-36 w-full object-cover" />
         <div className="p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-dim">{vehicleKind(job)}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-dim">{kindText(locale, vehicleKind(job))}</p>
           <h2 className="text-lg font-semibold">{vehicleLabel(job)}</h2>
           <p className="text-sm text-muted">
             {job.name} · {job.providerName}
           </p>
           <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold badge-${st.badge}`}>
-            {shop ? st.label : st.customer}
+            {statusText(locale, job.status, shop ? "shop" : "customer")}
           </span>
           <p className="mt-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">{job.symptoms}</p>
         </div>
       </div>
-      <h2 className="mb-2 mt-4 font-semibold">Progress</h2>
+      <h2 className="mb-2 mt-4 font-semibold">{t("job.progress")}</h2>
       <div>
         {(["scheduled", "enroute", "checkedin", "diagnosing", "parts", "repair", "ready", "done"] as const).map((s, i) => {
           const meta = statusMeta(s);
@@ -1080,12 +1109,12 @@ function JobDetail({
               <div className={`mt-0.5 size-[18px] rounded-full border-2 ${on ? "border-accent bg-accent" : "border-dim"}`} />
               <div>
                 <div className={`text-sm font-semibold ${job.status === s ? "text-accent" : ""}`}>
-                  {shop ? meta.label : meta.customer}
+                  {statusText(locale, s, shop ? "shop" : "customer")}
                 </div>
                 {i === idx && (
-                  <div className="text-xs text-dim">Current · {fmtShort(job.notes.slice(-1)[0]?.at || job.createdAt)}</div>
+                  <div className="text-xs text-dim">{t("job.current", { when: fmtShort(job.notes.slice(-1)[0]?.at || job.createdAt, dates) })}</div>
                 )}
-                {shop && i !== idx ? <div className="text-xs text-dim">Tap to set</div> : null}
+                {shop && i !== idx ? <div className="text-xs text-dim">{t("job.tapToSet")}</div> : null}
               </div>
             </div>
           );
@@ -1098,7 +1127,7 @@ function JobDetail({
               onClick={async () => {
                 await Store.updateJob(job.id, { status: s });
                 await Store.addNote(job.id, "Status set to " + meta.label, "shop");
-                flash?.("Status updated");
+                flash?.(t("toast.statusUpdated"));
                 bump();
               }}
             >
@@ -1108,17 +1137,17 @@ function JobDetail({
         })}
       </div>
       {shop && user?.role === "shop" && shopRec && (
-        <Field label="Assign technician">
+        <Field label={t("job.assign")}>
           <select
             className={inputClass}
             defaultValue={job.assignedTo || ""}
             onChange={async (e) => {
               await Store.updateJob(job.id, { assignedTo: e.target.value });
-              flash?.("Assigned");
+              flash?.(t("toast.assigned"));
               bump();
             }}
           >
-            <option value="">Unassigned</option>
+            <option value="">{t("job.unassigned")}</option>
             {shopRec.techs.map((n) => (
               <option key={n}>{n}</option>
             ))}
@@ -1127,9 +1156,9 @@ function JobDetail({
       )}
       {shop && (
         <div className="mt-3">
-          <Field label="Photo from the bay (optional)">
+          <Field label={t("job.photoLabel")}>
             <label className="tap flex h-12 items-center justify-center rounded-xl border border-line bg-surface font-semibold">
-              {job.photo ? "Replace job photo" : "Add a photo of the car or part"}
+              {job.photo ? t("job.replacePhoto") : t("job.addPhoto")}
               <input
                 type="file"
                 accept="image/*"
@@ -1141,10 +1170,10 @@ function JobDetail({
                   try {
                     const photo = await resizePhoto(file);
                     await Store.updateJob(job.id, { photo });
-                    flash?.("Photo on the ticket");
+                    flash?.(t("toast.photoOnTicket"));
                     bump();
                   } catch (err) {
-                    flash?.(err instanceof Error ? err.message : "Could not use that photo");
+                    flash?.(err instanceof Error ? translateStoreError(locale, err.message) : t("err.photoFail"));
                   }
                 }}
               />
@@ -1154,30 +1183,30 @@ function JobDetail({
             className="mt-3"
             onSubmit={async (e) => {
               e.preventDefault();
-              const t = new FormData(e.currentTarget).get("note");
-              const text = String(t || "").trim();
+              const note = new FormData(e.currentTarget).get("note");
+              const text = String(note || "").trim();
               if (!text) return;
               await Store.addNote(job.id, text, "shop");
               (e.currentTarget as HTMLFormElement).reset();
-              flash?.("Update sent to customer");
+              flash?.(t("toast.updateSent"));
               bump();
             }}
           >
-            <Field label="Customer-facing update">
-              <textarea name="note" className={inputClass + " min-h-24"} placeholder="Pads and rotors installed." />
+            <Field label={t("job.customerUpdate")}>
+              <textarea name="note" className={inputClass + " min-h-24"} placeholder={t("job.notePh")} />
             </Field>
             <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
-              Post update
+              {t("job.postUpdate")}
             </button>
           </form>
         </div>
       )}
-      <h2 className="mb-2 mt-4 font-semibold">Updates</h2>
+      <h2 className="mb-2 mt-4 font-semibold">{t("job.updates")}</h2>
       {[...job.notes].reverse().map((n, i) => (
         <div key={i} className="mb-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">
-          <strong className="text-fg">{n.by === "shop" ? "Shop update" : "System"}</strong> · {fmtShort(n.at)}
+          <strong className="text-fg">{n.by === "shop" ? t("job.shopUpdate") : t("job.system")}</strong> · {fmtShort(n.at, dates)}
           <br />
-          {n.text}
+          {translateNote(locale, n.text)}
         </div>
       ))}
     </div>
@@ -1197,14 +1226,15 @@ function VehiclePicker({
   const [model, setModel] = useState("");
   const [trim, setTrim] = useState("");
   const [trimOther, setTrimOther] = useState("");
+  const { t } = useI18n();
   const trims = model ? trimOptions(make, model) : [];
   const preview = [year, make, model, trim === "Other" ? trimOther : trim].filter(Boolean).join(" ");
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <div>
-          <p className="text-sm font-semibold">Vehicle on the ticket</p>
-          <p className="text-sm text-muted">Year, make, model, then trim if you know it</p>
+          <p className="text-sm font-semibold">{t("vehicle.title")}</p>
+          <p className="text-sm text-muted">{t("vehicle.sub")}</p>
         </div>
         {make ? (
           <img
@@ -1216,7 +1246,7 @@ function VehiclePicker({
       </div>
       <div className="grid gap-3 p-3">
         <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-muted">Year</span>
+          <span className="mb-1.5 block text-sm font-semibold text-muted">{t("book.year")}</span>
           <SelectWrap>
             <select
               name="year"
@@ -1225,7 +1255,7 @@ function VehiclePicker({
               value={year}
               onChange={(e) => setYear(e.target.value)}
             >
-              <option value="">Choose year</option>
+              <option value="">{t("vehicle.chooseYear")}</option>
               {YEARS.map((y) => (
                 <option key={y} value={y}>
                   {y}
@@ -1235,7 +1265,7 @@ function VehiclePicker({
           </SelectWrap>
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-muted">Make</span>
+          <span className="mb-1.5 block text-sm font-semibold text-muted">{t("book.make")}</span>
           <SelectWrap>
             <select
               name="make"
@@ -1249,7 +1279,7 @@ function VehiclePicker({
                 setTrimOther("");
               }}
             >
-              <option value="">Choose make</option>
+              <option value="">{t("vehicle.chooseMake")}</option>
               {Object.keys(VEHICLE_DATA).map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -1259,7 +1289,7 @@ function VehiclePicker({
           </SelectWrap>
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-muted">Model</span>
+          <span className="mb-1.5 block text-sm font-semibold text-muted">{t("book.model")}</span>
           <SelectWrap>
             <select
               name="model"
@@ -1273,7 +1303,7 @@ function VehiclePicker({
                 setTrimOther("");
               }}
             >
-              <option value="">{make ? "Choose model" : "Pick a make first"}</option>
+              <option value="">{make ? t("vehicle.chooseModel") : t("vehicle.pickMakeFirst")}</option>
               {models.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -1283,7 +1313,7 @@ function VehiclePicker({
           </SelectWrap>
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-muted">Trim or engine (optional)</span>
+          <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.trimOptional")}</span>
           <SelectWrap>
             <select
               name="trim"
@@ -1292,7 +1322,7 @@ function VehiclePicker({
               disabled={!model}
               onChange={(e) => setTrim(e.target.value)}
             >
-              <option value="">{model ? "Skip or choose trim" : "Pick a model first"}</option>
+              <option value="">{model ? t("vehicle.skipTrim") : t("vehicle.pickModelFirst")}</option>
               {trims.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -1303,47 +1333,53 @@ function VehiclePicker({
         </label>
         {trim === "Other" ? (
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-muted">Which trim or engine?</span>
+            <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.whichTrim")}</span>
             <input
               name="trimOther"
               className={inputClass}
               value={trimOther}
               onChange={(e) => setTrimOther(e.target.value)}
-              placeholder="Type it here"
+              placeholder={t("vehicle.typeHere")}
             />
           </label>
         ) : null}
       </div>
       <div className="border-t border-line bg-bg2 px-4 py-3">
-        <p className="text-sm text-muted">On this appointment</p>
-        <p className="text-lg font-semibold leading-tight">{preview || "Not chosen yet"}</p>
+        <p className="text-sm text-muted">{t("vehicle.onAppointment")}</p>
+        <p className="text-lg font-semibold leading-tight">{preview || t("vehicle.notChosen")}</p>
       </div>
     </div>
   );
 }
 
 function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: string) => void }) {
-  const g = greet();
-  const [messages, setMessages] = useState<{ role: "bot" | "user"; text: string; chips?: string[] }[]>([
-    { role: "bot", text: g.text, chips: g.chips },
-  ]);
+  const { locale, t } = useI18n();
+  const [userTexts, setUserTexts] = useState<string[]>([]);
+  const messages = useMemo(() => {
+    const g = greet(locale);
+    const out: { role: "bot" | "user"; text: string; chips?: string[] }[] = [
+      { role: "bot", text: g.text, chips: g.chips },
+    ];
+    for (const text of userTexts) {
+      const res = reply(text, locale);
+      out.push({ role: "user", text }, { role: "bot", text: res.text, chips: res.chips });
+    }
+    return out;
+  }, [locale, userTexts]);
   function send(text: string) {
-    const userBits = [...messages.filter((m) => m.role === "user").map((m) => m.text), text];
-    const res = reply(text);
-    setMessages((m) => [...m, { role: "user", text }, { role: "bot", text: res.text, chips: res.chips }]);
-    void userBits;
+    setUserTexts((prev) => [...prev, text]);
   }
-  const userText = messages.filter((m) => m.role === "user").map((m) => m.text).join(" — ");
+  const userText = userTexts.join(" — ");
   return (
     <div>
-      <Top title="Shop helper" onBack={onBack} />
+      <Top title={t("diag.title")} onBack={onBack} />
       <div className="flex flex-col gap-3">
         {messages.map((m, i) => (
           <div
             key={i}
             className={`max-w-[92%] whitespace-pre-wrap rounded-2xl px-4 py-3.5 text-[17px] leading-relaxed ${m.role === "user" ? "self-end bg-accent font-medium text-ink" : "self-start border border-line bg-surface text-fg"}`}
           >
-            {m.role === "bot" && <div className="mb-1.5 text-sm font-semibold text-accent">Helper</div>}
+            {m.role === "bot" && <div className="mb-1.5 text-sm font-semibold text-accent">{t("diag.helper")}</div>}
             {m.text}
             {m.chips && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1352,7 +1388,7 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
                     key={c}
                     type="button"
                     className="rounded-full border border-line bg-bg2 px-3.5 py-2 text-[15px] font-semibold text-fg"
-                    onClick={() => (/book/i.test(c) ? onBook(userText || c) : send(c))}
+                    onClick={() => (isBookChip(c) ? onBook(userText || c) : send(c))}
                   >
                     {c}
                   </button>
@@ -1373,13 +1409,13 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
           input.value = "";
         }}
       >
-        <input name="chat" className={inputClass + " text-[17px]"} placeholder="2018 Civic, grinds when braking…" />
+        <input name="chat" className={inputClass + " text-[17px]"} placeholder={t("diag.placeholder")} />
         <button type="submit" className="h-12 rounded-xl bg-accent px-4 text-base font-semibold text-ink">
-          Send
+          {t("diag.send")}
         </button>
       </form>
       <p className="mt-3 text-sm leading-relaxed text-muted">
-        Helper only — not a certified inspection. A mechanic still has to look at the car.
+        {t("diag.disclaimer")}
       </p>
     </div>
   );
@@ -1408,6 +1444,7 @@ function Account({
   bump: () => void;
   onSaved: (u: User) => void;
 }) {
+  const { locale, t } = useI18n();
   const shop = user.shopId ? Store.shopRecord(user.shopId) : null;
   const canEditShop = user.role === "shop" && user.shopRole === "owner" && !!shop;
   const [shopName, setShopName] = useState(shop?.name || "");
@@ -1432,53 +1469,62 @@ function Account({
   const [deleting, setDeleting] = useState(false);
   void locked;
   const label =
-    user.role === "shop" ? (user.shopRole === "owner" ? "Shop owner" : "Shop technician") : user.role === "independent" ? "Independent mechanic" : "Customer";
+    user.role === "shop"
+      ? user.shopRole === "owner"
+        ? t("account.shopOwner")
+        : t("account.shopTech")
+      : user.role === "independent"
+        ? t("account.indyMech")
+        : t("account.customer");
 
   return (
     <div>
-      <Top title="Account" onBack={onBack} />
+      <Top title={t("account.title")} onBack={onBack} />
       <div className="rounded-xl border border-line bg-surface p-4">
         <h2 className="text-lg font-semibold">{user.name}</h2>
         <p className="text-sm text-muted">
-          {user.email || "No email"}
+          {user.email || t("account.noEmail")}
           <br />
-          {user.phone || "No phone"}
+          {user.phone || t("account.noPhone")}
         </p>
         <span className="mt-2 inline-flex rounded-full bg-surface2 px-2 py-0.5 text-[11px] font-semibold">{label}</span>
       </div>
       <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Alerts</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.language")}</p>
+        <p className="mt-1 mb-3 text-sm text-muted">{t("account.languageHint")}</p>
+        <LanguageToggle />
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
         <p className="mt-2 text-sm text-muted">
-          {user.role === "customer"
-            ? "Texts go to the phone on the ticket when the shop marks on the way, parts, or ready. Turn on app alerts for the Play/App Store build."
-            : "When you move a job to on the way, parts, or ready, the customer gets a text (once Twilio is on Railway) and an app alert if they allowed it."}
+          {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
         </p>
         <button
           type="button"
           className="mt-3 h-11 w-full rounded-xl border border-line bg-surface2 font-semibold"
           onClick={async () => {
             if (typeof Notification === "undefined") {
-              flash("This browser cannot do app alerts. The Play Store app will.");
+              flash(t("toast.alertsUnsupported"));
               return;
             }
             const perm = await Notification.requestPermission();
             if (perm !== "granted") {
               await Store.saveAlerts(user, user.pushToken || "", false);
-              return flash("App alerts are off");
+              return flash(t("toast.alertsOff"));
             }
             const token = "web-" + user.id;
             const res = await Store.saveAlerts(user, token, true);
-            if (!res.ok) return flash(res.error);
+            if (!res.ok) return flash(translateStoreError(locale, res.error));
             onSaved(res.user);
             try {
-              new Notification("Mechanics Helper", { body: "Alerts are on for this device." });
+              new Notification(t("app.name"), { body: t("account.alertsNotifBody") });
             } catch {
               /* ignore */
             }
-            flash("App alerts on");
+            flash(t("toast.alertsOn"));
           }}
         >
-          {user.alertsOn ? "App alerts are on" : "Turn on app alerts"}
+          {user.alertsOn ? t("account.alertsOnBtn") : t("account.alertsTurnOn")}
         </button>
       </div>
       {shop && (
@@ -1497,18 +1543,18 @@ function Account({
               hoursOpen: shopOpen,
               hoursClose: shopClose,
             });
-            if (!res.ok) return flash(res.error);
+            if (!res.ok) return flash(translateStoreError(locale, res.error));
             onSaved(res.user);
-            flash("Shop profile saved");
+            flash(t("toast.shopSaved"));
           }}
         >
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Public shop profile</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.publicShop")}</p>
           <div className="mt-3 flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <Face src={shopPhoto || shop.photo} name={shop.name} size="lg" />
             {canEditShop ? (
               <label className="text-sm font-semibold text-accent">
-                Change logo or photo
+                {t("account.changeLogo")}
                 <input
                   type="file"
                   accept="image/*"
@@ -1519,9 +1565,9 @@ function Account({
                     if (!file) return;
                     try {
                       setShopPhoto(await resizePhoto(file));
-                      flash("Photo ready — tap Save shop profile");
+                      flash(t("toast.photoReadyShop"));
                     } catch (err) {
-                      flash(err instanceof Error ? err.message : "Could not use that photo");
+                      flash(err instanceof Error ? translateStoreError(locale, err.message) : t("err.photoFail"));
                     }
                   }}
                 />
@@ -1529,13 +1575,13 @@ function Account({
             ) : null}
           </div>
           {canEditShop ? (
-            <Field label="Shop name">
+            <Field label={t("account.shopName")}>
               <input className={inputClass} value={shopName} onChange={(e) => setShopName(e.target.value)} required />
             </Field>
           ) : (
             <h2 className="font-semibold">{shop.name}</h2>
           )}
-          <Field label="Bio — what customers see">
+          <Field label={t("account.bioCustomers")}>
             {canEditShop ? (
               <>
                 <textarea
@@ -1543,17 +1589,17 @@ function Account({
                   value={shopBio}
                   maxLength={BIO_MAX}
                   onChange={(e) => setShopBio(e.target.value.slice(0, BIO_MAX))}
-                  placeholder="Brakes, diagnostics, how you work, what makes the bay yours."
+                  placeholder={t("account.shopBioPh")}
                 />
                 <p className="mt-1 text-right text-xs text-dim tabular-nums">
                   {shopBio.length}/{BIO_MAX}
                 </p>
               </>
             ) : (
-              <p className="text-sm text-muted">{shop.bio || "The owner hasn’t written a bio yet."}</p>
+              <p className="text-sm text-muted">{shop.bio || t("account.noBio")}</p>
             )}
           </Field>
-          <Field label="Support email — customers see this">
+          <Field label={t("account.supportEmail")}>
             {canEditShop ? (
               <input
                 type="email"
@@ -1563,10 +1609,10 @@ function Account({
                 placeholder="shop@yourdomain.com"
               />
             ) : (
-              <p className="text-sm text-muted">{shop.supportEmail || "Not set"}</p>
+              <p className="text-sm text-muted">{shop.supportEmail || t("account.notSet")}</p>
             )}
           </Field>
-          <Field label="Support phone">
+          <Field label={t("account.supportPhone")}>
             {canEditShop ? (
               <input
                 className={inputClass}
@@ -1575,7 +1621,7 @@ function Account({
                 placeholder="(555) 555-0100"
               />
             ) : (
-              <p className="text-sm text-muted">{shop.supportPhone || "Not set"}</p>
+              <p className="text-sm text-muted">{shop.supportPhone || t("account.notSet")}</p>
             )}
           </Field>
           <HoursEditor
@@ -1590,17 +1636,17 @@ function Account({
           </div>
           {canEditShop ? (
             <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
-              Save shop profile
+              {t("account.saveShop")}
             </button>
           ) : null}
-          <p className="mt-3 text-sm text-muted">Team join code — employees use this when they create an account</p>
+          <p className="mt-3 text-sm text-muted">{t("account.teamCode")}</p>
           <div className="my-2 font-mono text-2xl tracking-[0.2em]">{shop.code}</div>
-          <p className="text-sm text-muted">Team: {shop.techs.join(", ")}</p>
+          <p className="text-sm text-muted">{t("account.team", { names: shop.techs.join(", ") })}</p>
           {canEditShop && (
             <div className="mt-3 flex gap-2">
               <input
                 className={inputClass}
-                placeholder="Add technician name"
+                placeholder={t("account.addTechPh")}
                 value={techName}
                 onChange={(e) => setTechName(e.target.value)}
               />
@@ -1610,15 +1656,15 @@ function Account({
                 onClick={async () => {
                   await Store.addTechName(shop.id, techName);
                   setTechName("");
-                  flash("Technician added");
+                  flash(t("toast.techAdded"));
                   bump();
                 }}
               >
-                Add
+                {t("account.add")}
               </button>
             </div>
           )}
-          <p className="mt-2 text-xs text-dim">Customers use the same code (or the QR on Share) to find this shop.</p>
+          <p className="mt-2 text-xs text-dim">{t("account.customersUseCode")}</p>
         </form>
       )}
       {user.role === "independent" && (
@@ -1637,17 +1683,17 @@ function Account({
               hoursOpen: indyOpen,
               hoursClose: indyClose,
             });
-            if (!res.ok) return flash(res.error);
+            if (!res.ok) return flash(translateStoreError(locale, res.error));
             onSaved(res.user);
-            flash("Profile saved");
+            flash(t("toast.profileSaved"));
           }}
         >
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Public mechanic profile</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.publicMech")}</p>
           <div className="mt-3 flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <Face src={indyPhoto} name={bizName || user.name} size="lg" />
             <label className="text-sm font-semibold text-accent">
-              Change photo or logo
+              {t("account.changePhoto")}
               <input
                 type="file"
                 accept="image/*"
@@ -1658,41 +1704,41 @@ function Account({
                   if (!file) return;
                   try {
                     setIndyPhoto(await resizePhoto(file));
-                    flash("Photo ready — tap Save");
+                    flash(t("toast.photoReady"));
                   } catch (err) {
-                    flash(err instanceof Error ? err.message : "Could not use that photo");
+                    flash(err instanceof Error ? translateStoreError(locale, err.message) : t("err.photoFail"));
                   }
                 }}
               />
             </label>
           </div>
-          <Field label="Business name">
+          <Field label={t("account.bizName")}>
             <input className={inputClass} value={bizName} onChange={(e) => setBizName(e.target.value)} required />
           </Field>
-          <Field label="How you work">
+          <Field label={t("account.howYouWork")}>
             <select
               className={inputClass}
               value={mode}
               onChange={(e) => setMode(e.target.value as User["serviceMode"])}
             >
-              <option value="mobile">I go to the customer</option>
-              <option value="shop">They come to me</option>
-              <option value="both">Both</option>
+              <option value="mobile">{t("register.modeMobile")}</option>
+              <option value="shop">{t("register.modeShop")}</option>
+              <option value="both">{t("register.modeBoth")}</option>
             </select>
           </Field>
-          <Field label="Bio — what customers see">
+          <Field label={t("account.bioCustomers")}>
             <textarea
               className={inputClass + " min-h-28"}
               value={indyBio}
               maxLength={BIO_MAX}
               onChange={(e) => setIndyBio(e.target.value.slice(0, BIO_MAX))}
-              placeholder="Your specialties, how you work, and why they should pick you."
+              placeholder={t("account.indyBioPh")}
             />
             <p className="mt-1 text-right text-xs text-dim tabular-nums">
               {indyBio.length}/{BIO_MAX}
             </p>
           </Field>
-          <Field label="Support email — customers see this">
+          <Field label={t("account.supportEmail")}>
             <input
               type="email"
               className={inputClass}
@@ -1701,7 +1747,7 @@ function Account({
               placeholder="you@yourdomain.com"
             />
           </Field>
-          <Field label="Support phone">
+          <Field label={t("account.supportPhone")}>
             <input
               className={inputClass}
               value={indySupportPhone}
@@ -1720,43 +1766,43 @@ function Account({
           />
           </div>
           <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
-            Save profile
+            {t("account.saveProfile")}
           </button>
-          <p className="mt-2 text-xs text-dim">Your customer QR is on the Share tab.</p>
+          <p className="mt-2 text-xs text-dim">{t("account.qrOnShare")}</p>
         </form>
       )}
       <div className="mt-4 flex justify-center gap-4 text-sm font-semibold text-muted">
         <button type="button" onClick={onPrivacy} className="hover:text-fg">
-          Privacy
+          {t("welcome.privacy")}
         </button>
         <button type="button" onClick={onSupport} className="hover:text-fg">
-          Support
+          {t("welcome.support")}
         </button>
       </div>
       <button type="button" onClick={onLogout} className="mt-4 h-12 w-full rounded-xl border border-line bg-surface font-semibold">
-        Log out
+        {t("account.logout")}
       </button>
       <form
         className="mt-3 rounded-xl border border-line bg-surface p-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!deletePw) return flash("Enter your password to delete the account");
-          if (!window.confirm("Delete this account? You will be signed out. Open jobs stay on the shop board.")) return;
+          if (!deletePw) return flash(t("account.deleteNeedPw"));
+          if (!window.confirm(t("account.deleteConfirm"))) return;
           setDeleting(true);
           const res = await Store.deleteAccount(user, deletePw);
           setDeleting(false);
-          if (!res.ok) return flash(res.error);
+          if (!res.ok) return flash(translateStoreError(locale, res.error));
           onDeleted();
         }}
       >
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Delete account</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.deleteTitle")}</p>
         <p className="mt-2 text-sm text-muted">
-          Removes your login. If you own a shop, the public find code comes down. Job tickets already on a board stay as work records.
+          {t("account.deleteBody")}
         </p>
         <input
           type="password"
           className={inputClass + " mt-3"}
-          placeholder="Confirm with your password"
+          placeholder={t("account.deletePw")}
           value={deletePw}
           onChange={(e) => setDeletePw(e.target.value)}
           autoComplete="current-password"
@@ -1766,7 +1812,7 @@ function Account({
           disabled={deleting}
           className="mt-3 h-12 w-full rounded-xl border border-red-500/40 bg-red-500/10 font-semibold text-red-200"
         >
-          {deleting ? "Deleting…" : "Delete my account"}
+          {deleting ? t("account.deleting") : t("account.deleteBtn")}
         </button>
       </form>
     </div>
@@ -1774,12 +1820,13 @@ function Account({
 }
 
 function LegalPage({ title, onBack }: { title: string; onBack: () => void }) {
+  const { locale, t } = useI18n();
   return (
     <div>
       <Top title={title} onBack={onBack} />
-      <p className="mb-3 text-sm text-muted">Mechanics Helper · last updated September 14, 2026</p>
+      <p className="mb-3 text-sm text-muted">{t("legal.updated")}</p>
       <div className="flex flex-col gap-3">
-        {PRIVACY_SECTIONS.map((s) => (
+        {privacySections(locale).map((s) => (
           <section key={s.title} className="rounded-xl border border-line bg-surface p-4">
             <h3 className="font-semibold">{s.title}</h3>
             <p className="mt-2 text-[15px] leading-relaxed text-muted">{s.body}</p>
@@ -1808,14 +1855,15 @@ function SupportPage({
       : shop
         ? { name: shop.name, email: shop.supportEmail, phone: shop.supportPhone }
         : null;
+  const { t } = useI18n();
   const contact = locked
     ? { name: locked.name, email: locked.supportEmail, phone: locked.supportPhone }
     : fromAccount;
   return (
     <div>
-      <Top title="Support" onBack={onBack} />
+      <Top title={t("support.title")} onBack={onBack} />
       <div className="rounded-xl border border-line bg-surface p-4">
-        <p className="text-sm text-muted">For a car on the board, start with the shop or mechanic on that ticket.</p>
+        <p className="text-sm text-muted">{t("support.intro")}</p>
         {contact ? (
           <div className="mt-3">
             <p className="font-semibold">{contact.name}</p>
@@ -1824,29 +1872,29 @@ function SupportPage({
                 {contact.phone}
               </a>
             ) : (
-              <p className="mt-1 text-sm text-muted">No support phone on file yet.</p>
+              <p className="mt-1 text-sm text-muted">{t("support.noPhone")}</p>
             )}
             {contact.email ? (
               <a className="mt-1 block text-[17px] font-semibold text-accent" href={`mailto:${contact.email}`}>
                 {contact.email}
               </a>
             ) : (
-              <p className="mt-1 text-sm text-muted">No support email on file yet.</p>
+              <p className="mt-1 text-sm text-muted">{t("support.noEmail")}</p>
             )}
           </div>
         ) : (
           <p className="mt-3 text-sm text-muted">
-            Scan a shop code or open a job first. Shop owners add a public phone and email under Account.
+            {t("support.scanFirst")}
           </p>
         )}
       </div>
       <div className="mt-3 rounded-xl border border-line bg-surface p-4 text-sm leading-relaxed text-muted">
-        <p className="font-semibold text-fg">This app</p>
+        <p className="font-semibold text-fg">{t("support.thisApp")}</p>
         <p className="mt-2">
-          Mechanics Helper is a booking and status board. The diagnose helper is not a certified inspection. Privacy details are on the Privacy page.
+          {t("support.body")}
         </p>
         <button type="button" onClick={onPrivacy} className="mt-3 font-semibold text-accent">
-          Read privacy
+          {t("support.readPrivacy")}
         </button>
       </div>
     </div>
@@ -1870,9 +1918,11 @@ function HoursEditor({
   onClose: (v: string) => void;
   canEdit: boolean;
 }) {
+  const { locale, t } = useI18n();
   const times = ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+  const hours = { hoursDays: days, hoursOpen: open, hoursClose: close };
   return (
-    <Field label="Work hours — customers see this">
+    <Field label={t("account.hours")}>
       {canEdit ? (
         <div>
           <div className="flex flex-wrap gap-1.5">
@@ -1888,7 +1938,7 @@ function HoursEditor({
                     onDays([...next].sort().join(""));
                   }}
                 >
-                  {d.label}
+                  {t(`hours.d${d.bit}` as MessageKey)}
                 </button>
               );
             })}
@@ -1896,27 +1946,27 @@ function HoursEditor({
           <div className="mt-2 grid grid-cols-2 gap-2">
             <SelectWrap>
               <select className={selectClass} value={open} onChange={(e) => onOpen(e.target.value)}>
-                {times.map((t) => (
-                  <option key={t} value={t}>
-                    Opens {t}
+                {times.map((time) => (
+                  <option key={time} value={time}>
+                    {t("hours.opens", { time })}
                   </option>
                 ))}
               </select>
             </SelectWrap>
             <SelectWrap>
               <select className={selectClass} value={close} onChange={(e) => onClose(e.target.value)}>
-                {times.map((t) => (
-                  <option key={t} value={t}>
-                    Closes {t}
+                {times.map((time) => (
+                  <option key={time} value={time}>
+                    {t("hours.closes", { time })}
                   </option>
                 ))}
               </select>
             </SelectWrap>
           </div>
-          <p className="mt-2 text-sm text-muted">{hoursLabel({ hoursDays: days, hoursOpen: open, hoursClose: close })}</p>
+          <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, hours)}</p>
         </div>
       ) : (
-        <p className="text-sm text-muted">{hoursLabel({ hoursDays: days, hoursOpen: open, hoursClose: close })}</p>
+        <p className="text-sm text-muted">{formatHoursLabel(locale, hours)}</p>
       )}
     </Field>
   );
