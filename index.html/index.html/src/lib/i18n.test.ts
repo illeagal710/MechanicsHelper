@@ -158,6 +158,12 @@ test("profile vs bay photo labels exist in English and Spanish", () => {
   assert.equal(translate("es", "photo.take"), "Tomar foto");
   assert.match(translate("es", "photo.profileEmpty"), /silueta/i);
   assert.match(translate("es", "job.photoHint"), /ticket/);
+  assert.match(translate("en", "job.photoHint"), /below the vehicle/i);
+  assert.match(translate("en", "job.photoHint"), /car photo/i);
+  assert.equal(translate("en", "job.workPhoto"), "Work photo");
+  assert.equal(translate("es", "job.workPhoto"), "Foto del trabajo");
+  assert.match(translate("en", "job.workPhotoHint"), /not the vehicle photo/i);
+  assert.match(translate("es", "job.workPhotoHint"), /no es la foto del vehículo/i);
 });
 
 test("Other vehicle free-text labels exist in English and Spanish", () => {

@@ -399,7 +399,9 @@ const en = {
   "job.photoLabel": "Photo from the bay (optional)",
   "job.replacePhoto": "Replace job photo",
   "job.addPhoto": "Add a photo of the car or part",
-  "job.photoHint": "This photo stays on the job ticket. It does not change your profile photo.",
+  "job.photoHint": "This photo stays on the job ticket below the vehicle. It does not replace the car photo or your profile photo.",
+  "job.workPhoto": "Work photo",
+  "job.workPhotoHint": "What the shop is working on or the part they ordered. This is not the vehicle photo.",
 
   "photo.choose": "Choose photo",
   "photo.take": "Take photo",
@@ -962,7 +964,9 @@ const es: Record<MessageKey, string> = {
   "job.photoLabel": "Foto del taller (opcional)",
   "job.replacePhoto": "Reemplazar foto del trabajo",
   "job.addPhoto": "Agregar foto del auto o la pieza",
-  "job.photoHint": "Esta foto se queda en el ticket. No cambia tu foto de perfil.",
+  "job.photoHint": "Esta foto se queda en el ticket debajo del vehículo. No reemplaza la foto del auto ni tu foto de perfil.",
+  "job.workPhoto": "Foto del trabajo",
+  "job.workPhotoHint": "Lo que el taller está trabajando o la pieza que pidieron. No es la foto del vehículo.",
 
   "photo.choose": "Elegir foto",
   "photo.take": "Tomar foto",

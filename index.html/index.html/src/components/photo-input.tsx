@@ -46,10 +46,10 @@ export function Face({
   return <ProfileSilhouette size={size} label={t("photo.silhouetteAlt", { name: name || "?" })} />;
 }
 
-function BayPreview({ src }: { src?: string }) {
+export function BayPreview({ src }: { src?: string }) {
   const { t } = useI18n();
   if (src) {
-    return <img src={src} alt="" className="h-28 w-full rounded-xl border border-line object-cover" />;
+    return <img src={src} alt="" className="h-28 w-full rounded-xl border border-line object-cover" data-ticket-bay-preview="" />;
   }
   return (
     <div className="grid h-28 place-items-center rounded-xl border border-dashed border-line bg-bg2 px-3 text-center text-sm text-muted">

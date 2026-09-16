@@ -12,8 +12,8 @@ import {
   UserRound,
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
-import { Face, PhotoPicker } from "@/components/photo-input";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, jobPhotoOf } from "@/lib/photos";
+import { BayPreview, Face, PhotoPicker } from "@/components/photo-input";
+import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, jobPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
@@ -1215,7 +1215,12 @@ function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () 
   return (
     <button type="button" onClick={onClick} className="tap w-full rounded-2xl border border-line bg-surface p-3.5 text-left">
       <div className="flex gap-3">
-        <img src={jobPhotoOf(job) || carImage(job)} alt="" className="h-14 w-[4.25rem] shrink-0 rounded-xl object-cover" />
+        <img
+          src={ticketVehiclePhotoOf(job)}
+          alt=""
+          className="h-14 w-[4.25rem] shrink-0 rounded-xl object-cover"
+          data-ticket-photo={VEHICLE_PHOTO_SLOT}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h3 className="truncate font-semibold">{shop ? job.name : vehicleLabel(job)}</h3>
@@ -1361,8 +1366,13 @@ function JobDetail({
   return (
     <div>
       <Top title={job.id} onBack={onBack} />
-      <div className="overflow-hidden rounded-xl border border-line bg-surface">
-        <img src={jobPhotoOf(job) || carImage(job)} alt="" className="h-36 w-full object-cover" />
+      <div className="overflow-hidden rounded-xl border border-line bg-surface" data-ticket-block="vehicle">
+        <img
+          src={ticketVehiclePhotoOf(job)}
+          alt=""
+          className="h-36 w-full object-cover"
+          data-ticket-photo={VEHICLE_PHOTO_SLOT}
+        />
         <div className="p-4">
           <p className="text-[10px] font-bold uppercase tracking-wide text-dim">{kindText(locale, vehicleKind(job))}</p>
           <h2 className="text-lg font-semibold">{vehicleLabel(job)}</h2>
@@ -1376,6 +1386,31 @@ function JobDetail({
             {job.symptoms || t("book.noSymptoms")}
           </p>
         </div>
+      </div>
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-ticket-photo={BAY_PHOTO_SLOT}>
+        {shop ? (
+          <PhotoPicker
+            slot={BAY_PHOTO_SLOT}
+            value={jobPhotoOf(job)}
+            name={vehicleLabel(job)}
+            label={t("job.photoLabel")}
+            hint={t("job.photoHint")}
+            onErr={(msg) => flash?.(translateStoreError(locale, msg))}
+            onPick={async (dataUrl) => {
+              await Store.saveJobPhoto(job.id, dataUrl);
+              flash?.(t("toast.bayPhotoSaved"));
+              bump();
+            }}
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.workPhoto")}</p>
+              <p className="mt-1 text-sm text-muted">{t("job.workPhotoHint")}</p>
+            </div>
+            <BayPreview src={jobPhotoOf(job)} />
+          </div>
+        )}
       </div>
       <h2 className="mb-2 mt-4 font-semibold">{t("job.progress")}</h2>
       <div>
@@ -1431,23 +1466,6 @@ function JobDetail({
             ))}
           </select>
         </Field>
-      )}
-      {shop && (
-        <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-          <PhotoPicker
-            slot={BAY_PHOTO_SLOT}
-            value={jobPhotoOf(job)}
-            name={vehicleLabel(job)}
-            label={t("job.photoLabel")}
-            hint={t("job.photoHint")}
-            onErr={(msg) => flash?.(translateStoreError(locale, msg))}
-            onPick={async (dataUrl) => {
-              await Store.saveJobPhoto(job.id, dataUrl);
-              flash?.(t("toast.bayPhotoSaved"));
-              bump();
-            }}
-          />
-        </div>
       )}
       {shop && (
         <div className="mt-3">
