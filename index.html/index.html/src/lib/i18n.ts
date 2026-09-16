@@ -1015,11 +1015,18 @@ export function privacySections(locale: Locale): { title: string; body: string }
   }));
 }
 
-function formatClock(locale: Locale, time: string): string {
+/** Display-only 12-hour clock. Storage/API values stay HH:mm / ISO. */
+export const TIME_12H: Intl.DateTimeFormatOptions = {
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+};
+
+export function formatClock(locale: Locale, time: string): string {
   const [hh, mm] = time.split(":").map(Number);
   const date = new Date();
   date.setHours(hh || 0, mm || 0, 0, 0);
-  return date.toLocaleTimeString(localeTag(locale), { hour: "numeric", minute: "2-digit" });
+  return date.toLocaleTimeString(localeTag(locale), TIME_12H);
 }
 
 export function formatHoursLabel(
