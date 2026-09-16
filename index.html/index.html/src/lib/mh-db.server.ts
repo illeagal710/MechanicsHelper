@@ -1,6 +1,7 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
+import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
@@ -679,7 +680,7 @@ async function insertJob(job: Job) {
       job.year,
       job.make,
       job.model,
-      job.symptoms,
+      normalizeSymptoms(job.symptoms),
       job.slot,
       job.status,
       JSON.stringify(job.notes || []),
@@ -700,6 +701,7 @@ async function insertJob(job: Job) {
 
 export async function addJob(job: Job) {
   await ensureSeeded();
+  job = { ...job, symptoms: normalizeSymptoms(job.symptoms) };
   const board = await loadBoard();
   const t = new Date(job.slot).getTime();
   const taken = board.jobs.some(

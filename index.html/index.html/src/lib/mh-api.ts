@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { normalizeSymptoms } from "@/lib/booking";
 import type { Job, Role, User } from "@/lib/store";
 
 export const mhBoard = createServerFn({ method: "GET" }).handler(async () => {
@@ -96,7 +97,9 @@ export const mhAddTech = createServerFn({ method: "POST" })
   });
 
 export const mhAddJob = createServerFn({ method: "POST" })
-  .validator((d: { job: Job }) => d)
+  .validator((d: { job: Job }) => ({
+    job: { ...d.job, symptoms: normalizeSymptoms(d.job?.symptoms) },
+  }))
   .handler(async ({ data }) => {
     const db = await import("./mh-db.server");
     return db.addJob(data.job);
