@@ -188,6 +188,8 @@ type DB = { shops: Shop[]; users: User[]; jobs: Job[] };
 
 const SESSION = "mh.session";
 const REF = "mh.ref";
+const LINKED = "mh.linked.";
+const UNLINKED = "-";
 
 let cache: DB = { shops: [], users: [], jobs: [] };
 let hydrated = false;
@@ -294,6 +296,39 @@ export const Store = {
     const c = String(code || "").trim().toUpperCase();
     if (!c) localStorage.removeItem(REF);
     else localStorage.setItem(REF, c);
+  },
+
+  getLinkedCode(user: User | null) {
+    try {
+      if (user?.id) {
+        const saved = localStorage.getItem(LINKED + user.id) || "";
+        if (saved === UNLINKED) return "";
+        if (saved) return saved;
+      }
+      return this.getRefCode();
+    } catch {
+      return this.getRefCode();
+    }
+  },
+
+  wasUnlinked(user: User | null) {
+    try {
+      return !!user?.id && localStorage.getItem(LINKED + user.id) === UNLINKED;
+    } catch {
+      return false;
+    }
+  },
+
+  setLinkedCode(user: User | null, code: string) {
+    const c = String(code || "").trim().toUpperCase();
+    this.setRefCode(c);
+    try {
+      if (!user?.id) return;
+      if (!c) localStorage.setItem(LINKED + user.id, UNLINKED);
+      else localStorage.setItem(LINKED + user.id, c);
+    } catch {
+      /* ignore quota / private mode */
+    }
   },
 
   listProviders(): Provider[] {

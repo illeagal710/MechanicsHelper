@@ -142,6 +142,17 @@ test("helper fence, loading, and fallback strings exist in English and Spanish",
   assert.match(translate("es", "diag.error"), /reglas del taller/i);
 });
 
+test("linked customer booking copy hides the shop directory in English and Spanish", () => {
+  assert.equal(translate("en", "book.withShop", { name: "Riverside Auto" }), "Booking with Riverside Auto");
+  assert.equal(translate("es", "book.withShop", { name: "Riverside Auto" }), "Reservando con Riverside Auto");
+  assert.match(translate("en", "book.linkHint"), /not a directory/i);
+  assert.match(translate("es", "book.linkHint"), /no es un directorio/i);
+  assert.equal(translate("en", "book.linkTitle"), "Link your shop");
+  assert.equal(translate("es", "book.linkTitle"), "Vincula tu taller");
+  assert.doesNotMatch(translate("en", "home.chooseDifferent"), /choose a different shop/i);
+  assert.match(translate("en", "home.chooseDifferent"), /find code/i);
+});
+
 test("booking symptoms are marked optional in English and Spanish", () => {
   assert.match(translate("en", "book.whatsGoingOn"), /optional/i);
   assert.match(translate("es", "book.whatsGoingOn"), /opcional/i);
