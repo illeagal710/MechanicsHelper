@@ -107,6 +107,27 @@ export const mhSavePush = createServerFn({ method: "POST" })
     return db.savePushToken(data.userId, data.token, data.alertsOn);
   });
 
+export const mhRequestPasswordReset = createServerFn({ method: "POST" })
+  .validator((d: { id: string }) => d)
+  .handler(async ({ data }) => {
+    const db = await import("./mh-db.server");
+    return db.requestPasswordReset(data.id);
+  });
+
+export const mhResetPassword = createServerFn({ method: "POST" })
+  .validator((d: { id: string; code: string; password: string }) => d)
+  .handler(async ({ data }) => {
+    const db = await import("./mh-db.server");
+    return db.resetPassword(data.id, data.code, data.password);
+  });
+
+export const mhRecoverUsername = createServerFn({ method: "POST" })
+  .validator((d: { id: string }) => d)
+  .handler(async ({ data }) => {
+    const db = await import("./mh-db.server");
+    return db.recoverUsername(data.id);
+  });
+
 export const mhDeleteAccount = createServerFn({ method: "POST" })
   .validator((d: { userId: string; password: string }) => d)
   .handler(async ({ data }) => {

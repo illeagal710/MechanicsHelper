@@ -46,6 +46,9 @@ type View =
   | "welcome"
   | "login"
   | "register"
+  | "recover"
+  | "forgotPassword"
+  | "forgotUsername"
   | "home"
   | "book"
   | "confirm"
@@ -169,7 +172,7 @@ export function MechanicsApp() {
           <span className="font-mono text-dim">{isProvider ? shareCode || t("app.bay") : lockedProvider?.code || t("app.bay")}</span>
         </div>
       </header>
-      <main className={`flex-1 overflow-y-auto px-4 pb-36 pt-3 ${view === "welcome" || view === "login" || view === "register" ? "pb-16" : ""}`}>
+      <main className={`flex-1 overflow-y-auto px-4 pb-36 pt-3 ${view === "welcome" || view === "login" || view === "register" || view === "recover" || view === "forgotPassword" || view === "forgotUsername" ? "pb-16" : ""}`}>
         {view === "welcome" && (
           <Welcome
             locked={liveLocked}
@@ -188,7 +191,25 @@ export function MechanicsApp() {
             onOk={enter}
             onErr={flash}
             onRegister={() => setView("register")}
+            onForgot={() => setView("recover")}
           />
+        )}
+        {view === "recover" && (
+          <RecoverHub
+            onBack={() => setView("login")}
+            onPassword={() => setView("forgotPassword")}
+            onUsername={() => setView("forgotUsername")}
+          />
+        )}
+        {view === "forgotPassword" && (
+          <ForgotPassword
+            onBack={() => setView("recover")}
+            onLogin={() => setView("login")}
+            onErr={flash}
+          />
+        )}
+        {view === "forgotUsername" && (
+          <ForgotUsername onBack={() => setView("recover")} onErr={flash} />
         )}
         {view === "register" && (
           <Register onBack={() => setView("welcome")} onOk={enter} onErr={flash} />
@@ -334,7 +355,7 @@ export function MechanicsApp() {
           />
         )}
       </main>
-      {user && !["welcome", "login", "register", "privacy", "support"].includes(view) && (
+      {user && !["welcome", "login", "register", "recover", "forgotPassword", "forgotUsername", "privacy", "support"].includes(view) && (
         <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-line bg-bg/95 px-2 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           {isProvider ? (
             <div className="grid grid-cols-3">
@@ -532,11 +553,13 @@ function Login({
   onOk,
   onErr,
   onRegister,
+  onForgot,
 }: {
   onBack: () => void;
   onOk: (u: User) => void;
   onErr: (s: string) => void;
   onRegister: () => void;
+  onForgot: () => void;
 }) {
   const { locale, t } = useI18n();
   return (
@@ -560,10 +583,239 @@ function Login({
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
         {t("login.submit")}
       </button>
+      <button type="button" onClick={onForgot} className="text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline">
+        {t("login.forgot")}
+      </button>
       <button type="button" onClick={onRegister} className="h-12 rounded-xl border border-line bg-surface font-semibold">
         {t("login.needAccount")}
       </button>
     </form>
+  );
+}
+
+function RecoverHub({
+  onBack,
+  onPassword,
+  onUsername,
+}: {
+  onBack: () => void;
+  onPassword: () => void;
+  onUsername: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex flex-col gap-3">
+      <Top title={t("recover.title")} onBack={onBack} />
+      <p className="text-sm leading-relaxed text-muted">{t("recover.body")}</p>
+      <button type="button" onClick={onPassword} className="h-12 rounded-xl bg-accent font-semibold text-ink">
+        {t("recover.forgotPassword")}
+      </button>
+      <button type="button" onClick={onUsername} className="h-12 rounded-xl border border-line bg-surface font-semibold">
+        {t("recover.forgotUsername")}
+      </button>
+      <button type="button" onClick={onBack} className="text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline">
+        {t("recover.backToLogin")}
+      </button>
+    </div>
+  );
+}
+
+function ForgotPassword({
+  onBack,
+  onLogin,
+  onErr,
+}: {
+  onBack: () => void;
+  onLogin: () => void;
+  onErr: (s: string) => void;
+}) {
+  const { locale, t } = useI18n();
+  const [id, setId] = useState("");
+  const [channel, setChannel] = useState<"email" | "dev" | "stub" | "">("");
+  const [devCode, setDevCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function sendCode(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await Store.requestPasswordReset(id);
+      if (!res.ok) return onErr(translateStoreError(locale, res.error));
+      setChannel(res.channel);
+      setDevCode(res.devCode || "");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const next = String(fd.get("pw") || "");
+    const confirm = String(fd.get("pw2") || "");
+    if (next !== confirm) return onErr(t("recover.pw.mismatch"));
+    setBusy(true);
+    try {
+      const res = await Store.resetPassword(id, String(fd.get("code") || ""), next);
+      if (!res.ok) return onErr(translateStoreError(locale, res.error));
+      setDone(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Top title={t("recover.pw.title")} onBack={onBack} />
+        <div className="rounded-xl border border-line bg-surface px-4 py-4">
+          <p className="text-sm font-semibold">{t("recover.pw.done")}</p>
+        </div>
+        <button type="button" onClick={onLogin} className="h-12 rounded-xl bg-accent font-semibold text-ink">
+          {t("recover.backToLogin")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Top title={t("recover.pw.title")} onBack={onBack} />
+      <form className="flex flex-col gap-3" onSubmit={sendCode}>
+        <Field label={t("recover.pw.id")}>
+          <input
+            className={inputClass}
+            autoComplete="username"
+            value={id}
+            onChange={(e) => {
+              setId(e.target.value);
+              setChannel("");
+              setDevCode("");
+            }}
+            required
+          />
+        </Field>
+        <button type="submit" disabled={busy} className="h-12 rounded-xl border border-line bg-surface font-semibold disabled:opacity-60">
+          {busy && !channel ? t("recover.pw.sending") : t("recover.pw.send")}
+        </button>
+      </form>
+      {channel ? (
+        <form className="flex flex-col gap-3" onSubmit={savePassword}>
+          <p className="text-sm leading-relaxed text-muted">
+            {channel === "email"
+              ? t("recover.pw.sentEmail")
+              : channel === "dev"
+                ? t("recover.pw.sentDev")
+                : t("recover.pw.sentStub")}
+          </p>
+          {devCode ? (
+            <div className="rounded-xl border border-accent/40 bg-surface px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("recover.pw.devCode")}</p>
+              <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.3em]">{devCode}</p>
+            </div>
+          ) : null}
+          <Field label={t("recover.pw.code")}>
+            <input name="code" className={inputClass} inputMode="numeric" autoComplete="one-time-code" required defaultValue={devCode} />
+          </Field>
+          <Field label={t("recover.pw.new")}>
+            <input name="pw" type="password" className={inputClass} autoComplete="new-password" required minLength={6} />
+          </Field>
+          <Field label={t("recover.pw.confirm")}>
+            <input name="pw2" type="password" className={inputClass} autoComplete="new-password" required minLength={6} />
+          </Field>
+          <button type="submit" disabled={busy} className="h-12 rounded-xl bg-accent font-semibold text-ink disabled:opacity-60">
+            {busy ? t("recover.pw.saving") : t("recover.pw.submit")}
+          </button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function ForgotUsername({
+  onBack,
+  onErr,
+}: {
+  onBack: () => void;
+  onErr: (s: string) => void;
+}) {
+  const { locale, t } = useI18n();
+  const [id, setId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [looked, setLooked] = useState(false);
+  const [result, setResult] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    login: string;
+  } | null>(null);
+
+  async function lookup(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await Store.recoverUsername(id);
+      if (!res.ok) return onErr(translateStoreError(locale, res.error));
+      setLooked(true);
+      setResult(res.found ? { name: res.name, email: res.email, phone: res.phone, login: res.login } : null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Top title={t("recover.user.title")} onBack={onBack} />
+      <form className="flex flex-col gap-3" onSubmit={lookup}>
+        <Field label={t("recover.user.id")}>
+          <input
+            className={inputClass}
+            autoComplete="username"
+            value={id}
+            onChange={(e) => {
+              setId(e.target.value);
+              setLooked(false);
+              setResult(null);
+            }}
+            required
+          />
+        </Field>
+        <button type="submit" disabled={busy} className="h-12 rounded-xl bg-accent font-semibold text-ink disabled:opacity-60">
+          {busy ? t("recover.user.searching") : t("recover.user.submit")}
+        </button>
+      </form>
+      {looked && !result ? (
+        <div className="rounded-xl border border-line bg-surface px-4 py-5">
+          <p className="font-semibold">{t("recover.user.emptyTitle")}</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted">{t("recover.user.empty")}</p>
+        </div>
+      ) : null}
+      {result ? (
+        <div className="rounded-xl border border-line bg-surface px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("recover.user.found")}</p>
+          <dl className="mt-3 flex flex-col gap-2 text-sm">
+            <div>
+              <dt className="text-muted">{t("recover.user.login")}</dt>
+              <dd className="font-semibold">{result.login || t("recover.user.none")}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">{t("recover.user.name")}</dt>
+              <dd className="font-semibold">{result.name}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">{t("recover.user.email")}</dt>
+              <dd className="font-semibold">{result.email || t("recover.user.none")}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">{t("recover.user.phone")}</dt>
+              <dd className="font-semibold">{result.phone || t("recover.user.none")}</dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs leading-relaxed text-muted">{t("recover.user.emailed")}</p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
