@@ -95,9 +95,17 @@ const CAR_STEMS = [
   "luz de check",
   "testigo del motor",
   "brake",
-  "grinding",
+  "grind",
   "squeak",
   "squeal",
+  "screech",
+  "when stopping",
+  "when braking",
+  "while stopping",
+  "while braking",
+  "al frenar",
+  "al parar",
+  "al detener",
   "freno",
   "rechin",
   "chilla",
@@ -110,7 +118,7 @@ const CAR_STEMS = [
   "tambalea",
   "leak",
   "puddle",
-  "dripping",
+  "drip",
   "fuga",
   "gotea",
   "charco",
@@ -186,11 +194,11 @@ const CAR_STEMS = [
   "rough idle",
   "ralentí",
   "ralenti",
-  "stalling",
+  "stall",
   "se apaga",
-  "knocking",
+  "knock",
   "golpeteo",
-  "whining",
+  "whine",
   "chirrido",
   "power steering",
   "dirección",
@@ -319,8 +327,46 @@ const OFF_TOPIC_STEMS = [
   "cuentame un chiste",
 ];
 
+const BRAKE_NOISE_RE =
+  /\b(?:grind|squeak|squeal|screech)(?:e?s|ed|ing)?\b|\b(?:when|while)\s+(?:stopp?ing|brak(?:e|ing))\b|\bal\s+(?:frenar|parar|detener)/i;
+
+const BRAKE_STEMS = [
+  "brake",
+  "grind",
+  "squeak",
+  "squeal",
+  "screech",
+  "pedal",
+  "when stopping",
+  "when braking",
+  "while stopping",
+  "while braking",
+  "al frenar",
+  "al parar",
+  "al detener",
+  "freno",
+  "rechin",
+  "chilla",
+];
+
+/**
+ * Phrase includes, or word-start prefix so grind/grinds/grinding and
+ * rechin/rechina/rechinando all count. Short codes (abs, obd) stay exact.
+ */
+function matchesToken(haystack: string, needle: string): boolean {
+  const n = needle.trim().toLowerCase();
+  if (!n) return false;
+  if (/\s/.test(n)) return haystack.includes(n);
+  if (n.length <= 3) return new RegExp(`\\b${escapeRe(n)}\\b`, "i").test(haystack);
+  return new RegExp(`\\b${escapeRe(n)}`, "i").test(haystack);
+}
+
 function has(t: string, words: string[]) {
-  return words.some((w) => t.includes(w));
+  return words.some((w) => matchesToken(t, w));
+}
+
+function isBrakeSymptom(t: string): boolean {
+  return BRAKE_NOISE_RE.test(t) || has(t, BRAKE_STEMS);
 }
 
 function normalized(text: string): string {
@@ -344,15 +390,23 @@ export function isBookChip(text: string): boolean {
 
 function isCarSignal(text: string): boolean {
   const t = normalized(text);
-  return CAR_WORD_RE.test(t) || has(t, CAR_STEMS) || NO_START_RE.test(t) || mentionsVehicleName(text);
+  return (
+    CAR_WORD_RE.test(t) ||
+    has(t, CAR_STEMS) ||
+    isBrakeSymptom(t) ||
+    NO_START_RE.test(t) ||
+    mentionsVehicleName(text)
+  );
 }
 
 export function isOffTopic(text: string): boolean {
   const t = normalized(text);
   if (!t.trim()) return false;
-  const carRepair = CAR_WORD_RE.test(t) || has(t, CAR_STEMS) || NO_START_RE.test(t);
-  if (carRepair) return false;
-  return has(t, OFF_TOPIC_STEMS);
+  if (!has(t, OFF_TOPIC_STEMS)) return false;
+  // Clear non-car topics stay refused even if a weak stem like "grind" appears
+  // (coffee grind + recipe). Vehicle name / car word / no-start still wins.
+  const strongCar = CAR_WORD_RE.test(t) || NO_START_RE.test(t) || mentionsVehicleName(text);
+  return !strongCar;
 }
 
 export function isCarTopic(text: string): boolean {
@@ -458,7 +512,7 @@ export function reply(text: string, locale: Locale = "en"): DiagReply {
       [translate(locale, "diag.cel.chip")],
     );
   }
-  if (has(t, ["brake", "grinding", "squeak", "squeal", "pedal", "freno", "rechin", "chilla"])) {
+  if (isBrakeSymptom(t)) {
     return block(
       locale,
       "soon",
@@ -476,7 +530,7 @@ export function reply(text: string, locale: Locale = "en"): DiagReply {
       [translate(locale, "diag.shake.chip")],
     );
   }
-  if (has(t, ["leak", "puddle", "dripping", "fuga", "gotea", "charco", "líquido", "liquido"])) {
+  if (has(t, ["leak", "puddle", "drip", "fuga", "gotea", "charco", "líquido", "liquido"])) {
     return block(
       locale,
       "soon",
@@ -485,7 +539,7 @@ export function reply(text: string, locale: Locale = "en"): DiagReply {
       [translate(locale, "diag.leak.chip")],
     );
   }
-  if (t.length < 12) {
+  if (t.length < 12 && !mentionsVehicleName(text)) {
     return {
       text: translate(locale, "diag.more"),
       chips: [

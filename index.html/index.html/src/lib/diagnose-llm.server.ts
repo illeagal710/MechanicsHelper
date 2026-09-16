@@ -3,7 +3,6 @@ import {
   diagnoseLocal,
   ensureBookChip,
   isCarTopic,
-  refuse,
   withUrgencyTag,
   type DiagReply,
   type DiagUrgency,
@@ -37,9 +36,13 @@ function systemPrompt(locale: Locale): string {
   const lang = locale === "es" ? "Spanish" : "English";
   const book = locale === "es" ? "Reservar" : "Book";
   return [
-    "You are Mechanics Helper, a shop assistant.",
-    "You may ONLY help with cars, vehicles, repair, and maintenance.",
-    "If the user asks about anything else, set refused to true.",
+    "You are Mechanics Helper, a shop assistant for cars, trucks, and other vehicles.",
+    "Answer anything about vehicles, year/make/model, driving symptoms, repair, or maintenance.",
+    "A year and model alone (like \"2018 civic\") is a vehicle question — give typical service items, what to watch for, and offer to book. Do not refuse and do not only ask for more detail.",
+    "Symptom lines like \"grinds when stopping\" or \"squeaks when braking\" are brake/vehicle questions — give a useful shop answer.",
+    "Verb forms count (grind/grinds/grinding, squeak/squeaks).",
+    "Only set refused to true for clearly unrelated topics: recipes, capitals, code, weather, homework, sports scores, politics, poems, jokes.",
+    "If the message is a vehicle or a symptom, never refuse.",
     "You are not a certified inspection. Be practical and concise.",
     `Reply in ${lang}.`,
     "Return JSON only, no markdown:",
@@ -71,7 +74,9 @@ function parseLlmReply(raw: string, locale: Locale): DiagReply | null {
     urgency?: unknown;
     refused?: unknown;
   };
-  if (obj.refused === true) return refuse(locale);
+  // Car topics are pre-fenced; a model "refuse" is treated as a parse miss
+  // so diagnoseWithLlm can fall back to keyword instead of a hard refuse.
+  if (obj.refused === true) return null;
   const text = typeof obj.text === "string" ? obj.text.trim() : "";
   if (!text) return null;
   const chips = Array.isArray(obj.chips)
@@ -152,6 +157,6 @@ export async function diagnoseWithLlm(
   if (!apiKey) return local;
 
   const llm = await callGroq(text, locale, apiKey, readModel(opts), opts?.fetch ?? fetch);
-  if (!llm) return local;
+  if (!llm || llm.source === "refuse") return local;
   return llm;
 }
