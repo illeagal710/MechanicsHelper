@@ -20,6 +20,24 @@ test("fence allows car / repair / maintenance topics", () => {
   assert.equal(isCarTopic("Check engine light"), true);
 });
 
+test("fence allows year+model and no-start phrases", () => {
+  const exact = "2018 civic not starting";
+  assert.equal(isCarTopic(exact), true);
+  const civicNoStart = diagnoseLocal(exact, "en");
+  assert.notEqual(civicNoStart.source, "refuse");
+  assert.equal(civicNoStart.source, "keyword");
+  assert.match(civicNoStart.text, /no-start is very bookable/i);
+  assert.ok(civicNoStart.chips.some(isBookChip));
+
+  assert.equal(isCarTopic("won't start"), true);
+  assert.equal(isCarTopic("my civic won't start"), true);
+  assert.equal(isCarTopic("2018 civic"), true);
+  assert.equal(isCarTopic("Honda Civic"), true);
+
+  assert.equal(isCarTopic("What's the capital of France?"), false);
+  assert.equal(diagnoseLocal("What's the capital of France?", "en").source, "refuse");
+});
+
 test("fence refuses non-car topics in English and Spanish", () => {
   assert.equal(isCarTopic("What's the capital of France?"), false);
   assert.equal(isOffTopic("What's the capital of France?"), true);
@@ -54,6 +72,14 @@ test("missing GROQ_API_KEY falls back to keyword diagnose.ts", async () => {
   assert.equal(res.source, "keyword");
   assert.match(res.text, /Brake noise can be cheap wear indicators/i);
   assert.ok(res.chips.some((c) => /book brake inspection/i.test(c)));
+});
+
+test("missing GROQ_API_KEY still answers 2018 civic not starting", async () => {
+  const res = await diagnoseWithLlm("2018 civic not starting", "en", { apiKey: "" });
+  assert.notEqual(res.source, "refuse");
+  assert.equal(res.source, "keyword");
+  assert.match(res.text, /no-start is very bookable/i);
+  assert.ok(res.chips.some(isBookChip));
 });
 
 test("missing key still refuses non-car topics without calling Groq", async () => {

@@ -10,13 +10,50 @@ export type DiagReply = {
   source?: DiagSource;
 };
 
-const MAKE_RE = new RegExp(
-  `\\b(?:${Object.keys(VEHICLE_DATA)
-    .filter((make) => make !== "Other")
-    .map((make) => make.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|")})\\b`,
-  "i",
-);
+function escapeRe(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function uniqueVehicleNames(names: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of names) {
+    const name = raw.trim();
+    if (!name || name.toLowerCase() === "other") continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out.sort((a, b) => b.length - a.length || a.localeCompare(b));
+}
+
+function nameAlt(names: string[]): string {
+  return names.map(escapeRe).join("|");
+}
+
+const MAKE_NAMES = uniqueVehicleNames(Object.keys(VEHICLE_DATA));
+const MODEL_NAMES = uniqueVehicleNames(Object.values(VEHICLE_DATA).flat());
+
+const MAKE_RE = new RegExp(`\\b(?:${nameAlt(MAKE_NAMES)})\\b`, "i");
+
+const YEAR_FOLLOWERS = uniqueVehicleNames([
+  ...MAKE_NAMES,
+  ...MODEL_NAMES.filter((name) => name.length >= 3),
+]);
+
+/** `2018 civic`, `2018 Honda`. Short codes like `IS` need a make or a symptom. */
+const YEAR_MAKE_MODEL_RE = new RegExp(`\\b(?:19|20)\\d{2}\\s+(?:${nameAlt(YEAR_FOLLOWERS)})\\b`, "i");
+
+/** Honda Civic / Ford F-150 style make + model pairs. */
+const MAKE_MODEL_RE = new RegExp(`\\b(?:${nameAlt(MAKE_NAMES)})\\s+(?:${nameAlt(MODEL_NAMES)})\\b`, "i");
+
+const NO_START_RE =
+  /\b(?:won['’]?t\s+start|will\s+not\s+start|wont\s+start|not\s+start(?:ing)?|no[\s-]?start|doesn['’]?t\s+start|does\s+not\s+start|can['’]?t\s+start|cannot\s+start|isn['’]?t\s+start(?:ing)?|wouldn['’]?t\s+start|would\s+not\s+start|failed\s+to\s+start)\b/i;
+
+function mentionsVehicleName(text: string): boolean {
+  return MAKE_RE.test(text) || MAKE_MODEL_RE.test(text) || YEAR_MAKE_MODEL_RE.test(text);
+}
 
 /** Vehicle types, parts, symptoms, repair/maintenance — EN + ES stems. */
 const CAR_STEMS = [
@@ -30,7 +67,22 @@ const CAR_STEMS = [
   "se calienta",
   "won't start",
   "wont start",
+  "not starting",
+  "not start",
   "no start",
+  "no-start",
+  "doesn't start",
+  "doesnt start",
+  "does not start",
+  "can't start",
+  "cant start",
+  "cannot start",
+  "isn't starting",
+  "isnt starting",
+  "will not start",
+  "wouldn't start",
+  "wouldnt start",
+  "failed to start",
   "dead battery",
   "no arranca",
   "no prende",
@@ -290,10 +342,15 @@ export function isBookChip(text: string): boolean {
   return /book|reservar/i.test(text);
 }
 
+function isCarSignal(text: string): boolean {
+  const t = normalized(text);
+  return CAR_WORD_RE.test(t) || has(t, CAR_STEMS) || NO_START_RE.test(t) || mentionsVehicleName(text);
+}
+
 export function isOffTopic(text: string): boolean {
   const t = normalized(text);
   if (!t.trim()) return false;
-  const carRepair = CAR_WORD_RE.test(t) || has(t, CAR_STEMS);
+  const carRepair = CAR_WORD_RE.test(t) || has(t, CAR_STEMS) || NO_START_RE.test(t);
   if (carRepair) return false;
   return has(t, OFF_TOPIC_STEMS);
 }
@@ -302,7 +359,7 @@ export function isCarTopic(text: string): boolean {
   const t = normalized(text);
   if (!t.trim()) return false;
   if (isOffTopic(text)) return false;
-  return CAR_WORD_RE.test(t) || has(t, CAR_STEMS) || MAKE_RE.test(text);
+  return isCarSignal(text);
 }
 
 export function greet(locale: Locale = "en"): DiagReply {
@@ -370,6 +427,7 @@ export function reply(text: string, locale: Locale = "en"): DiagReply {
     );
   }
   if (
+    NO_START_RE.test(t) ||
     has(t, [
       "won't start",
       "wont start",
