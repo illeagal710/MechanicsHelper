@@ -11,10 +11,12 @@ import {
   mhRotateCode,
   mhUpdateIndy,
   mhUpdateJob,
+  mhUpdateUserPhoto,
   mhDeleteAccount,
   mhSavePush,
   mhUpdateShop,
 } from "@/lib/mh-api";
+import { jobPhotoOf, profilePhotoOf, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { TIME_12H } from "@/lib/i18n";
 
 export type Role = "customer" | "shop" | "independent";
@@ -90,7 +92,10 @@ export type Job = {
   status: StatusId;
   notes: Note[];
   notifySms?: boolean;
+  /** @deprecated Use jobPhoto. Kept in sync for older tickets. */
   photo?: string;
+  /** Bay / job-ticket media. Never the account profile photo. */
+  jobPhoto?: string;
 };
 
 export type Provider = {
@@ -439,6 +444,7 @@ export const Store = {
       name?: string;
       bio?: string;
       photo?: string;
+      profilePhoto?: string;
       supportEmail?: string;
       supportPhone?: string;
       hoursDays?: string;
@@ -446,7 +452,14 @@ export const Store = {
       hoursClose?: string;
     },
   ) {
-    const res = await mhUpdateShop({ data: { userId: user.id, ...patch } });
+    const profilePhoto = patch.profilePhoto !== undefined ? patch.profilePhoto : patch.photo;
+    const res = await mhUpdateShop({
+      data: {
+        userId: user.id,
+        ...patch,
+        ...(profilePhoto !== undefined ? { profilePhoto, photo: profilePhoto } : { photo: undefined, profilePhoto: undefined }),
+      },
+    });
     if (res.ok) {
       this.setSession(res.user);
       await this.hydrate();
@@ -461,6 +474,7 @@ export const Store = {
       bio?: string;
       serviceMode?: User["serviceMode"];
       photo?: string;
+      profilePhoto?: string;
       supportEmail?: string;
       supportPhone?: string;
       hoursDays?: string;
@@ -468,12 +482,45 @@ export const Store = {
       hoursClose?: string;
     },
   ) {
-    const res = await mhUpdateIndy({ data: { userId: user.id, ...patch } });
+    const profilePhoto = patch.profilePhoto !== undefined ? patch.profilePhoto : patch.photo;
+    const res = await mhUpdateIndy({
+      data: {
+        userId: user.id,
+        ...patch,
+        ...(profilePhoto !== undefined ? { profilePhoto, photo: profilePhoto } : { photo: undefined, profilePhoto: undefined }),
+      },
+    });
     if (res.ok) {
       this.setSession(res.user);
       await this.hydrate();
     }
     return res;
+  },
+
+  /** Writes only mh_users.photo or mh_shops.photo — never a job/bay row. */
+  async saveProfilePhoto(user: User, profilePhoto: string) {
+    if (user.role === "shop" && user.shopRole === "owner") {
+      return this.updateShopProfile(user, { profilePhoto });
+    }
+    if (user.role === "independent") {
+      return this.updateIndependentProfile(user, { profilePhoto });
+    }
+    const res = await mhUpdateUserPhoto({ data: { userId: user.id, profilePhoto } });
+    if (res.ok) {
+      this.setSession(res.user);
+      await this.hydrate();
+    }
+    return res;
+  },
+
+  profilePhoto(user: User | null) {
+    if (!user) return "";
+    const shop = user.shopId ? this.shopRecord(user.shopId) : null;
+    return profilePhotoOf(user, shop);
+  },
+
+  jobPhoto(job: Job | null | undefined) {
+    return jobPhotoOf(job);
   },
 
   async addTechName(shopId: string, name: string) {
@@ -488,10 +535,16 @@ export const Store = {
     return saved;
   },
 
-  async updateJob(id: string, patch: Partial<Job>) {
-    const saved = await mhUpdateJob({ data: { id, patch } });
+  async updateJob(id: string, patch: Partial<Job> & { jobPhoto?: string }) {
+    const saved = await mhUpdateJob({
+      data: { id, patch: sanitizeJobPatch(patch as Record<string, unknown>) },
+    });
     await this.hydrate();
     return saved;
+  },
+
+  async saveJobPhoto(id: string, jobPhoto: string) {
+    return this.updateJob(id, withJobPhoto({ jobPhoto: "", photo: "" }, jobPhoto));
   },
 
   async addNote(id: string, text: string, by = "shop") {

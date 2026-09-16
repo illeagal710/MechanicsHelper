@@ -1,6 +1,7 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
+import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
@@ -112,6 +113,7 @@ function rowJob(r: Record<string, unknown>): Job {
     notes: parseJson<Note[]>(r.notes_json, []),
     notifySms: r.notify_sms !== false && r.notify_sms !== "f" && r.notify_sms !== 0,
     photo: String(r.photo || ""),
+    jobPhoto: String(r.photo || ""),
   };
 }
 
@@ -509,12 +511,19 @@ export async function rotateCustomerCode(userId: string) {
   return "";
 }
 
+function profilePhotoFrom(patch: { photo?: string; profilePhoto?: string }) {
+  if (patch.profilePhoto !== undefined) return String(patch.profilePhoto || "");
+  if (patch.photo !== undefined) return String(patch.photo || "");
+  return undefined;
+}
+
 export async function updateShopProfile(
   userId: string,
   patch: {
     name?: string;
     bio?: string;
     photo?: string;
+    profilePhoto?: string;
     supportEmail?: string;
     supportPhone?: string;
     hoursDays?: string;
@@ -541,8 +550,9 @@ export async function updateShopProfile(
     const bio = String(patch.bio).trim().slice(0, BIO_MAX);
     await sql.query("update mh_shops set bio = $2 where id = $1", [shop.id, bio]);
   }
-  if (patch.photo !== undefined) {
-    await sql.query("update mh_shops set photo = $2 where id = $1", [shop.id, String(patch.photo || "")]);
+  const profilePhoto = profilePhotoFrom(patch);
+  if (profilePhoto !== undefined) {
+    await sql.query("update mh_shops set photo = $2 where id = $1", [shop.id, profilePhoto]);
   }
   if (patch.supportEmail !== undefined) {
     await sql.query("update mh_shops set support_email = $2 where id = $1", [
@@ -577,6 +587,7 @@ export async function updateIndependentProfile(
     bio?: string;
     serviceMode?: User["serviceMode"];
     photo?: string;
+    profilePhoto?: string;
     supportEmail?: string;
     supportPhone?: string;
     hoursDays?: string;
@@ -597,7 +608,8 @@ export async function updateIndependentProfile(
   }
   const bio = patch.bio !== undefined ? String(patch.bio).trim().slice(0, BIO_MAX) : user.bio || "";
   const mode = patch.serviceMode || user.serviceMode || "both";
-  const photo = patch.photo !== undefined ? String(patch.photo || "") : user.photo || "";
+  const incomingPhoto = profilePhotoFrom(patch);
+  const photo = incomingPhoto !== undefined ? incomingPhoto : user.photo || "";
   const supportEmail =
     patch.supportEmail !== undefined ? String(patch.supportEmail || "").trim().toLowerCase() : user.supportEmail || "";
   const supportPhone =
@@ -609,6 +621,25 @@ export async function updateIndependentProfile(
     "update mh_users set business_name = $2, bio = $3, service_mode = $4, photo = $5, support_email = $6, support_phone = $7, hours_days = $8, hours_open = $9, hours_close = $10 where id = $1",
     [user.id, name, bio, mode, photo, supportEmail, supportPhone, hoursDays, hoursOpen, hoursClose],
   );
+  const fresh = (await loadBoard()).users.find((u) => u.id === userId);
+  if (!fresh) return { ok: false as const, error: "Account not found." };
+  const { pass: _p, ...rest } = fresh;
+  return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+/** Customer / shop-tech account photo. Never writes mh_jobs or mh_shops. */
+export async function updateUserPhoto(userId: string, profilePhoto: string) {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user) return { ok: false as const, error: "Account not found." };
+  if (user.role === "independent") {
+    return updateIndependentProfile(userId, { profilePhoto });
+  }
+  if (user.role === "shop" && user.shopRole === "owner") {
+    return updateShopProfile(userId, { profilePhoto });
+  }
+  const sql = await getSql();
+  await sql.query("update mh_users set photo = $2 where id = $1", [user.id, String(profilePhoto || "")]);
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
   if (!fresh) return { ok: false as const, error: "Account not found." };
   const { pass: _p, ...rest } = fresh;
@@ -683,12 +714,15 @@ export async function addJob(job: Job) {
   return { ok: true as const, job: saved };
 }
 
-export async function updateJob(id: string, patch: Partial<Job>) {
+export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: string }) {
   const board = await loadBoard();
   const job = board.jobs.find((j) => j.id === id);
   if (!job) return null;
   const previous = job.status;
-  Object.assign(job, patch);
+  const safe = sanitizeJobPatch(patch as Record<string, unknown>);
+  if (safe.status) job.status = safe.status;
+  if (safe.assignedTo !== undefined) job.assignedTo = safe.assignedTo;
+  if (safe.jobPhoto !== undefined) Object.assign(job, withJobPhoto(job, safe.jobPhoto));
   const sql = await getSql();
   await sql.query(
     `update mh_jobs set
@@ -696,12 +730,14 @@ export async function updateJob(id: string, patch: Partial<Job>) {
      where id = $1`,
     [job.id, job.assignedTo || "", job.status, JSON.stringify(job.notes || []), job.providerName],
   );
-  try {
-    await sql.query("update mh_jobs set photo = $2 where id = $1", [job.id, job.photo || ""]);
-  } catch {
-    /* 0007 */
+  if (safe.jobPhoto !== undefined) {
+    try {
+      await sql.query("update mh_jobs set photo = $2 where id = $1", [job.id, safe.jobPhoto]);
+    } catch {
+      /* 0007 */
+    }
   }
-  if (patch.status && patch.status !== previous) {
+  if (safe.status && safe.status !== previous) {
     const owner = job.userId ? board.users.find((u) => u.id === job.userId) : undefined;
     const token = owner?.alertsOn === false ? "" : owner?.pushToken || "";
     try {

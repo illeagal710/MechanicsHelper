@@ -82,6 +82,15 @@ test("clock and hours labels use 12-hour AM/PM in English and Spanish", () => {
   assertMeridiem(hoursEs);
 });
 
+test("profile vs bay photo labels exist in English and Spanish", () => {
+  assert.equal(translate("en", "photo.choose"), "Choose photo");
+  assert.equal(translate("en", "photo.take"), "Take photo");
+  assert.equal(translate("es", "photo.choose"), "Elegir foto");
+  assert.equal(translate("es", "photo.take"), "Tomar foto");
+  assert.match(translate("es", "photo.profileEmpty"), /silueta/i);
+  assert.match(translate("es", "job.photoHint"), /ticket/);
+});
+
 test("booking slot timestamps format 12-hour AM/PM via locale tags", () => {
   const morning = new Date(2026, 8, 17, 8, 0, 0).toISOString();
   const afternoon = new Date(2026, 8, 17, 13, 0, 0).toISOString();
