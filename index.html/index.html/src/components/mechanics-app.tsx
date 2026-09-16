@@ -13,7 +13,8 @@ import {
 import { QrShare } from "@/components/qr-share";
 import { Face, PhotoPicker } from "@/components/photo-input";
 import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, jobPhotoOf } from "@/lib/photos";
-import { greet, isBookChip, reply } from "@/lib/diagnose";
+import { diagnoseLocal, greet, isBookChip } from "@/lib/diagnose";
+import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
 import {
   formatClock,
@@ -1651,22 +1652,40 @@ function VehiclePicker({
 
 function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: string) => void }) {
   const { locale, t } = useI18n();
-  const [userTexts, setUserTexts] = useState<string[]>([]);
-  const messages = useMemo(() => {
+  const [messages, setMessages] = useState<{ role: "bot" | "user"; text: string; chips?: string[] }[]>(() => {
     const g = greet(locale);
-    const out: { role: "bot" | "user"; text: string; chips?: string[] }[] = [
-      { role: "bot", text: g.text, chips: g.chips },
-    ];
-    for (const text of userTexts) {
-      const res = reply(text, locale);
-      out.push({ role: "user", text }, { role: "bot", text: res.text, chips: res.chips });
+    return [{ role: "bot", text: g.text, chips: g.chips }];
+  });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setMessages((prev) => {
+      if (!prev.length || prev[0].role !== "bot") return prev;
+      const g = greet(locale);
+      return [{ role: "bot", text: g.text, chips: g.chips }, ...prev.slice(1)];
+    });
+  }, [locale]);
+
+  const userText = messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.text)
+    .join(" — ");
+
+  async function send(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
+    let res;
+    try {
+      res = await mhDiagnose({ data: { text: trimmed, locale } });
+    } catch {
+      res = diagnoseLocal(trimmed, locale);
     }
-    return out;
-  }, [locale, userTexts]);
-  function send(text: string) {
-    setUserTexts((prev) => [...prev, text]);
+    setMessages((prev) => [...prev, { role: "bot", text: res.text, chips: res.chips }]);
+    setBusy(false);
   }
-  const userText = userTexts.join(" — ");
+
   return (
     <div>
       <Top title={t("diag.title")} onBack={onBack} />
@@ -1684,7 +1703,8 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
                   <button
                     key={c}
                     type="button"
-                    className="rounded-full border border-line bg-bg2 px-3.5 py-2 text-[15px] font-semibold text-fg"
+                    disabled={busy}
+                    className="rounded-full border border-line bg-bg2 px-3.5 py-2 text-[15px] font-semibold text-fg disabled:opacity-50"
                     onClick={() => (isBookChip(c) ? onBook(userText || c) : send(c))}
                   >
                     {c}
@@ -1694,6 +1714,12 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
             )}
           </div>
         ))}
+        {busy ? (
+          <div className="max-w-[92%] self-start whitespace-pre-wrap rounded-2xl border border-line bg-surface px-4 py-3.5 text-[17px] leading-relaxed text-muted">
+            <div className="mb-1.5 text-sm font-semibold text-accent">{t("diag.helper")}</div>
+            {t("diag.loading")}
+          </div>
+        ) : null}
       </div>
       <form
         className="mt-4 grid grid-cols-[1fr_auto] gap-2"
@@ -1701,13 +1727,22 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
           e.preventDefault();
           const input = e.currentTarget.elements.namedItem("chat") as HTMLInputElement;
           const val = input.value.trim();
-          if (!val) return;
+          if (!val || busy) return;
           send(val);
           input.value = "";
         }}
       >
-        <input name="chat" className={inputClass + " text-[17px]"} placeholder={t("diag.placeholder")} />
-        <button type="submit" className="h-12 rounded-xl bg-accent px-4 text-base font-semibold text-ink">
+        <input
+          name="chat"
+          className={inputClass + " text-[17px]"}
+          placeholder={t("diag.placeholder")}
+          disabled={busy}
+        />
+        <button
+          type="submit"
+          disabled={busy}
+          className="h-12 rounded-xl bg-accent px-4 text-base font-semibold text-ink disabled:opacity-50"
+        >
           {t("diag.send")}
         </button>
       </form>

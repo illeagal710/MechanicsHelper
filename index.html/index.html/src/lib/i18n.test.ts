@@ -82,6 +82,15 @@ test("clock and hours labels use 12-hour AM/PM in English and Spanish", () => {
   assertMeridiem(hoursEs);
 });
 
+test("helper fence, loading, and fallback strings exist in English and Spanish", () => {
+  assert.match(translate("en", "diag.refuse"), /cars, vehicles, repair/i);
+  assert.match(translate("es", "diag.refuse"), /autos, vehículos, reparación/i);
+  assert.equal(translate("en", "diag.loading"), "Looking that up…");
+  assert.equal(translate("es", "diag.loading"), "Revisando eso…");
+  assert.match(translate("en", "diag.error"), /shop rules/i);
+  assert.match(translate("es", "diag.error"), /reglas del taller/i);
+});
+
 test("booking symptoms are marked optional in English and Spanish", () => {
   assert.match(translate("en", "book.whatsGoingOn"), /optional/i);
   assert.match(translate("es", "book.whatsGoingOn"), /opcional/i);
