@@ -15,6 +15,7 @@ import {
   mhUpdateUserPhoto,
   mhDeleteAccount,
   mhSavePush,
+  mhStartSubscription,
   mhUpdateShop,
 } from "@/lib/mh-api";
 import { jobPhotoOf, profilePhotoOf, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
@@ -27,6 +28,7 @@ import {
 } from "@/lib/customer-vehicles";
 import { TIME_12H } from "@/lib/i18n";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
+import type { SubStatus } from "./subscription.ts";
 
 export type Role = "customer" | "shop" | "independent";
 
@@ -58,6 +60,9 @@ export type User = {
   credentials?: string[];
   serviceArea?: string;
   yearsWrenching?: string;
+  subStatus?: SubStatus;
+  trialEndsAt?: number;
+  subRenewsAt?: number;
 };
 
 export type Shop = {
@@ -482,6 +487,15 @@ export const Store = {
     serviceMode?: User["serviceMode"];
   }) {
     const res = await mhRegister({ data: fields });
+    if (res.ok) {
+      this.setSession(res.user);
+      await this.hydrate();
+    }
+    return res;
+  },
+
+  async startSubscription(user: User, mode: "trial" | "subscribe") {
+    const res = await mhStartSubscription({ data: { userId: user.id, mode } });
     if (res.ok) {
       this.setSession(res.user);
       await this.hydrate();

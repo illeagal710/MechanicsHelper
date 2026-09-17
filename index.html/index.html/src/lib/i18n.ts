@@ -637,6 +637,31 @@ const en = {
   "support.readPrivacy": "Read privacy",
 
   "diag.disclaimer": "Helper only — not a certified inspection. A mechanic still has to look at the car.",
+
+  "pay.plan.shop": "Shop",
+  "pay.plan.independent": "Independent",
+  "pay.title": "Unlock your {plan} portal",
+  "pay.blurb": "Run your job board, post customer updates, and share your QR find-code.",
+  "pay.price": "${price}/mo",
+  "pay.trialLine": "Start with a {days}-day free trial. Cancel anytime.",
+  "pay.startTrial": "Start {days}-day free trial",
+  "pay.subscribe": "Subscribe · ${price}/mo",
+  "pay.subscribeShort": "Subscribe",
+  "pay.customerFree": "Customers always use Mechanics Helper for free.",
+  "pay.feat.board": "Live job board — track every ticket bay by bay",
+  "pay.feat.team": "Add technicians and assign jobs",
+  "pay.feat.qr": "Your own QR + find-code so customers land on your bay",
+  "pay.feat.updates": "Post status updates customers see in real time",
+  "pay.feat.mobile": "Mobile-friendly for driveway and roadside work",
+  "pay.trialLeft": "Trial · {days} days left",
+  "pay.trialLast": "Trial ends today — subscribe to keep your portal",
+  "pay.account.title": "Plan",
+  "pay.account.trialing": "Free trial · {days} days left",
+  "pay.account.active": "Subscription active",
+  "pay.account.locked": "No active plan",
+  "pay.account.manage": "Subscribe",
+  "toast.trialStarted": "Free trial started — your portal is open.",
+  "toast.subscribed": "You're subscribed. Thanks for supporting the bay!",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1275,6 +1300,31 @@ const es: Record<MessageKey, string> = {
   "support.readPrivacy": "Leer privacidad",
 
   "diag.disclaimer": "Solo asistente — no es una inspección certificada. Un mecánico aún tiene que revisar el auto.",
+
+  "pay.plan.shop": "Taller",
+  "pay.plan.independent": "Independiente",
+  "pay.title": "Activa tu portal de {plan}",
+  "pay.blurb": "Administra tu tablero de trabajos, publica novedades para clientes y comparte tu código QR.",
+  "pay.price": "${price}/mes",
+  "pay.trialLine": "Empieza con una prueba gratis de {days} días. Cancela cuando quieras.",
+  "pay.startTrial": "Prueba gratis de {days} días",
+  "pay.subscribe": "Suscribirse · ${price}/mes",
+  "pay.subscribeShort": "Suscribirse",
+  "pay.customerFree": "Los clientes siempre usan Mechanics Helper gratis.",
+  "pay.feat.board": "Tablero de trabajos en vivo — sigue cada ticket bahía por bahía",
+  "pay.feat.team": "Agrega técnicos y asigna trabajos",
+  "pay.feat.qr": "Tu propio QR y código para que los clientes lleguen a tu bahía",
+  "pay.feat.updates": "Publica novedades que el cliente ve al instante",
+  "pay.feat.mobile": "Optimizado para trabajo móvil y a domicilio",
+  "pay.trialLeft": "Prueba · {days} días restantes",
+  "pay.trialLast": "La prueba termina hoy — suscríbete para mantener tu portal",
+  "pay.account.title": "Plan",
+  "pay.account.trialing": "Prueba gratis · {days} días restantes",
+  "pay.account.active": "Suscripción activa",
+  "pay.account.locked": "Sin plan activo",
+  "pay.account.manage": "Suscribirse",
+  "toast.trialStarted": "Prueba gratis iniciada — tu portal está abierto.",
+  "toast.subscribed": "¡Suscripción activa! Gracias por apoyar el taller.",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en, es };
