@@ -54,6 +54,10 @@ export const mhUpdateShop = createServerFn({ method: "POST" })
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      specialties?: string[];
+      credentials?: string[];
+      serviceArea?: string;
+      yearsWrenching?: string;
     }) => d,
   )
   .handler(async ({ data }) => {
@@ -75,6 +79,10 @@ export const mhUpdateIndy = createServerFn({ method: "POST" })
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      specialties?: string[];
+      credentials?: string[];
+      serviceArea?: string;
+      yearsWrenching?: string;
     }) => d,
   )
   .handler(async ({ data }) => {

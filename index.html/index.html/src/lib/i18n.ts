@@ -273,6 +273,34 @@ const en = {
   "account.bioCustomers": "Bio — what customers see",
   "account.shopBioPh": "Brakes, diagnostics, how you work, what makes the bay yours.",
   "account.noBio": "The owner hasn’t written a bio yet.",
+  "account.specialties": "Specialties",
+  "account.specialtiesHint": "What you work on. Customers see these on your card.",
+  "account.credentials": "Credentials",
+  "account.credentialsHint": "ASE, license, insurance, years — text only. No uploads.",
+  "account.serviceArea": "Based in / service area",
+  "account.serviceAreaPh": "Riverside, CA or Inland Empire · mobile",
+  "account.yearsWrenching": "Years wrenching",
+  "account.yearsPh": "e.g. 12",
+  "account.otherTag": "Other",
+  "account.addOther": "Add",
+  "account.noSpecialties": "No specialties listed yet.",
+  "account.noCredentials": "No credentials listed yet.",
+  "account.noServiceArea": "No service area yet.",
+  "spec.brakes": "Brakes",
+  "spec.diagnostics": "Diagnostics",
+  "spec.oil": "Oil",
+  "spec.mobile": "Mobile service",
+  "spec.tires": "Tires",
+  "spec.engine": "Engine",
+  "spec.electrical": "Electrical",
+  "spec.ac": "A/C",
+  "cred.ase": "ASE",
+  "cred.mobile_license": "Mobile license",
+  "cred.insured": "Insured",
+  "profile.basedIn": "Based in {area}",
+  "profile.years": "{n} years",
+  "profile.specialties": "Specialties",
+  "profile.credentials": "Credentials",
   "account.saveShop": "Save shop profile",
   "account.teamCode": "Team join code — employees use this when they create an account",
   "account.team": "Team: {names}",
@@ -517,7 +545,7 @@ const en = {
     "Shop accounts belong to a repair shop and can have staff on the same board. Independent accounts are for a solo mechanic. Customer accounts are for people booking and tracking a car. Each account stores a name, login (email or phone), and password.",
   "privacy.store.title": "Shop and customer data",
   "privacy.store.body":
-    "A shop or independent can store a business name, find code, bio, hours, support email or phone, and a profile photo or shop logo. Customers book jobs with that shop. Job tickets store the vehicle year, make, and model, optional symptoms, the time slot, job status, and notes the shop writes.",
+    "A shop or independent can store a business name, find code, bio, specialties, credentials, service area, hours, support email or phone, and a profile photo or shop logo. Customers book jobs with that shop. Job tickets store the vehicle year, make, and model, optional symptoms, the time slot, job status, and notes the shop writes.",
   "privacy.photos.title": "Photos",
   "privacy.photos.body":
     "A profile photo or shop logo lives on the account and the public shop or mechanic page. A photo from the bay (the car or a part on a job) stays on that job ticket. A bay photo does not replace your profile photo.",
@@ -532,7 +560,7 @@ const en = {
     "We do not sell your list to advertisers. We do not use Helper to train a public model on your name. Card numbers are not stored in this app today. If you opt in, we text the booking phone for on-the-way, parts, and ready. App alerts use those same moments after you allow notifications.",
   "privacy.see.title": "Who sees what",
   "privacy.see.body":
-    "A customer sees their own jobs and the public shop or mechanic page (name, photo, bio, find code, support line). A shop or independent sees jobs booked with them. Staff at a shop share that shop’s board.",
+    "A customer sees their own jobs and the public shop or mechanic page (name, photo, bio, specialties, credentials, service area, find code, support line). A shop or independent sees jobs booked with them. Staff at a shop share that shop’s board.",
   "privacy.long.title": "How long it stays",
   "privacy.long.body":
     "Account data stays until you delete the account. Job tickets may stay on the shop board so the shop has a record of work already done. You can ask the shop to remove a note or vehicle detail on a closed ticket.",
@@ -859,6 +887,34 @@ const es: Record<MessageKey, string> = {
   "account.bioCustomers": "Bio — lo que ven los clientes",
   "account.shopBioPh": "Frenos, diagnóstico, cómo trabajan y qué hace único al taller.",
   "account.noBio": "El dueño todavía no ha escrito una bio.",
+  "account.specialties": "Especialidades",
+  "account.specialtiesHint": "En qué trabajan. Los clientes lo ven en tu ficha.",
+  "account.credentials": "Credenciales",
+  "account.credentialsHint": "ASE, licencia, seguro, años — solo texto. Sin archivos.",
+  "account.serviceArea": "Zona / con base en",
+  "account.serviceAreaPh": "Riverside, CA o Inland Empire · a domicilio",
+  "account.yearsWrenching": "Años de oficio",
+  "account.yearsPh": "p. ej. 12",
+  "account.otherTag": "Otro",
+  "account.addOther": "Agregar",
+  "account.noSpecialties": "Aún no hay especialidades.",
+  "account.noCredentials": "Aún no hay credenciales.",
+  "account.noServiceArea": "Aún no hay zona de servicio.",
+  "spec.brakes": "Frenos",
+  "spec.diagnostics": "Diagnóstico",
+  "spec.oil": "Aceite",
+  "spec.mobile": "Servicio móvil",
+  "spec.tires": "Llantas",
+  "spec.engine": "Motor",
+  "spec.electrical": "Eléctrico",
+  "spec.ac": "A/C",
+  "cred.ase": "ASE",
+  "cred.mobile_license": "Licencia móvil",
+  "cred.insured": "Asegurado",
+  "profile.basedIn": "Con base en {area}",
+  "profile.years": "{n} años",
+  "profile.specialties": "Especialidades",
+  "profile.credentials": "Credenciales",
   "account.saveShop": "Guardar perfil del taller",
   "account.teamCode": "Código de equipo — los empleados lo usan al crear su cuenta",
   "account.team": "Equipo: {names}",
@@ -1104,7 +1160,7 @@ const es: Record<MessageKey, string> = {
     "Las cuentas de taller pertenecen a un taller y pueden tener personal en el mismo tablero. Las cuentas independientes son para un mecánico solo. Las cuentas de cliente son para quien reserva y sigue un auto. Cada cuenta guarda un nombre, un acceso (correo o teléfono) y una contraseña.",
   "privacy.store.title": "Datos del taller y del cliente",
   "privacy.store.body":
-    "Un taller o independiente puede guardar el nombre del negocio, el código, la bio, el horario, el correo o teléfono de soporte y una foto de perfil o logo. Los clientes reservan trabajos con ese taller. Los tickets guardan el año, marca y modelo del vehículo, síntomas opcionales, el horario, el estado del trabajo y las notas que escribe el taller.",
+    "Un taller o independiente puede guardar el nombre del negocio, el código, la bio, especialidades, credenciales, zona de servicio, el horario, el correo o teléfono de soporte y una foto de perfil o logo. Los clientes reservan trabajos con ese taller. Los tickets guardan el año, marca y modelo del vehículo, síntomas opcionales, el horario, el estado del trabajo y las notas que escribe el taller.",
   "privacy.photos.title": "Fotos",
   "privacy.photos.body":
     "La foto de perfil o el logo del taller viven en la cuenta y en la página pública. Una foto de la bahía (el auto o una pieza en un trabajo) se queda en ese ticket. Una foto de la bahía no reemplaza tu foto de perfil.",
@@ -1119,7 +1175,7 @@ const es: Record<MessageKey, string> = {
     "No vendemos tu lista a anunciantes. No usamos Helper para entrenar un modelo público con tu nombre. Hoy esta app no guarda números de tarjeta. Si aceptas, enviamos un mensaje al teléfono de la cita para en camino, piezas y listo. Las alertas de la app usan esos mismos momentos cuando las permites.",
   "privacy.see.title": "Quién ve qué",
   "privacy.see.body":
-    "Un cliente ve sus propios trabajos y la página pública del taller o mecánico (nombre, foto, bio, código, línea de soporte). Un taller o independiente ve los trabajos reservados con ellos. El personal de un taller comparte ese tablero.",
+    "Un cliente ve sus propios trabajos y la página pública del taller o mecánico (nombre, foto, bio, especialidades, credenciales, zona de servicio, código, línea de soporte). Un taller o independiente ve los trabajos reservados con ellos. El personal de un taller comparte ese tablero.",
   "privacy.long.title": "Cuánto tiempo se queda",
   "privacy.long.body":
     "Los datos de la cuenta se quedan hasta que la elimines. Los tickets pueden quedarse en el tablero del taller como registro del trabajo ya hecho. Puedes pedir al taller que quite una nota o un dato del vehículo en un ticket cerrado.",
@@ -1309,6 +1365,12 @@ export function kindText(locale: Locale, kind: string): string {
   const key = `kind.${kind}` as MessageKey;
   if (key in messages.en) return translate(locale, key);
   return kind;
+}
+
+export function translateProfileTag(locale: Locale, kind: "spec" | "cred", id: string): string {
+  const key = `${kind}.${id}` as MessageKey;
+  if (key in messages.en) return translate(locale, key);
+  return id;
 }
 
 export function applyDocumentLocale(locale: Locale) {

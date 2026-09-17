@@ -96,6 +96,8 @@ test("sanitizeJobPatch only keeps job ticket fields and the bay photo key", () =
     name: "Should not copy",
     email: "leak@example.com",
     bio: "profile bio",
+    specialties: ["brakes"],
+    serviceArea: "Riverside",
     role: "independent",
     notes: [{ at: 1, text: "must not ride a photo patch", by: "shop" }],
   });

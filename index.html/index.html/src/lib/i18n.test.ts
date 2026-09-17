@@ -163,6 +163,25 @@ test("shop history and decline copy exists in English and Spanish", () => {
   );
 });
 
+test("public shop profile labels exist in English and Spanish", () => {
+  assert.equal(translate("en", "account.specialties"), "Specialties");
+  assert.equal(translate("es", "account.specialties"), "Especialidades");
+  assert.equal(translate("en", "account.credentials"), "Credentials");
+  assert.equal(translate("es", "account.credentials"), "Credenciales");
+  assert.match(translate("en", "account.serviceArea"), /based in|service area/i);
+  assert.match(translate("es", "account.serviceArea"), /zona|base/i);
+  assert.equal(translate("en", "spec.mobile"), "Mobile service");
+  assert.equal(translate("es", "spec.mobile"), "Servicio móvil");
+  assert.equal(translate("en", "cred.ase"), "ASE");
+  assert.equal(translate("es", "cred.mobile_license"), "Licencia móvil");
+  assert.equal(translate("en", "profile.basedIn", { area: "Riverside" }), "Based in Riverside");
+  assert.equal(translate("es", "profile.basedIn", { area: "Riverside" }), "Con base en Riverside");
+  assert.equal(translate("en", "profile.years", { n: 14 }), "14 years");
+  assert.equal(translate("es", "profile.years", { n: 14 }), "14 años");
+  assert.match(translate("en", "privacy.store.body"), /specialties|credentials|service area/i);
+  assert.match(translate("es", "privacy.store.body"), /especialidades|credenciales|zona/i);
+});
+
 test("linked customer booking copy hides the shop directory in English and Spanish", () => {
   assert.equal(translate("en", "book.withShop", { name: "Riverside Auto" }), "Booking with Riverside Auto");
   assert.equal(translate("es", "book.withShop", { name: "Riverside Auto" }), "Reservando con Riverside Auto");

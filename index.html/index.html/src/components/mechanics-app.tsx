@@ -27,6 +27,7 @@ import {
   statusText,
   translateDetail,
   translateNote,
+  translateProfileTag,
   translateStoreError,
   type MessageKey,
   type TranslateFn,
@@ -56,6 +57,16 @@ import {
 } from "@/lib/job-status";
 import { trimOptions } from "@/lib/trims";
 import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
+import {
+  CREDENTIAL_IDS,
+  SERVICE_AREA_MAX,
+  SPECIALTY_IDS,
+  TAG_MAX,
+  TAGS_MAX,
+  isPresetTag,
+  sanitizeYearsWrenching,
+  toggleTag,
+} from "@/lib/shop-profile";
 
 type View =
   | "welcome"
@@ -471,12 +482,193 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function Fieldset({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+      {children}
+    </div>
+  );
+}
+
 const inputClass =
   "w-full rounded-xl border border-line bg-bg2 px-3 py-3 text-base text-fg outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/20";
 
 const selectClass =
   inputClass +
   " appearance-none pr-11 font-semibold tracking-tight";
+
+function profileTagLabel(locale: "en" | "es", kind: "spec" | "cred", tag: string) {
+  return translateProfileTag(locale, kind, tag);
+}
+
+function TagPills({
+  kind,
+  tags,
+}: {
+  kind: "spec" | "cred";
+  tags: string[];
+}) {
+  const { locale } = useI18n();
+  if (!tags.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5" data-profile-tags={kind}>
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className="rounded-full border border-accent/30 bg-accent/15 px-2.5 py-0.5 text-xs font-semibold text-fg"
+        >
+          {profileTagLabel(locale, kind, tag)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function PublicProviderCard({
+  provider,
+  eyebrow,
+  children,
+  compact,
+}: {
+  provider: Provider;
+  eyebrow: string;
+  children?: React.ReactNode;
+  compact?: boolean;
+}) {
+  const { locale, t } = useI18n();
+  const specialties = provider.specialties || [];
+  const credentials = provider.credentials || [];
+  const years = provider.yearsWrenching || "";
+  return (
+    <div
+      className={`${compact ? "" : "mb-3 "}rounded-xl border border-accent/40 bg-accent/10 p-4`}
+      data-public-provider-card=""
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-accent">{eyebrow}</p>
+      <div className="mt-2 flex items-start gap-3">
+        <Face src={provider.photo} name={provider.name} size="lg" />
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold">{provider.name}</h2>
+          <p className="mt-1 text-sm text-muted">
+            {t("welcome.referredCode", { detail: translateDetail(locale, provider.detail), code: provider.code })}
+          </p>
+          {provider.serviceArea ? (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
+              <MapPin className="size-3.5 shrink-0 text-accent" aria-hidden />
+              {t("profile.basedIn", { area: provider.serviceArea })}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {provider.bio ? <p className="mt-2 text-sm text-fg">{provider.bio}</p> : null}
+      <TagPills kind="spec" tags={specialties} />
+      <TagPills
+        kind="cred"
+        tags={[
+          ...credentials,
+          ...(years ? [t("profile.years", { n: years })] : []),
+        ]}
+      />
+      <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, provider)}</p>
+      {(provider.supportPhone || provider.supportEmail) && (
+        <p className="mt-2 text-sm text-muted">
+          {provider.supportPhone ? provider.supportPhone : ""}
+          {provider.supportPhone && provider.supportEmail ? " · " : ""}
+          {provider.supportEmail ? provider.supportEmail : ""}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function ChipEditor({
+  kind,
+  value,
+  onChange,
+  canEdit,
+  empty,
+}: {
+  kind: "spec" | "cred";
+  value: string[];
+  onChange: (next: string[]) => void;
+  canEdit: boolean;
+  empty: string;
+}) {
+  const { locale, t } = useI18n();
+  const [other, setOther] = useState("");
+  const presets = kind === "spec" ? SPECIALTY_IDS : CREDENTIAL_IDS;
+  if (!canEdit) {
+    return value.length ? <TagPills kind={kind} tags={value} /> : <p className="text-sm text-muted">{empty}</p>;
+  }
+  return (
+    <div data-chip-editor={kind}>
+      <div className="flex flex-wrap gap-1.5">
+        {presets.map((id) => {
+          const on = value.includes(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                on ? "bg-accent text-ink" : "border border-line bg-surface2 text-muted"
+              }`}
+              onClick={() => onChange(toggleTag(value, id, presets))}
+            >
+              {profileTagLabel(locale, kind, id)}
+            </button>
+          );
+        })}
+        {value
+          .filter((tag) => !isPresetTag(tag, presets))
+          .map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              className="rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-ink"
+              onClick={() => onChange(toggleTag(value, tag, presets))}
+            >
+              {tag} ×
+            </button>
+          ))}
+      </div>
+      {value.length < TAGS_MAX ? (
+        <div className="mt-2 flex gap-2">
+          <input
+            className={inputClass}
+            maxLength={TAG_MAX}
+            placeholder={t("account.otherTag")}
+            value={other}
+            onChange={(e) => setOther(e.target.value.slice(0, TAG_MAX))}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              const next = toggleTag(value, other, presets);
+              if (next.length !== value.length || next.some((tag) => !value.includes(tag))) {
+                onChange(next);
+                setOther("");
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="h-12 shrink-0 rounded-xl border border-line px-3 font-semibold"
+            onClick={() => {
+              const next = toggleTag(value, other, presets);
+              if (next.length !== value.length || next.some((tag) => !value.includes(tag))) {
+                onChange(next);
+                setOther("");
+              }
+            }}
+          >
+            {t("account.addOther")}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function SelectWrap({ children }: { children: React.ReactNode }) {
   return (
@@ -502,33 +694,14 @@ function Welcome({
   onLogin: () => void;
   onRegister: () => void;
 }) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   return (
     <div>
       <p className="mb-4 text-xs text-muted">{t("app.tagline")}</p>
       {locked ? (
-        <div className="mb-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-accent">{t("welcome.referred")}</p>
-          <div className="mt-2 flex items-start gap-3">
-            <Face src={locked.photo} name={locked.name} size="lg" />
-            <div className="min-w-0">
-              <h2 className="text-xl font-semibold">{locked.name}</h2>
-              <p className="mt-1 text-sm text-muted">
-                {t("welcome.referredCode", { detail: translateDetail(locale, locked.detail), code: locked.code })}
-              </p>
-            </div>
-          </div>
-          {locked.bio ? <p className="mt-2 text-sm text-fg">{locked.bio}</p> : null}
-          <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, locked)}</p>
-          {(locked.supportPhone || locked.supportEmail) && (
-            <p className="mt-2 text-sm text-muted">
-              {locked.supportPhone ? locked.supportPhone : ""}
-              {locked.supportPhone && locked.supportEmail ? " · " : ""}
-              {locked.supportEmail ? locked.supportEmail : ""}
-            </p>
-          )}
+        <PublicProviderCard provider={locked} eyebrow={t("welcome.referred")}>
           <p className="mt-2 text-sm text-muted">{t("welcome.referredLogin")}</p>
-        </div>
+        </PublicProviderCard>
       ) : (
         <div className="rounded-2xl border border-line bg-linear-to-br from-surface2 to-bg2 p-5">
           <h1 className="text-[26px] font-bold leading-tight tracking-tight">
@@ -959,7 +1132,7 @@ function CustomerHome({
   onClear: () => void;
   go: (v: View) => void;
 }) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   return (
     <div>
       <div className="mb-4 flex items-center gap-2.5">
@@ -971,21 +1144,11 @@ function CustomerHome({
         </button>
       </div>
       {locked ? (
-        <div className="mb-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-accent">{t("home.bookingWith")}</p>
-          <div className="mt-2 flex items-start gap-3">
-            <Face src={locked.photo} name={locked.name} size="lg" />
-            <div className="min-w-0">
-              <h2 className="text-xl font-semibold">{locked.name}</h2>
-              <p className="text-sm text-muted">{translateDetail(locale, locked.detail)} · {locked.code}</p>
-            </div>
-          </div>
-          {locked.bio ? <p className="mt-2 text-sm text-fg">{locked.bio}</p> : null}
-          <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, locked)}</p>
+        <PublicProviderCard provider={locked} eyebrow={t("home.bookingWith")}>
           <button type="button" onClick={onClear} className="mt-2 text-sm font-semibold text-accent">
             {t("home.chooseDifferent")}
           </button>
-        </div>
+        </PublicProviderCard>
       ) : (
         <div className="rounded-2xl border border-line bg-surface p-5">
           <h1 className="text-[26px] font-bold leading-tight">{t("home.headline")}</h1>
@@ -1142,9 +1305,9 @@ function Book({
       }}
     >
       <Top title={t("book.title")} onBack={onBack} />
-      <p className="text-sm text-muted" data-booking-bay="">
-        {t("book.withShop", { name: provider.name })}
-      </p>
+      <div data-booking-bay="">
+        <PublicProviderCard provider={provider} eyebrow={t("book.withShop", { name: provider.name })} compact />
+      </div>
       <Field label={t("book.yourName")}>
         <input name="name" className={inputClass} defaultValue={user.name} required />
       </Field>
@@ -1996,9 +2159,17 @@ function Account({
   const [shopDays, setShopDays] = useState(shop?.hoursDays || "123456");
   const [shopOpen, setShopOpen] = useState(shop?.hoursOpen || "08:00");
   const [shopClose, setShopClose] = useState(shop?.hoursClose || "16:00");
+  const [shopSpecialties, setShopSpecialties] = useState(shop?.specialties || []);
+  const [shopCredentials, setShopCredentials] = useState(shop?.credentials || []);
+  const [shopArea, setShopArea] = useState(shop?.serviceArea || "");
+  const [shopYears, setShopYears] = useState(shop?.yearsWrenching || "");
   const [indyDays, setIndyDays] = useState(user.hoursDays || "123456");
   const [indyOpen, setIndyOpen] = useState(user.hoursOpen || "08:00");
   const [indyClose, setIndyClose] = useState(user.hoursClose || "16:00");
+  const [indySpecialties, setIndySpecialties] = useState(user.specialties || []);
+  const [indyCredentials, setIndyCredentials] = useState(user.credentials || []);
+  const [indyArea, setIndyArea] = useState(user.serviceArea || "");
+  const [indyYears, setIndyYears] = useState(user.yearsWrenching || "");
   const [deletePw, setDeletePw] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -2158,6 +2329,7 @@ function Account({
       {shop && (
         <form
           className="mt-3 rounded-xl border border-line bg-surface p-4"
+          data-account-public-profile="shop"
           onSubmit={async (e) => {
             e.preventDefault();
             if (!canEditShop) return;
@@ -2170,6 +2342,10 @@ function Account({
               hoursDays: shopDays,
               hoursOpen: shopOpen,
               hoursClose: shopClose,
+              specialties: shopSpecialties,
+              credentials: shopCredentials,
+              serviceArea: shopArea,
+              yearsWrenching: shopYears,
             });
             if (!res.ok) return flash(translateStoreError(locale, res.error));
             onSaved(res.user);
@@ -2201,6 +2377,60 @@ function Account({
               </>
             ) : (
               <p className="text-sm text-muted">{shop.bio || t("account.noBio")}</p>
+            )}
+          </Field>
+          <Fieldset label={t("account.specialties")}>
+            <p className="mb-2 text-sm text-muted">{t("account.specialtiesHint")}</p>
+            <ChipEditor
+              kind="spec"
+              value={shopSpecialties}
+              onChange={setShopSpecialties}
+              canEdit={!!canEditShop}
+              empty={t("account.noSpecialties")}
+            />
+          </Fieldset>
+          <Fieldset label={t("account.credentials")}>
+            <p className="mb-2 text-sm text-muted">{t("account.credentialsHint")}</p>
+            <ChipEditor
+              kind="cred"
+              value={shopCredentials}
+              onChange={setShopCredentials}
+              canEdit={!!canEditShop}
+              empty={t("account.noCredentials")}
+            />
+          </Fieldset>
+          <Field label={t("account.yearsWrenching")}>
+            {canEditShop ? (
+              <input
+                className={inputClass}
+                inputMode="numeric"
+                maxLength={2}
+                value={shopYears}
+                onChange={(e) => setShopYears(sanitizeYearsWrenching(e.target.value))}
+                placeholder={t("account.yearsPh")}
+              />
+            ) : (
+              <p className="text-sm text-muted">
+                {shop.yearsWrenching ? t("profile.years", { n: shop.yearsWrenching }) : t("account.notSet")}
+              </p>
+            )}
+          </Field>
+          <Field label={t("account.serviceArea")}>
+            {canEditShop ? (
+              <>
+                <input
+                  className={inputClass}
+                  value={shopArea}
+                  maxLength={SERVICE_AREA_MAX}
+                  onChange={(e) => setShopArea(e.target.value.slice(0, SERVICE_AREA_MAX))}
+                  placeholder={t("account.serviceAreaPh")}
+                />
+                <p className="mt-1 text-right text-xs text-dim tabular-nums">
+                  {shopArea.length}/{SERVICE_AREA_MAX}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted">{shop.serviceArea || t("account.noServiceArea")}</p>
             )}
           </Field>
           <Field label={t("account.supportEmail")}>
@@ -2274,6 +2504,7 @@ function Account({
       {user.role === "independent" && (
         <form
           className="mt-3 rounded-xl border border-line bg-surface p-4"
+          data-account-public-profile="independent"
           onSubmit={async (e) => {
             e.preventDefault();
             const res = await Store.updateIndependentProfile(user, {
@@ -2286,6 +2517,10 @@ function Account({
               hoursDays: indyDays,
               hoursOpen: indyOpen,
               hoursClose: indyClose,
+              specialties: indySpecialties,
+              credentials: indyCredentials,
+              serviceArea: indyArea,
+              yearsWrenching: indyYears,
             });
             if (!res.ok) return flash(translateStoreError(locale, res.error));
             onSaved(res.user);
@@ -2318,6 +2553,48 @@ function Account({
             />
             <p className="mt-1 text-right text-xs text-dim tabular-nums">
               {indyBio.length}/{BIO_MAX}
+            </p>
+          </Field>
+          <Fieldset label={t("account.specialties")}>
+            <p className="mb-2 text-sm text-muted">{t("account.specialtiesHint")}</p>
+            <ChipEditor
+              kind="spec"
+              value={indySpecialties}
+              onChange={setIndySpecialties}
+              canEdit
+              empty={t("account.noSpecialties")}
+            />
+          </Fieldset>
+          <Fieldset label={t("account.credentials")}>
+            <p className="mb-2 text-sm text-muted">{t("account.credentialsHint")}</p>
+            <ChipEditor
+              kind="cred"
+              value={indyCredentials}
+              onChange={setIndyCredentials}
+              canEdit
+              empty={t("account.noCredentials")}
+            />
+          </Fieldset>
+          <Field label={t("account.yearsWrenching")}>
+            <input
+              className={inputClass}
+              inputMode="numeric"
+              maxLength={2}
+              value={indyYears}
+              onChange={(e) => setIndyYears(sanitizeYearsWrenching(e.target.value))}
+              placeholder={t("account.yearsPh")}
+            />
+          </Field>
+          <Field label={t("account.serviceArea")}>
+            <input
+              className={inputClass}
+              value={indyArea}
+              maxLength={SERVICE_AREA_MAX}
+              onChange={(e) => setIndyArea(e.target.value.slice(0, SERVICE_AREA_MAX))}
+              placeholder={t("account.serviceAreaPh")}
+            />
+            <p className="mt-1 text-right text-xs text-dim tabular-nums">
+              {indyArea.length}/{SERVICE_AREA_MAX}
             </p>
           </Field>
           <Field label={t("account.supportEmail")}>

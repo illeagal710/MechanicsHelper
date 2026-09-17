@@ -5,6 +5,7 @@ import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
 import { applyDecline, slotTakenAmong } from "@/lib/job-status";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
+import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
@@ -74,6 +75,7 @@ function rowUser(r: Record<string, unknown>): User {
     hoursDays: String(r.hours_days || "123456"),
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
+    ...publicProfileFromRecord(r),
   };
 }
 
@@ -91,6 +93,7 @@ function rowShop(r: Record<string, unknown>): Shop {
     hoursDays: String(r.hours_days || "123456"),
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
+    ...publicProfileFromRecord(r),
   };
 }
 
@@ -153,6 +156,16 @@ export async function ensureSeeded() {
     `insert into mh_shops (id, name, code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6)`,
     ["s-main", "Riverside Auto", "RIV4", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
   );
+  await sql.query(
+    `update mh_shops set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5 where id = $1`,
+    [
+      "s-main",
+      JSON.stringify(["brakes", "diagnostics", "oil", "tires"]),
+      JSON.stringify(["ase", "insured"]),
+      "Riverside, CA",
+      "25",
+    ],
+  );
 
   const users: unknown[][] = [
     ["u-maya", "Maya Chen", "maya@example.com", "5550148821", "customer", passHash("demo123"), null, null, null, null, null, null, ""],
@@ -167,6 +180,16 @@ export async function ensureSeeded() {
       u,
     );
   }
+  await sql.query(
+    `update mh_users set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5 where id = $1`,
+    [
+      "u-indy",
+      JSON.stringify(["mobile", "diagnostics", "brakes", "engine"]),
+      JSON.stringify(["mobile_license", "insured"]),
+      "Inland Empire · I come to you",
+      "14",
+    ],
+  );
 
   const jobs: Job[] = [
     {
@@ -571,6 +594,10 @@ export async function updateShopProfile(
     hoursDays?: string;
     hoursOpen?: string;
     hoursClose?: string;
+    specialties?: string[];
+    credentials?: string[];
+    serviceArea?: string;
+    yearsWrenching?: string;
   },
 ) {
   const board = await loadBoard();
@@ -616,6 +643,23 @@ export async function updateShopProfile(
       patch.hoursClose ?? shop.hoursClose ?? "16:00",
     ]);
   }
+  if (
+    patch.specialties !== undefined ||
+    patch.credentials !== undefined ||
+    patch.serviceArea !== undefined ||
+    patch.yearsWrenching !== undefined
+  ) {
+    const next = sanitizePublicProfile({
+      specialties: patch.specialties ?? shop.specialties,
+      credentials: patch.credentials ?? shop.credentials,
+      serviceArea: patch.serviceArea ?? shop.serviceArea,
+      yearsWrenching: patch.yearsWrenching ?? shop.yearsWrenching,
+    });
+    await sql.query(
+      "update mh_shops set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5 where id = $1",
+      [shop.id, JSON.stringify(next.specialties), JSON.stringify(next.credentials), next.serviceArea, next.yearsWrenching],
+    );
+  }
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
   if (!fresh) return { ok: false as const, error: "Account not found." };
   const { pass: _p, ...rest } = fresh;
@@ -635,6 +679,10 @@ export async function updateIndependentProfile(
     hoursDays?: string;
     hoursOpen?: string;
     hoursClose?: string;
+    specialties?: string[];
+    credentials?: string[];
+    serviceArea?: string;
+    yearsWrenching?: string;
   },
 ) {
   const board = await loadBoard();
@@ -659,9 +707,30 @@ export async function updateIndependentProfile(
   const hoursDays = patch.hoursDays ?? user.hoursDays ?? "123456";
   const hoursOpen = patch.hoursOpen ?? user.hoursOpen ?? "08:00";
   const hoursClose = patch.hoursClose ?? user.hoursClose ?? "16:00";
+  const next = sanitizePublicProfile({
+    specialties: patch.specialties ?? user.specialties,
+    credentials: patch.credentials ?? user.credentials,
+    serviceArea: patch.serviceArea ?? user.serviceArea,
+    yearsWrenching: patch.yearsWrenching ?? user.yearsWrenching,
+  });
   await sql.query(
-    "update mh_users set business_name = $2, bio = $3, service_mode = $4, photo = $5, support_email = $6, support_phone = $7, hours_days = $8, hours_open = $9, hours_close = $10 where id = $1",
-    [user.id, name, bio, mode, photo, supportEmail, supportPhone, hoursDays, hoursOpen, hoursClose],
+    "update mh_users set business_name = $2, bio = $3, service_mode = $4, photo = $5, support_email = $6, support_phone = $7, hours_days = $8, hours_open = $9, hours_close = $10, specialties_json = $11, credentials_json = $12, service_area = $13, years_wrenching = $14 where id = $1",
+    [
+      user.id,
+      name,
+      bio,
+      mode,
+      photo,
+      supportEmail,
+      supportPhone,
+      hoursDays,
+      hoursOpen,
+      hoursClose,
+      JSON.stringify(next.specialties),
+      JSON.stringify(next.credentials),
+      next.serviceArea,
+      next.yearsWrenching,
+    ],
   );
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
   if (!fresh) return { ok: false as const, error: "Account not found." };
