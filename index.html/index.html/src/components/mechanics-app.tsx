@@ -1705,13 +1705,15 @@ function JobDetail({
     if (posting) return;
     const clean = text.trim();
     if (!clean) return;
-    if (shouldSkipDuplicateNote(job.notes, clean, "shop")) {
+    const current = Store.load().jobs.find((j) => j.id === id);
+    if (!current) return;
+    if (shouldSkipDuplicateNote(current.notes, clean, "shop")) {
       flash?.(t("toast.updateDuplicate"));
       return;
     }
     setPosting(true);
     try {
-      await Store.addNote(job.id, clean, "shop");
+      await Store.addNote(current.id, clean, "shop");
       setNoteText("");
       flash?.(t("toast.updateSent"));
       bump();
