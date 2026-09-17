@@ -91,7 +91,11 @@ export function sanitizeJobPatch(patch: Record<string, unknown> | null | undefin
     "role" in patch ||
     "bio" in patch ||
     "serviceMode" in patch ||
-    "profilePhoto" in patch;
+    "profilePhoto" in patch ||
+    "specialties" in patch ||
+    "credentials" in patch ||
+    "serviceArea" in patch ||
+    "yearsWrenching" in patch;
 
   if (typeof patch.jobPhoto === "string") {
     out.jobPhoto = patch.jobPhoto;

@@ -18,6 +18,7 @@ import {
   mhUpdateShop,
 } from "@/lib/mh-api";
 import { jobPhotoOf, profilePhotoOf, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
+import { publicProfileFromRecord, type PublicProfileFields } from "@/lib/shop-profile";
 import {
   addSavedVehicle,
   mergeCustomerVehicles,
@@ -53,6 +54,10 @@ export type User = {
   hoursDays?: string;
   hoursOpen?: string;
   hoursClose?: string;
+  specialties?: string[];
+  credentials?: string[];
+  serviceArea?: string;
+  yearsWrenching?: string;
 };
 
 export type Shop = {
@@ -68,6 +73,10 @@ export type Shop = {
   hoursDays?: string;
   hoursOpen?: string;
   hoursClose?: string;
+  specialties?: string[];
+  credentials?: string[];
+  serviceArea?: string;
+  yearsWrenching?: string;
 };
 
 export type Note = { at: number; text: string; by: string };
@@ -112,7 +121,15 @@ export type Provider = {
   hoursOpen?: string;
   hoursClose?: string;
   hoursLabel?: string;
+  specialties?: string[];
+  credentials?: string[];
+  serviceArea?: string;
+  yearsWrenching?: string;
 };
+
+function withPublicProfile<T extends object>(row: T, extra?: Partial<PublicProfileFields>): T & PublicProfileFields {
+  return { ...row, ...publicProfileFromRecord({ ...row, ...extra }) };
+}
 
 export const BIO_MAX = 320;
 
@@ -196,43 +213,47 @@ export function publicUser(u: User): User {
 }
 
 function providersFrom(data: DB): Provider[] {
-  const shops = data.shops.map((s) => ({
-    id: s.id,
-    type: "shop" as const,
-    name: s.name,
-    detail: "Repair shop",
-    code: s.code,
-    bio: s.bio || "",
-    photo: s.photo || "",
-    supportEmail: s.supportEmail || "",
-    supportPhone: s.supportPhone || "",
-    hoursDays: s.hoursDays || "123456",
-    hoursOpen: s.hoursOpen || "08:00",
-    hoursClose: s.hoursClose || "16:00",
-    hoursLabel: hoursLabel(s),
-  }));
+  const shops = data.shops.map((s) =>
+    withPublicProfile({
+      id: s.id,
+      type: "shop" as const,
+      name: s.name,
+      detail: "Repair shop",
+      code: s.code,
+      bio: s.bio || "",
+      photo: s.photo || "",
+      supportEmail: s.supportEmail || "",
+      supportPhone: s.supportPhone || "",
+      hoursDays: s.hoursDays || "123456",
+      hoursOpen: s.hoursOpen || "08:00",
+      hoursClose: s.hoursClose || "16:00",
+      hoursLabel: hoursLabel(s),
+    }, s),
+  );
   const indy = data.users
     .filter((u) => u.role === "independent")
-    .map((u) => ({
-      id: u.id,
-      type: "independent" as const,
-      name: u.businessName || u.name,
-      detail:
-        u.serviceMode === "mobile"
-          ? "Mobile mechanic"
-          : u.serviceMode === "shop"
-            ? "Independent shop"
-            : "Mobile or drop-off",
-      code: u.code || "",
-      bio: u.bio || "",
-      photo: u.photo || "",
-      supportEmail: u.supportEmail || "",
-      supportPhone: u.supportPhone || "",
-      hoursDays: u.hoursDays || "123456",
-      hoursOpen: u.hoursOpen || "08:00",
-      hoursClose: u.hoursClose || "16:00",
-      hoursLabel: hoursLabel(u),
-    }));
+    .map((u) =>
+      withPublicProfile({
+        id: u.id,
+        type: "independent" as const,
+        name: u.businessName || u.name,
+        detail:
+          u.serviceMode === "mobile"
+            ? "Mobile mechanic"
+            : u.serviceMode === "shop"
+              ? "Independent shop"
+              : "Mobile or drop-off",
+        code: u.code || "",
+        bio: u.bio || "",
+        photo: u.photo || "",
+        supportEmail: u.supportEmail || "",
+        supportPhone: u.supportPhone || "",
+        hoursDays: u.hoursDays || "123456",
+        hoursOpen: u.hoursOpen || "08:00",
+        hoursClose: u.hoursClose || "16:00",
+        hoursLabel: hoursLabel(u),
+      }, u),
+    );
   return [...shops, ...indy];
 }
 
@@ -488,6 +509,10 @@ export const Store = {
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      specialties?: string[];
+      credentials?: string[];
+      serviceArea?: string;
+      yearsWrenching?: string;
     },
   ) {
     const profilePhoto = patch.profilePhoto !== undefined ? patch.profilePhoto : patch.photo;
@@ -518,6 +543,10 @@ export const Store = {
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      specialties?: string[];
+      credentials?: string[];
+      serviceArea?: string;
+      yearsWrenching?: string;
     },
   ) {
     const profilePhoto = patch.profilePhoto !== undefined ? patch.profilePhoto : patch.photo;
