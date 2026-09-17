@@ -637,6 +637,23 @@ const en = {
   "support.readPrivacy": "Read privacy",
 
   "diag.disclaimer": "Helper only — not a certified inspection. A mechanic still has to look at the car.",
+
+  "profile.directions": "Get directions",
+  "account.address": "Shop address",
+  "account.addressOptional": "Address (optional)",
+  "account.addressPh": "1450 Market St, Riverside, CA 92501",
+  "account.addressHint": "Customers see this and can tap Get directions.",
+  "account.addressIndyHint": "Optional. Add an address if customers come to you; leave blank if you're mobile.",
+  "account.noAddress": "No address set",
+  "account.notifTitle": "Phone notifications",
+  "account.notifEnable": "Turn on notifications",
+  "account.notifOn": "Notifications on",
+  "account.notifTest": "Send test",
+  "account.notifBlocked": "Notifications are blocked. Turn them on for Mechanics Helper in your phone's Settings.",
+  "account.notifUnsupported": "This device can't show app notifications.",
+  "account.alertsManageHint": "Manage phone notifications from the Notifications card on your account.",
+  "toast.alertsBlocked": "Notifications are blocked in settings.",
+  "toast.alertsTestSent": "Test notification sent.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1275,6 +1292,23 @@ const es: Record<MessageKey, string> = {
   "support.readPrivacy": "Leer privacidad",
 
   "diag.disclaimer": "Solo asistente — no es una inspección certificada. Un mecánico aún tiene que revisar el auto.",
+
+  "profile.directions": "Cómo llegar",
+  "account.address": "Dirección del taller",
+  "account.addressOptional": "Dirección (opcional)",
+  "account.addressPh": "1450 Market St, Riverside, CA 92501",
+  "account.addressHint": "Los clientes la ven y pueden tocar Cómo llegar.",
+  "account.addressIndyHint": "Opcional. Agrega una dirección si los clientes van a ti; déjala en blanco si eres móvil.",
+  "account.noAddress": "Sin dirección",
+  "account.notifTitle": "Notificaciones del teléfono",
+  "account.notifEnable": "Activar notificaciones",
+  "account.notifOn": "Notificaciones activadas",
+  "account.notifTest": "Enviar prueba",
+  "account.notifBlocked": "Las notificaciones están bloqueadas. Actívalas para Mechanics Helper en los Ajustes de tu teléfono.",
+  "account.notifUnsupported": "Este dispositivo no puede mostrar notificaciones de la app.",
+  "account.alertsManageHint": "Administra las notificaciones desde la tarjeta Notificaciones en tu cuenta.",
+  "toast.alertsBlocked": "Las notificaciones están bloqueadas en los ajustes.",
+  "toast.alertsTestSent": "Notificación de prueba enviada.",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en, es };
