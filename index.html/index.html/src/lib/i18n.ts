@@ -6,7 +6,7 @@ export const LOCALE_KEY = "mh.locale";
 
 const en = {
   "app.name": "Mechanics Helper",
-  "app.tagline": "Shop · Independent · Customer",
+  "app.tagline": "Shop · Mobile · Customer",
   "app.bay": "Bay",
 
   "lang.groupAria": "Language",
@@ -43,7 +43,7 @@ const en = {
   "welcome.demoLogins": "Demo logins · password demo123",
   "welcome.demoCustomer": "Customer: maya@example.com",
   "welcome.demoShop": "Shop: shop@example.com",
-  "welcome.demoIndependent": "Independent: indy@example.com",
+  "welcome.demoIndependent": "Mobile: indy@example.com",
   "welcome.demoCodes": "Find codes: RIV4 · LEON",
 
   "login.title": "Log in",
@@ -97,7 +97,7 @@ const en = {
   "register.iAm": "I am",
   "register.roleCustomer": "Customer",
   "register.roleShop": "Shop",
-  "register.roleIndependent": "Independent",
+  "register.roleIndependent": "Mobile",
   "register.createShop": "Create shop",
   "register.joinShop": "Join shop",
   "register.shopName": "Shop name",
@@ -172,7 +172,7 @@ const en = {
   "shop.history": "History",
   "shop.empty": "No jobs in this filter.",
   "shop.historyEmpty": "No completed or declined jobs yet.",
-  "shop.independent": "Independent",
+  "shop.independent": "Mobile mechanic",
   "shop.shop": "Shop",
   "share.title": "Share with customers",
   "share.yourShop": "Your shop",
@@ -269,7 +269,7 @@ const en = {
   "account.shopTech": "Shop technician",
   "account.techShop": "You work at {shop}",
   "account.techShopHint": "Public shop profile, hours, find code, and team are managed by the owner.",
-  "account.indyMech": "Independent mechanic",
+  "account.indyMech": "Mobile mechanic",
   "account.customer": "Customer",
   "account.vehicles": "My vehicles",
   "account.vehiclesHint": "Cars from your tickets. Add another to reuse on booking.",
@@ -638,6 +638,9 @@ const en = {
 
   "diag.disclaimer": "Helper only — not a certified inspection. A mechanic still has to look at the car.",
 
+  "shop.searchPlaceholder": "Search name, vehicle, phone, or ticket",
+  "shop.searchClear": "Clear search",
+  "shop.searchEmpty": "No jobs match your search.",
   "profile.directions": "Get directions",
   "account.address": "Shop address",
   "account.addressOptional": "Address (optional)",
@@ -660,7 +663,7 @@ export type MessageKey = keyof typeof en;
 
 const es: Record<MessageKey, string> = {
   "app.name": "Mechanics Helper",
-  "app.tagline": "Taller · Independiente · Cliente",
+  "app.tagline": "Taller · Móvil · Cliente",
   "app.bay": "Bahía",
 
   "lang.groupAria": "Idioma",
@@ -697,7 +700,7 @@ const es: Record<MessageKey, string> = {
   "welcome.demoLogins": "Accesos de demo · contraseña demo123",
   "welcome.demoCustomer": "Cliente: maya@example.com",
   "welcome.demoShop": "Taller: shop@example.com",
-  "welcome.demoIndependent": "Independiente: indy@example.com",
+  "welcome.demoIndependent": "Móvil: indy@example.com",
   "welcome.demoCodes": "Códigos: RIV4 · LEON",
 
   "login.title": "Iniciar sesión",
@@ -751,7 +754,7 @@ const es: Record<MessageKey, string> = {
   "register.iAm": "Soy",
   "register.roleCustomer": "Cliente",
   "register.roleShop": "Taller",
-  "register.roleIndependent": "Independiente",
+  "register.roleIndependent": "Móvil",
   "register.createShop": "Crear taller",
   "register.joinShop": "Unirme al taller",
   "register.shopName": "Nombre del taller",
@@ -826,7 +829,7 @@ const es: Record<MessageKey, string> = {
   "shop.history": "Historial",
   "shop.empty": "No hay trabajos en este filtro.",
   "shop.historyEmpty": "Aún no hay trabajos completados o rechazados.",
-  "shop.independent": "Independiente",
+  "shop.independent": "Mecánico a domicilio",
   "shop.shop": "Taller",
   "share.title": "Compartir con clientes",
   "share.yourShop": "Tu taller",
@@ -923,7 +926,7 @@ const es: Record<MessageKey, string> = {
   "account.shopTech": "Técnico del taller",
   "account.techShop": "Trabajas en {shop}",
   "account.techShopHint": "El perfil público, el horario, el código de clientes y el equipo los gestiona el dueño.",
-  "account.indyMech": "Mecánico independiente",
+  "account.indyMech": "Mecánico a domicilio",
   "account.customer": "Cliente",
   "account.vehicles": "Mis vehículos",
   "account.vehiclesHint": "Autos de tus tickets. Agrega otro para usarlo al reservar.",
@@ -1293,6 +1296,9 @@ const es: Record<MessageKey, string> = {
 
   "diag.disclaimer": "Solo asistente — no es una inspección certificada. Un mecánico aún tiene que revisar el auto.",
 
+  "shop.searchPlaceholder": "Busca nombre, vehículo, teléfono o ticket",
+  "shop.searchClear": "Borrar búsqueda",
+  "shop.searchEmpty": "Ningún trabajo coincide con tu búsqueda.",
   "profile.directions": "Cómo llegar",
   "account.address": "Dirección del taller",
   "account.addressOptional": "Dirección (opcional)",

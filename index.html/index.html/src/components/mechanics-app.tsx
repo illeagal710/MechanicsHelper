@@ -10,8 +10,10 @@ import {
   MessageCircle,
   Navigation,
   QrCode,
+  Search,
   Settings,
   UserRound,
+  X,
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
 import { BayPreview, Face, PhotoPicker } from "@/components/photo-input";
@@ -54,6 +56,7 @@ import {
   PIPELINE_STATUSES,
   canDeclineStatus,
   declineReasonFromNotes,
+  searchJobs,
   shopBoardJobs,
   type ShopBoardFilter,
 } from "@/lib/job-status";
@@ -1643,11 +1646,12 @@ function ShopHome({
 }) {
   const { t } = useI18n();
   const [filter, setFilter] = useState<ShopBoardFilter>("active");
+  const [query, setQuery] = useState("");
   const jobs = Store.providerJobs(user);
   const active = shopBoardJobs(jobs, "active");
   const ready = jobs.filter((j) => j.status === "ready").length;
   const busy = jobs.filter((j) => ["enroute", "checkedin", "diagnosing", "parts", "repair"].includes(j.status)).length;
-  const list = rankShopJobsForViewer(shopBoardJobs(jobs, filter), user);
+  const list = rankShopJobsForViewer(searchJobs(shopBoardJobs(jobs, filter), query), user);
   const title = user.role === "independent" ? user.businessName || t("shop.independent") : user.shopName || t("shop.shop");
   const tech = isShopTechnician(user);
   const showShare = canShareCustomerQr(user);
@@ -1714,13 +1718,39 @@ function ShopHome({
           </button>
         ))}
       </div>
+      <div className="relative mb-3">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dim" aria-hidden />
+        <input
+          className={inputClass + " pl-9" + (query ? " pr-9" : "")}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("shop.searchPlaceholder")}
+          aria-label={t("shop.searchPlaceholder")}
+          data-shop-search=""
+        />
+        {query ? (
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            aria-label={t("shop.searchClear")}
+            className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-dim"
+          >
+            <X className="size-4" />
+          </button>
+        ) : null}
+      </div>
       <div className="flex flex-col gap-2.5 md:grid md:grid-cols-2" data-shop-board="">
         {list.map((j) => (
           <JobCard key={j.id} job={j} shop mine={isAssignedToUser(j, user) && tech} onClick={() => onOpen(j.id)} />
         ))}
         {!list.length && (
           <p className="p-6 text-center text-sm text-muted">
-            {filter === "history" ? t("shop.historyEmpty") : t("shop.empty")}
+            {query
+              ? t("shop.searchEmpty")
+              : filter === "history"
+                ? t("shop.historyEmpty")
+                : t("shop.empty")}
           </p>
         )}
       </div>

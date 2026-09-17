@@ -13,8 +13,10 @@ import {
   declinedMailContent,
   historyJobs,
   isTerminalStatus,
+  jobMatchesQuery,
   occupiesSlot,
   parseDeclineNote,
+  searchJobs,
   shopBoardJobs,
   slotTakenAmong,
 } from "./job-status.ts";
@@ -174,6 +176,44 @@ test("decline note parse round-trips for EN ticket display", () => {
   if (notes.ok) {
     assert.equal(declineReasonFromNotes(notes.job.notes), "Full");
   }
+});
+
+const searchJob = {
+  id: "MH-4821",
+  name: "Maya Chen",
+  email: "maya@example.com",
+  phone: "5550148821",
+  year: "2019",
+  make: "Honda",
+  model: "CR-V",
+  trim: "EX-L",
+  assignedTo: "Alex Ruiz",
+};
+
+test("board search matches id, name, vehicle, tech, and email", () => {
+  assert.equal(jobMatchesQuery(searchJob, "mh-4821"), true);
+  assert.equal(jobMatchesQuery(searchJob, "maya"), true);
+  assert.equal(jobMatchesQuery(searchJob, "honda"), true);
+  assert.equal(jobMatchesQuery(searchJob, "cr-v"), true);
+  assert.equal(jobMatchesQuery(searchJob, "alex"), true);
+  assert.equal(jobMatchesQuery(searchJob, "example.com"), true);
+  assert.equal(jobMatchesQuery(searchJob, "porsche"), false);
+});
+
+test("board search matches customer phone by digits (3+)", () => {
+  assert.equal(jobMatchesQuery(searchJob, "8821"), true);
+  assert.equal(jobMatchesQuery(searchJob, "(555) 014"), true);
+  assert.equal(jobMatchesQuery(searchJob, "12"), false); // too short to phone-match
+});
+
+test("searchJobs filters a list and keeps order; blank returns all", () => {
+  const other = { ...searchJob, id: "MH-9000", name: "Sam Lee", make: "Toyota", model: "Camry", phone: "5550000000", trim: "" };
+  const list = [searchJob, other];
+  assert.deepEqual(searchJobs(list, ""), list);
+  assert.deepEqual(searchJobs(list, "  "), list);
+  assert.deepEqual(searchJobs(list, "toyota"), [other]);
+  assert.deepEqual(searchJobs(list, "honda"), [searchJob]);
+  assert.deepEqual(searchJobs(list, "zzz"), []);
 });
 
 test("declined mail body stays bilingual and includes job id", () => {

@@ -101,6 +101,46 @@ export function shopBoardJobs<T extends Pick<JobLike, "status" | "slot" | "creat
   return activeJobs(jobs);
 }
 
+/** Fields the provider board search looks through. */
+export type JobSearchable = {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  year: string;
+  make: string;
+  model: string;
+  trim?: string;
+  assignedTo?: string;
+};
+
+/**
+ * Whether a job matches a free-text board search: ticket id, customer name,
+ * email, vehicle (year/make/model/trim), or assigned tech match on substring;
+ * a 3+ digit query also matches the customer phone by digits.
+ */
+export function jobMatchesQuery(job: JobSearchable, query: string): boolean {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [job.id, job.name, job.email, job.year, job.make, job.model, job.trim, job.assignedTo]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (haystack.includes(q)) return true;
+  const digits = q.replace(/\D/g, "");
+  if (digits.length >= 3) {
+    const phone = String(job.phone || "").replace(/\D/g, "");
+    if (phone.includes(digits)) return true;
+  }
+  return false;
+}
+
+/** Filter a board list by a free-text query, preserving order. Blank = all. */
+export function searchJobs<T extends JobSearchable>(jobs: T[], query: string): T[] {
+  if (!String(query || "").trim()) return jobs;
+  return jobs.filter((j) => jobMatchesQuery(j, query));
+}
+
 export const CANNOT_DECLINE = "Only incoming or scheduled bookings can be declined.";
 export const DECLINE_NOTE = "Booking declined.";
 export const DECLINE_NOTE_PREFIX = "Booking declined: ";
