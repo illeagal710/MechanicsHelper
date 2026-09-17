@@ -210,6 +210,12 @@ test("profile vs bay photo labels exist in English and Spanish", () => {
   assert.match(translate("es", "photo.profileEmpty"), /silueta/i);
   assert.match(translate("es", "job.photoHint"), /ampliar/);
   assert.match(translate("en", "job.photoHint"), /tap to enlarge/i);
+  assert.match(translate("en", "job.photoHintEmpty"), /optional/i);
+  assert.doesNotMatch(translate("en", "job.photoHintEmpty"), /tap to enlarge/i);
+  assert.equal(translate("en", "photo.addBay"), "Add photo");
+  assert.equal(translate("es", "photo.addBay"), "Agregar foto");
+  assert.equal(translate("en", "photo.noBay"), "No progress photo yet");
+  assert.match(translate("es", "job.photoHintEmpty"), /opcional/i);
   assert.match(translate("en", "job.photoHint"), /working on or the part/i);
   assert.equal(translate("en", "job.workPhoto"), "Bay photo");
   assert.equal(translate("es", "job.workPhoto"), "Foto de la bahía");

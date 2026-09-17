@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
 import { BayPreview, Face, PhotoPicker } from "@/components/photo-input";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, jobPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
+import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
@@ -1696,6 +1696,8 @@ function JobDetail({
   const declineReason = declineReasonFromNotes(job.notes);
   const showDecline = shop && canDeclineStatus(job.status);
   const bayCopy = bayPhotoCopy(job, shop, t);
+  const baySrc = jobPhotoOf(job);
+  const bayFilled = hasBayPhoto(baySrc);
   const seenAt = user?.id ? readSeenNoteAt(user.id, job.id) : 0;
   const latestShop = latestProviderNote(job);
   const latestIsNew = !!(latestShop && !shop && isNewProviderNote(latestShop, seenAt));
@@ -1748,14 +1750,19 @@ function JobDetail({
               </p>
             </div>
           </div>
-          <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-ticket-photo={BAY_PHOTO_SLOT}>
+          {(shop || bayFilled) ? (
+          <div
+            className="mt-3 rounded-xl border border-line bg-surface p-4"
+            data-ticket-photo={BAY_PHOTO_SLOT}
+            data-bay-empty={bayFilled ? "false" : "true"}
+          >
             {shop ? (
               <PhotoPicker
                 slot={BAY_PHOTO_SLOT}
-                value={jobPhotoOf(job)}
+                value={baySrc}
                 name={vehicleLabel(job)}
                 label={bayCopy.label}
-                hint={bayCopy.hint}
+                hint={bayFilled ? bayCopy.hint : t("job.photoHintEmpty")}
                 onErr={(msg) => flash?.(translateStoreError(locale, msg))}
                 onPick={async (dataUrl) => {
                   await Store.saveJobPhoto(job.id, dataUrl);
@@ -1769,10 +1776,11 @@ function JobDetail({
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{bayCopy.label}</p>
                   <p className="mt-1 text-sm text-muted">{bayCopy.hint}</p>
                 </div>
-                <BayPreview src={jobPhotoOf(job)} />
+                <BayPreview src={baySrc} />
               </div>
             )}
           </div>
+          ) : null}
           {!shop && latestShop ? (
             <div
               className={`mt-3 rounded-xl border p-4 ${latestIsNew ? "border-accent/50 bg-accent/10" : "border-line bg-surface"}`}

@@ -463,6 +463,7 @@ const en = {
   "job.replacePhoto": "Replace job photo",
   "job.addPhoto": "Add a photo of the car or part",
   "job.photoHint": "What you're working on or the part — customers can tap to enlarge.",
+  "job.photoHintEmpty": "Optional — add a photo of the work or the part.",
   "job.workPhoto": "Bay photo",
   "job.progressPhoto": "Progress photo",
   "job.workPhotoHint": "What they're working on or the part — tap to enlarge.",
@@ -481,6 +482,7 @@ const en = {
   "photo.cameraSnap": "Capture",
   "photo.cameraCancel": "Cancel",
   "photo.noBay": "No progress photo yet",
+  "photo.addBay": "Add photo",
 
   "toast.photoOnTicket": "Photo on the ticket",
   "toast.accountDeleted": "Account deleted",
@@ -1092,6 +1094,7 @@ const es: Record<MessageKey, string> = {
   "job.replacePhoto": "Reemplazar foto del trabajo",
   "job.addPhoto": "Agregar foto del auto o la pieza",
   "job.photoHint": "En lo que estás trabajando o la pieza — los clientes pueden tocar para ampliar.",
+  "job.photoHintEmpty": "Opcional — agrega una foto del trabajo o la pieza.",
   "job.workPhoto": "Foto de la bahía",
   "job.progressPhoto": "Foto del avance",
   "job.workPhotoHint": "En lo que están trabajando o la pieza — toca para ampliar.",
@@ -1110,6 +1113,7 @@ const es: Record<MessageKey, string> = {
   "photo.cameraSnap": "Capturar",
   "photo.cameraCancel": "Cancelar",
   "photo.noBay": "Aún no hay foto del avance",
+  "photo.addBay": "Agregar foto",
 
   "toast.photoOnTicket": "Foto en el ticket",
   "toast.accountDeleted": "Cuenta eliminada",
