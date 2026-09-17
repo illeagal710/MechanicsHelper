@@ -161,6 +161,9 @@ const en = {
   "shop.findCode": "Customer find code",
   "shop.qrShare": "QR & share",
   "shop.findHint": "Give this to customers so they book you, not a random shop.",
+  "shop.techBadge": "Technician · {shop}",
+  "shop.techWorkHint": "Shop jobs you can update. Tickets assigned to you are listed first.",
+  "shop.assignedToYou": "Assigned to you",
   "shop.open": "Open",
   "shop.active": "Active",
   "shop.inBay": "In bay",
@@ -264,6 +267,8 @@ const en = {
   "account.noPhone": "No phone",
   "account.shopOwner": "Shop owner",
   "account.shopTech": "Shop technician",
+  "account.techShop": "You work at {shop}",
+  "account.techShopHint": "Public shop profile, hours, find code, and team are managed by the owner.",
   "account.indyMech": "Independent mechanic",
   "account.customer": "Customer",
   "account.vehicles": "My vehicles",
@@ -517,6 +522,8 @@ const en = {
   "account.deleteTitle": "Delete account",
   "account.deleteBody":
     "Removes your login. If you own a shop, the public find code comes down. Job tickets already on a board stay as work records.",
+  "account.deleteBodyTech":
+    "This removes your technician login. It does not delete the shop or customer tickets.",
   "account.deletePw": "Confirm with your password",
   "account.deleteNeedPw": "Enter your password to delete the account",
   "account.deleteConfirm":
@@ -791,6 +798,9 @@ const es: Record<MessageKey, string> = {
   "shop.findCode": "Código para clientes",
   "shop.qrShare": "QR y compartir",
   "shop.findHint": "Dáselo a tus clientes para que te reserven a ti, no a un taller al azar.",
+  "shop.techBadge": "Técnico · {shop}",
+  "shop.techWorkHint": "Trabajos del taller que puedes actualizar. Los asignados a ti van primero.",
+  "shop.assignedToYou": "Asignado a ti",
   "shop.open": "Abiertos",
   "shop.active": "Activos",
   "shop.inBay": "En bahía",
@@ -894,6 +904,8 @@ const es: Record<MessageKey, string> = {
   "account.noPhone": "Sin teléfono",
   "account.shopOwner": "Dueño del taller",
   "account.shopTech": "Técnico del taller",
+  "account.techShop": "Trabajas en {shop}",
+  "account.techShopHint": "El perfil público, el horario, el código de clientes y el equipo los gestiona el dueño.",
   "account.indyMech": "Mecánico independiente",
   "account.customer": "Cliente",
   "account.vehicles": "Mis vehículos",
@@ -1148,6 +1160,8 @@ const es: Record<MessageKey, string> = {
   "account.deleteTitle": "Eliminar cuenta",
   "account.deleteBody":
     "Quita tu acceso. Si eres dueño de un taller, el código público se baja. Los tickets que ya están en un tablero se quedan como registro de trabajo.",
+  "account.deleteBodyTech":
+    "Esto quita tu acceso de técnico. No elimina el taller ni los tickets de clientes.",
   "account.deletePw": "Confirma con tu contraseña",
   "account.deleteNeedPw": "Escribe tu contraseña para eliminar la cuenta",
   "account.deleteConfirm":

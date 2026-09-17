@@ -148,6 +148,19 @@ test("helper fence, loading, and fallback strings exist in English and Spanish",
   assert.match(translate("es", "diag.error"), /reglas del taller/i);
 });
 
+test("shop technician portal copy exists in English and Spanish", () => {
+  assert.equal(translate("en", "shop.techBadge", { shop: "Riverside Auto" }), "Technician · Riverside Auto");
+  assert.equal(translate("es", "shop.techBadge", { shop: "Riverside Auto" }), "Técnico · Riverside Auto");
+  assert.equal(translate("en", "shop.assignedToYou"), "Assigned to you");
+  assert.equal(translate("es", "shop.assignedToYou"), "Asignado a ti");
+  assert.match(translate("en", "shop.techWorkHint"), /assigned/i);
+  assert.match(translate("es", "shop.techWorkHint"), /asignad/i);
+  assert.match(translate("en", "account.techShopHint"), /owner/i);
+  assert.match(translate("es", "account.techShopHint"), /dueño/i);
+  assert.match(translate("en", "account.deleteBodyTech"), /does not delete the shop/i);
+  assert.match(translate("es", "account.deleteBodyTech"), /no elimina el taller/i);
+});
+
 test("shop history and decline copy exists in English and Spanish", () => {
   assert.equal(translate("en", "shop.history"), "History");
   assert.equal(translate("es", "shop.history"), "Historial");

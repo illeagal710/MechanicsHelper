@@ -6,6 +6,7 @@ import { appendJobNote } from "@/lib/job-notes";
 import { applyDecline, slotTakenAmong } from "@/lib/job-status";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
+import { canRotateFindCode } from "@/lib/shop-role";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
@@ -562,10 +563,10 @@ export async function register(fields: {
 export async function rotateCustomerCode(userId: string) {
   const board = await loadBoard();
   const user = board.users.find((u) => u.id === userId);
-  if (!user) return "";
+  if (!user || !canRotateFindCode(user)) return "";
   const next = await uniqueCode();
   const sql = await getSql();
-  if (user.role === "shop" && user.shopId) {
+  if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
     await sql.query("update mh_shops set code = $2 where id = $1", [user.shopId, next]);
     return next;
   }
