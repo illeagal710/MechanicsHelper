@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { appendJobNote, notesJsonForAddNote } from "./job-notes.ts";
+import {
+  DUPLICATE_NOTE_WINDOW_MS,
+  appendJobNote,
+  appendJobNoteResult,
+  notesJsonForAddNote,
+  shouldSkipDuplicateNote,
+} from "./job-notes.ts";
 import { sanitizeJobPatch, withJobPhoto } from "./photos.ts";
 import type { Job, Note } from "./store.ts";
 
@@ -99,4 +105,27 @@ test("jobPhoto-only patches still write the bay slot without touching notes", ()
 
 test("blank addNote text does not wipe existing notes", () => {
   assert.deepEqual(appendJobNote(job.notes, "   "), job.notes);
+});
+
+test("duplicate Post of the same shop text within ~45s is skipped", () => {
+  const first = appendJobNote(job.notes, "Rotors are warped", "shop", 1_000);
+  assert.equal(first.at(-1)?.text, "Rotors are warped");
+  const again = appendJobNoteResult(first, "Rotors are warped", "shop", 1_000 + 20_000);
+  assert.equal(again.skipped, "duplicate");
+  assert.equal(again.notes.length, first.length);
+  assert.equal(
+    shouldSkipDuplicateNote(first, "Rotors are warped", "shop", 1_000 + DUPLICATE_NOTE_WINDOW_MS),
+    true,
+  );
+  const later = appendJobNoteResult(first, "Rotors are warped", "shop", 1_000 + DUPLICATE_NOTE_WINDOW_MS + 1);
+  assert.equal(later.skipped, false);
+  assert.equal(later.notes.length, first.length + 1);
+});
+
+test("duplicate guard only looks at the latest note from that author", () => {
+  const first = appendJobNote(job.notes, "Rotors are warped", "shop", 1_000);
+  const status = appendJobNote(first, "Status set to Repair", "shop", 1_010);
+  const again = appendJobNoteResult(status, "Rotors are warped", "shop", 1_020);
+  assert.equal(again.skipped, false);
+  assert.equal(again.notes.at(-1)?.text, "Rotors are warped");
 });

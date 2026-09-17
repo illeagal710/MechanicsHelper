@@ -208,13 +208,28 @@ test("profile vs bay photo labels exist in English and Spanish", () => {
   assert.equal(translate("es", "photo.choose"), "Elegir foto");
   assert.equal(translate("es", "photo.take"), "Tomar foto");
   assert.match(translate("es", "photo.profileEmpty"), /silueta/i);
-  assert.match(translate("es", "job.photoHint"), /ticket/);
-  assert.match(translate("en", "job.photoHint"), /below the vehicle/i);
-  assert.match(translate("en", "job.photoHint"), /car photo/i);
-  assert.equal(translate("en", "job.workPhoto"), "Work photo");
-  assert.equal(translate("es", "job.workPhoto"), "Foto del trabajo");
-  assert.match(translate("en", "job.workPhotoHint"), /not the vehicle photo/i);
-  assert.match(translate("es", "job.workPhotoHint"), /no es la foto del vehículo/i);
+  assert.match(translate("es", "job.photoHint"), /ampliar/);
+  assert.match(translate("en", "job.photoHint"), /tap to enlarge/i);
+  assert.match(translate("en", "job.photoHint"), /working on or the part/i);
+  assert.equal(translate("en", "job.workPhoto"), "Bay photo");
+  assert.equal(translate("es", "job.workPhoto"), "Foto de la bahía");
+  assert.equal(translate("en", "job.progressPhoto"), "Progress photo");
+  assert.equal(translate("es", "job.progressPhoto"), "Foto del avance");
+  assert.match(translate("en", "job.workPhotoHint"), /tap to enlarge/i);
+  assert.doesNotMatch(translate("en", "job.workPhotoHint"), /not the vehicle photo/i);
+  assert.doesNotMatch(translate("en", "job.workPhotoHint"), /\bshop\b/i);
+  assert.match(translate("es", "job.workPhotoHint"), /toca para ampliar/i);
+  assert.equal(translate("en", "job.bayUpdate"), "Bay update");
+  assert.equal(translate("es", "job.bayUpdate"), "Actualización de bahía");
+  assert.equal(translate("en", "job.updateFrom", { name: "Leon Mobile Repair" }), "Update from Leon Mobile Repair");
+  assert.equal(translate("es", "job.updateFrom", { name: "Leon Mobile Repair" }), "Actualización de Leon Mobile Repair");
+  assert.equal(translate("en", "job.newUpdate"), "New update");
+  assert.equal(translate("es", "job.newUpdate"), "Nueva actualización");
+  assert.equal(translate("en", "toast.updateSent"), "Update posted");
+  assert.equal(translate("es", "toast.updateSent"), "Actualización publicada");
+  assert.match(translate("en", "toast.updateDuplicate"), /just posted/i);
+  assert.equal(translate("en", "job.posting"), "Posting…");
+  assert.equal(translate("es", "job.posting"), "Publicando…");
 });
 
 test("Other vehicle free-text labels exist in English and Spanish", () => {
