@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -34,8 +34,8 @@ test("Capacitor loads the live HTTPS site with a stable Play application id", ()
 test("Android package, version, and signing are wired without committed secrets", () => {
   const gradle = readFileSync(join(ROOT, "android/app/build.gradle"), "utf8");
   assert.match(gradle, /applicationId "app\.mechanicshelper"/);
-  assert.match(gradle, /versionCode 1/);
-  assert.match(gradle, /versionName "1\.0\.0"/);
+  assert.match(gradle, /versionCode 2/);
+  assert.match(gradle, /versionName "1\.0\.1"/);
   assert.match(gradle, /keystore\.properties/);
   assert.match(gradle, /signingConfigs/);
   assert.equal(existsSync(join(ROOT, "android/keystore.properties")), false);
@@ -74,8 +74,35 @@ test("Play Store doc lives at the repo root and names the nested app root", () =
   assert.match(doc, /app\.mechanicshelper/);
   assert.match(doc, /index\.html\/index\.html/);
   assert.match(doc, /versionCode/);
+  assert.match(doc, /versionName.*1\.0\.1/);
   assert.match(doc, /bundleRelease/);
   assert.match(doc, /mechanicshelper\.app\/privacy/);
-  assert.match(doc, /supadin1234\+mhshop@gmail\.com/);
   assert.match(doc, /12 testers/);
+  assert.match(doc, /Leon will paste dedicated reviewer accounts|Leon: paste dedicated reviewer accounts/i);
+  assert.match(doc, /SEED_DEMO/);
+  assert.match(doc, /maya@example\.com/);
+  assert.match(doc, /do not work/i);
+  assert.doesNotMatch(doc, /maya@example\.com \/ demo123 works/i);
+  assert.match(doc, /Not a marketplace/);
+  assert.match(doc, /keystore\.properties/);
+  assert.match(doc, /android\/app\/build\/outputs\/apk\/debug\/app-debug\.apk/);
+  assert.match(doc, /android\/app\/build\/outputs\/bundle\/release\/app-release\.aab/);
+});
+
+test("Play phone screenshots are 9:16 PNG and listing copy stays private-shop", () => {
+  const dir = join(REPO, "store/play-screenshots");
+  const shots = readdirSync(dir).filter((n) => /^\d{2}-.+\.png$/.test(n));
+  assert.ok(shots.length >= 4, `need at least 4 phone screenshots, got ${shots.join()}`);
+  for (const name of shots) {
+    const info = pngInfo(join(dir, name));
+    assert.equal(info.width * 16, info.height * 9, `${name} must be 9:16 (got ${info.width}x${info.height})`);
+    assert.ok(Math.min(info.width, info.height) >= 320, `${name} short side`);
+    assert.ok(Math.max(info.width, info.height) <= 3840, `${name} long side`);
+  }
+  const feature = pngInfo(join(dir, "feature-graphic-1024x500.png"));
+  assert.equal(feature.width, 1024);
+  assert.equal(feature.height, 500);
+  const readme = readFileSync(join(dir, "README.md"), "utf8");
+  assert.match(readme, /9:16/);
+  assert.match(readme, /mechanicshelper\.app/);
 });

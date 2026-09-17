@@ -25,7 +25,9 @@
     "cap:copy": "npx cap copy android",
     "cap:android": "npx cap open android",
     "android:assemble": "cd android && ./gradlew assembleDebug",
-    "android:bundle": "cd android && ./gradlew bundleRelease"
+    "android:bundle": "cd android && ./gradlew bundleRelease",
+    "play:screenshots": "node scripts/capture-play-screenshots.mjs",
+    "play:feature-graphic": "python3 scripts/make-play-feature-graphic.py"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

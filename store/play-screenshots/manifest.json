@@ -1,0 +1,25 @@
+{
+  "origin": "https://mechanicshelper.app",
+  "viewport": "430x764",
+  "deviceScaleFactor": 3,
+  "pixelSize": "1290x2292",
+  "ratio": "9:16",
+  "captured": [
+    "01-welcome.png \u2014 landing, find-code field, Log in / Create account (no demo logins)",
+    "02-login.png \u2014 email/phone login + forgot username/password",
+    "03-create-account-customer.png \u2014 create account, Customer / Shop / Independent",
+    "04-create-account-shop.png \u2014 shop owner create vs join (technician)",
+    "05-privacy.png \u2014 /privacy",
+    "06-support.png \u2014 /support",
+    "07-public-shop-profile.png \u2014 live find code LWSN public shop card",
+    "08-shop-jobs.png \u2014 shop owner Jobs board (Open / Ready / History)",
+    "09-shop-history.png \u2014 job history (completed / declined)",
+    "10-share-find-code.png \u2014 Share tab, copy find code / copy link",
+    "12-shop-account-profile.png \u2014 shop Account / public profile fields",
+    "13-customer-home.png \u2014 customer Home",
+    "14-customer-book.png \u2014 New appointment (linked shop, no marketplace directory)"
+  ],
+  "note": "Production has no seed demos. Authenticated shots only appear when MH_* credentials sign in on live.",
+  "listingPixelSize": "1080x1920",
+  "captureCss": "432x768"
+}
