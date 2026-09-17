@@ -34,8 +34,8 @@ test("Capacitor loads the live HTTPS site with a stable Play application id", ()
 test("Android package, version, and signing are wired without committed secrets", () => {
   const gradle = readFileSync(join(ROOT, "android/app/build.gradle"), "utf8");
   assert.match(gradle, /applicationId "app\.mechanicshelper"/);
-  assert.match(gradle, /versionCode 1/);
-  assert.match(gradle, /versionName "1\.0\.0"/);
+  assert.match(gradle, /versionCode 2/);
+  assert.match(gradle, /versionName "1\.1\.0"/);
   assert.match(gradle, /keystore\.properties/);
   assert.match(gradle, /signingConfigs/);
   assert.equal(existsSync(join(ROOT, "android/keystore.properties")), false);
