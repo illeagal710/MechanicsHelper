@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
 import { BayPreview, Face, PhotoPicker } from "@/components/photo-input";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, jobPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
+import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
@@ -55,6 +55,16 @@ import {
   shopBoardJobs,
   type ShopBoardFilter,
 } from "@/lib/job-status";
+import { shouldSkipDuplicateNote } from "@/lib/job-notes";
+import {
+  activeJobsWithLatestUpdate,
+  isNewProviderNote,
+  latestProviderNote,
+  markNotesSeen,
+  notesNewestFirst,
+  rankCustomerJobs,
+  readSeenNoteAt,
+} from "@/lib/job-updates";
 import { trimOptions } from "@/lib/trims";
 import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
 import {
@@ -89,6 +99,21 @@ type View =
 function homeFor(role: Role): View {
   if (role === "shop" || role === "independent") return "shopHome";
   return "home";
+}
+
+function providerNoteLabel(job: Pick<Job, "providerType" | "providerName">, t: TranslateFn) {
+  if (job.providerType === "independent") {
+    return t("job.updateFrom", { name: job.providerName });
+  }
+  return t("job.bayUpdate");
+}
+
+function bayPhotoCopy(job: Pick<Job, "providerType">, shop: boolean, t: TranslateFn) {
+  const indy = job.providerType === "independent";
+  return {
+    label: t(shop ? (indy ? "job.photoLabelIndy" : "job.photoLabel") : indy ? "job.progressPhoto" : "job.workPhoto"),
+    hint: t(shop ? "job.photoHint" : "job.workPhotoHint"),
+  };
 }
 
 function readRefFromUrl() {
@@ -221,8 +246,13 @@ export function MechanicsApp() {
     view === "forgotUsername";
   const bayLabel = isProvider ? shareCode || t("app.bay") : lockedProvider?.code || t("app.bay");
 
+  const shellMax = isProvider ? "max-w-[430px] md:max-w-[980px]" : "max-w-[430px]";
+
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[430px] flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)]">
+    <div
+      data-app-shell={isProvider ? "provider" : "customer"}
+      className={`mx-auto flex min-h-dvh w-full flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)] ${shellMax}`}
+    >
       <header className="flex items-center justify-between gap-2 px-4 pt-3" data-app-header="">
         {showWordmark ? (
           <BrandWordmark className="h-[72px] w-auto max-w-[min(220px,58%)] object-contain object-left" />
@@ -235,7 +265,7 @@ export function MechanicsApp() {
           {showWordmark ? <span className="font-mono text-dim">{bayLabel}</span> : null}
         </div>
       </header>
-      <main className={`flex-1 overflow-y-auto px-4 pb-36 pt-3 ${view === "welcome" || view === "login" || view === "register" || view === "recover" || view === "forgotPassword" || view === "forgotUsername" ? "pb-16" : ""}`}>
+      <main className={`flex-1 overflow-y-auto px-4 pt-3 ${isProvider ? "md:px-6" : ""} ${view === "welcome" || view === "login" || view === "register" || view === "recover" || view === "forgotPassword" || view === "forgotUsername" ? "pb-16" : "pb-36"}`}>
         {view === "welcome" && (
           <Welcome
             locked={liveLocked}
@@ -289,6 +319,10 @@ export function MechanicsApp() {
               flash(t("toast.unlocked"));
             }}
             go={setView}
+            onOpenJob={(id) => {
+              setSelectedId(id);
+              setView("job");
+            }}
           />
         )}
         {view === "book" && user && (
@@ -400,7 +434,7 @@ export function MechanicsApp() {
         )}
       </main>
       {user && !["welcome", "login", "register", "recover", "forgotPassword", "forgotUsername"].includes(view) && (
-        <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-line bg-bg/95 px-2 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+        <nav className={`fixed bottom-0 left-1/2 z-20 w-full -translate-x-1/2 border-t border-line bg-bg/95 px-2 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2 backdrop-blur ${shellMax}`}>
           {isProvider ? (
             <div className="grid grid-cols-3">
               <Tab active={view === "shopHome" || view === "shopJob"} onClick={() => setView("shopHome")} icon={<ClipboardList className="size-5" />} label={t("nav.jobs")} />
@@ -419,7 +453,7 @@ export function MechanicsApp() {
         </nav>
       )}
       {toast ? (
-        <div className="fixed bottom-24 left-1/2 z-50 max-w-[380px] -translate-x-1/2 rounded-xl border border-accent/40 bg-surface px-3.5 py-2.5 text-sm font-semibold text-fg shadow-lg">
+        <div className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 rounded-xl border border-accent/40 bg-surface px-3.5 py-2.5 text-sm font-semibold text-fg shadow-lg">
           {toast}
         </div>
       ) : null}
@@ -1123,6 +1157,7 @@ function CustomerHome({
   onApply,
   onClear,
   go,
+  onOpenJob,
 }: {
   user: User;
   locked: Provider | null;
@@ -1131,8 +1166,11 @@ function CustomerHome({
   onApply: () => void;
   onClear: () => void;
   go: (v: View) => void;
+  onOpenJob: (id: string) => void;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const dates = localeTag(locale);
+  const latest = activeJobsWithLatestUpdate(Store.providerJobs(user));
   return (
     <div>
       <div className="mb-4 flex items-center gap-2.5">
@@ -1155,6 +1193,41 @@ function CustomerHome({
           <p className="mt-2 text-sm text-muted">{t("home.sub")}</p>
         </div>
       )}
+      {latest.length ? (
+        <div className="mt-4 flex flex-col gap-2.5" data-home-latest-updates="">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("home.latestFromBay")}</p>
+          {latest.slice(0, 3).map(({ job, note }) => {
+            const seen = readSeenNoteAt(user.id, job.id);
+            const isNew = isNewProviderNote(note, seen);
+            return (
+              <button
+                key={job.id}
+                type="button"
+                data-latest-update={job.id}
+                onClick={() => onOpenJob(job.id)}
+                className={`tap w-full rounded-2xl border p-4 text-left ${
+                  isNew ? "border-accent/50 bg-accent/10" : "border-line bg-surface"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {isNew ? (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-ink" data-note-new="">
+                      {t("job.newUpdate")}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.latestUpdate")}</span>
+                  )}
+                </div>
+                <p className="mt-1.5 font-semibold">{vehicleLabel(job)}</p>
+                <p className="text-sm text-muted">
+                  {providerNoteLabel(job, t)} · {fmtShort(note.at, dates)}
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-fg">{translateNote(locale, note.text)}</p>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <div className="mt-4 rounded-xl border border-line bg-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
@@ -1410,16 +1483,44 @@ function Confirm({ job, onTrack, onHome }: { job: Job; onTrack: () => void; onHo
   );
 }
 
-function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () => void }) {
-  const { locale } = useI18n();
+function JobCard({
+  job,
+  shop,
+  onClick,
+  userId,
+}: {
+  job: Job;
+  shop: boolean;
+  onClick: () => void;
+  userId?: string;
+}) {
+  const { locale, t } = useI18n();
   const st = statusMeta(job.status);
+  const note = !shop ? latestProviderNote(job) : null;
+  const isNew = !!(note && userId && isNewProviderNote(note, readSeenNoteAt(userId, job.id)));
   return (
     <button type="button" onClick={onClick} className="tap w-full rounded-2xl border border-line bg-surface p-3.5 text-left" data-job-id={job.id} data-job-status={job.status}>
+      {note ? (
+        <div
+          className={`mb-2.5 rounded-xl px-2.5 py-2 text-left ${isNew ? "bg-accent/15" : "bg-bg2"}`}
+          data-job-card-update=""
+        >
+          <div className="flex items-center gap-2">
+            {isNew ? (
+              <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-ink" data-note-new="">
+                {t("job.newUpdate")}
+              </span>
+            ) : null}
+            <span className="text-xs font-semibold text-fg">{providerNoteLabel(job, t)}</span>
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-sm text-fg">{translateNote(locale, note.text)}</p>
+        </div>
+      ) : null}
       <div className="flex gap-3">
         <img
           src={ticketVehiclePhotoOf(job)}
           alt=""
-          className="h-14 w-[4.25rem] shrink-0 rounded-xl object-cover"
+          className={`shrink-0 rounded-xl object-cover ${shop ? "h-16 w-[4.75rem] md:h-[4.5rem] md:w-24" : "h-14 w-[4.25rem]"}`}
           data-ticket-photo={VEHICLE_PHOTO_SLOT}
         />
         <div className="min-w-0 flex-1">
@@ -1445,13 +1546,16 @@ function JobCard({ job, shop, onClick }: { job: Job; shop: boolean; onClick: () 
 function Track({ user, onOpen, onBack }: { user: User; onOpen: (id: string) => void; onBack: () => void }) {
   const { t } = useI18n();
   const [q, setQ] = useState("");
-  const jobs = useMemo(() => (q ? Store.findJobs(q, user) : Store.providerJobs(user)), [q, user]);
+  const jobs = useMemo(() => {
+    const list = q ? Store.findJobs(q, user) : Store.providerJobs(user);
+    return rankCustomerJobs(list);
+  }, [q, user]);
   return (
     <div>
       <Top title={t("track.title")} onBack={onBack} />
       <input className={inputClass} placeholder={t("track.placeholder")} value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="mt-3 flex flex-col gap-2.5">
-        {jobs.length ? jobs.map((j) => <JobCard key={j.id} job={j} shop={false} onClick={() => onOpen(j.id)} />) : <p className="p-6 text-center text-sm text-muted">{q ? t("track.emptySearch") : t("track.emptyBoard")}</p>}
+        {jobs.length ? jobs.map((j) => <JobCard key={j.id} job={j} shop={false} userId={user.id} onClick={() => onOpen(j.id)} />) : <p className="p-6 text-center text-sm text-muted">{q ? t("track.emptySearch") : t("track.emptyBoard")}</p>}
       </div>
     </div>
   );
@@ -1529,7 +1633,7 @@ function ShopHome({
           </button>
         ))}
       </div>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5 md:grid md:grid-cols-2" data-shop-board="">
         {list.map((j) => (
           <JobCard key={j.id} job={j} shop onClick={() => onOpen(j.id)} />
         ))}
@@ -1561,8 +1665,28 @@ function JobDetail({
   tick?: number;
 }) {
   const { locale, t } = useI18n();
+  const [posting, setPosting] = useState(false);
+  const [noteText, setNoteText] = useState("");
   void tick;
   const job = Store.load().jobs.find((j) => j.id === id);
+
+  useEffect(() => {
+    setNoteText("");
+    setPosting(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (shop || !user?.id) return;
+    const jobId = id;
+    const userId = user.id;
+    return () => {
+      const current = Store.load().jobs.find((j) => j.id === jobId);
+      if (!current) return;
+      const latest = Math.max(0, ...current.notes.map((n) => n.at));
+      if (latest) markNotesSeen(userId, jobId, latest);
+    };
+  }, [shop, user?.id, id]);
+
   if (!job) return <p className="text-muted">{t("job.notFound")}</p>;
   const st = statusMeta(job.status);
   const idx = (PIPELINE_STATUSES as readonly string[]).indexOf(job.status);
@@ -1571,184 +1695,267 @@ function JobDetail({
   const declined = job.status === "declined";
   const declineReason = declineReasonFromNotes(job.notes);
   const showDecline = shop && canDeclineStatus(job.status);
+  const bayCopy = bayPhotoCopy(job, shop, t);
+  const baySrc = jobPhotoOf(job);
+  const bayFilled = hasBayPhoto(baySrc);
+  const seenAt = user?.id ? readSeenNoteAt(user.id, job.id) : 0;
+  const latestShop = latestProviderNote(job);
+  const latestIsNew = !!(latestShop && !shop && isNewProviderNote(latestShop, seenAt));
+  const orderedNotes = notesNewestFirst(job.notes);
+
+  async function postUpdate(text: string) {
+    if (posting) return;
+    const clean = text.trim();
+    if (!clean) return;
+    const current = Store.load().jobs.find((j) => j.id === id);
+    if (!current) return;
+    if (shouldSkipDuplicateNote(current.notes, clean, "shop")) {
+      flash?.(t("toast.updateDuplicate"));
+      return;
+    }
+    setPosting(true);
+    try {
+      await Store.addNote(current.id, clean, "shop");
+      setNoteText("");
+      flash?.(t("toast.updateSent"));
+      bump();
+    } finally {
+      setPosting(false);
+    }
+  }
+
   return (
     <div>
       <Top title={job.id} onBack={onBack} />
-      <div className="overflow-hidden rounded-xl border border-line bg-surface" data-ticket-block="vehicle">
-        <img
-          src={ticketVehiclePhotoOf(job)}
-          alt=""
-          className="h-36 w-full object-cover"
-          data-ticket-photo={VEHICLE_PHOTO_SLOT}
-        />
-        <div className="p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-dim">{kindText(locale, vehicleKind(job))}</p>
-          <h2 className="text-lg font-semibold">{vehicleLabel(job)}</h2>
-          <p className="text-sm text-muted">
-            {job.name} · {job.providerName}
-          </p>
-          <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold badge-${st.badge}`}>
-            {statusText(locale, job.status, shop ? "shop" : "customer")}
-          </span>
-          <p className="mt-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">
-            {job.symptoms || t("book.noSymptoms")}
-          </p>
-        </div>
-      </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-ticket-photo={BAY_PHOTO_SLOT}>
-        {shop ? (
-          <PhotoPicker
-            slot={BAY_PHOTO_SLOT}
-            value={jobPhotoOf(job)}
-            name={vehicleLabel(job)}
-            label={t("job.photoLabel")}
-            hint={t("job.photoHint")}
-            onErr={(msg) => flash?.(translateStoreError(locale, msg))}
-            onPick={async (dataUrl) => {
-              await Store.saveJobPhoto(job.id, dataUrl);
-              flash?.(t("toast.bayPhotoSaved"));
-              bump();
-            }}
-          />
-        ) : (
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.workPhoto")}</p>
-              <p className="mt-1 text-sm text-muted">{t("job.workPhotoHint")}</p>
+      <div className={shop ? "md:grid md:grid-cols-2 md:items-start md:gap-5" : ""}>
+        <div>
+          <div className="overflow-hidden rounded-xl border border-line bg-surface" data-ticket-block="vehicle">
+            <img
+              src={ticketVehiclePhotoOf(job)}
+              alt=""
+              className={`w-full object-cover ${shop ? "h-36 md:h-48" : "h-36"}`}
+              data-ticket-photo={VEHICLE_PHOTO_SLOT}
+            />
+            <div className="p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-dim">{kindText(locale, vehicleKind(job))}</p>
+              <h2 className="text-lg font-semibold">{vehicleLabel(job)}</h2>
+              <p className="text-sm text-muted">
+                {job.name} · {job.providerName}
+              </p>
+              <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold badge-${st.badge}`}>
+                {statusText(locale, job.status, shop ? "shop" : "customer")}
+              </span>
+              <p className="mt-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">
+                {job.symptoms || t("book.noSymptoms")}
+              </p>
             </div>
-            <BayPreview src={jobPhotoOf(job)} />
           </div>
-        )}
-      </div>
-      <h2 className="mb-2 mt-4 font-semibold">{t("job.progress")}</h2>
-      {declined ? (
-        <div className="mb-3 rounded-xl border border-danger/40 bg-danger/10 p-4" data-ticket-status="declined">
-          <p className="text-sm font-semibold text-danger">
-            {statusText(locale, "declined", shop ? "shop" : "customer")}
-          </p>
-          <p className="mt-1 text-sm text-muted">{t("job.declinedBanner")}</p>
-          {declineReason ? (
-            <p className="mt-2 text-sm text-fg">{t("job.declinedReason", { reason: declineReason })}</p>
+          {(shop || bayFilled) ? (
+          <div
+            className="mt-3 rounded-xl border border-line bg-surface p-4"
+            data-ticket-photo={BAY_PHOTO_SLOT}
+            data-bay-empty={bayFilled ? "false" : "true"}
+          >
+            {shop ? (
+              <PhotoPicker
+                slot={BAY_PHOTO_SLOT}
+                value={baySrc}
+                name={vehicleLabel(job)}
+                label={bayCopy.label}
+                hint={bayFilled ? bayCopy.hint : t("job.photoHintEmpty")}
+                onErr={(msg) => flash?.(translateStoreError(locale, msg))}
+                onPick={async (dataUrl) => {
+                  await Store.saveJobPhoto(job.id, dataUrl);
+                  flash?.(t("toast.bayPhotoSaved"));
+                  bump();
+                }}
+              />
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{bayCopy.label}</p>
+                  <p className="mt-1 text-sm text-muted">{bayCopy.hint}</p>
+                </div>
+                <BayPreview src={baySrc} />
+              </div>
+            )}
+          </div>
+          ) : null}
+          {!shop && latestShop ? (
+            <div
+              className={`mt-3 rounded-xl border p-4 ${latestIsNew ? "border-accent/50 bg-accent/10" : "border-line bg-surface"}`}
+              data-ticket-latest-update=""
+            >
+              <div className="flex items-center gap-2">
+                {latestIsNew ? (
+                  <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-ink" data-note-new="">
+                    {t("job.newUpdate")}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.latestUpdate")}</span>
+                )}
+              </div>
+              <p className="mt-1.5 text-sm font-semibold text-fg">
+                {providerNoteLabel(job, t)} · {fmtShort(latestShop.at, dates)}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed">{translateNote(locale, latestShop.text)}</p>
+            </div>
           ) : null}
         </div>
-      ) : (
         <div>
-          {PIPELINE_STATUSES.map((s, i) => {
-            const meta = statusMeta(s);
-            const on = i <= idx;
-            const row = (
-              <div className="grid grid-cols-[18px_1fr] gap-3 pb-3 text-left">
-                <div className={`mt-0.5 size-[18px] rounded-full border-2 ${on ? "border-accent bg-accent" : "border-dim"}`} />
-                <div>
-                  <div className={`text-sm font-semibold ${job.status === s ? "text-accent" : ""}`}>
-                    {statusText(locale, s, shop ? "shop" : "customer")}
+          <h2 className="mb-2 mt-4 font-semibold md:mt-0">{t("job.progress")}</h2>
+          {declined ? (
+            <div className="mb-3 rounded-xl border border-danger/40 bg-danger/10 p-4" data-ticket-status="declined">
+              <p className="text-sm font-semibold text-danger">
+                {statusText(locale, "declined", shop ? "shop" : "customer")}
+              </p>
+              <p className="mt-1 text-sm text-muted">{t("job.declinedBanner")}</p>
+              {declineReason ? (
+                <p className="mt-2 text-sm text-fg">{t("job.declinedReason", { reason: declineReason })}</p>
+              ) : null}
+            </div>
+          ) : (
+            <div>
+              {PIPELINE_STATUSES.map((s, i) => {
+                const meta = statusMeta(s);
+                const on = i <= idx;
+                const row = (
+                  <div className="grid grid-cols-[18px_1fr] gap-3 pb-3 text-left">
+                    <div className={`mt-0.5 size-[18px] rounded-full border-2 ${on ? "border-accent bg-accent" : "border-dim"}`} />
+                    <div>
+                      <div className={`text-sm font-semibold ${job.status === s ? "text-accent" : ""}`}>
+                        {statusText(locale, s, shop ? "shop" : "customer")}
+                      </div>
+                      {i === idx && (
+                        <div className="text-xs text-dim">{t("job.current", { when: fmtShort(job.notes.slice(-1)[0]?.at || job.createdAt, dates) })}</div>
+                      )}
+                      {shop && i !== idx ? <div className="text-xs text-dim">{t("job.tapToSet")}</div> : null}
+                    </div>
                   </div>
-                  {i === idx && (
-                    <div className="text-xs text-dim">{t("job.current", { when: fmtShort(job.notes.slice(-1)[0]?.at || job.createdAt, dates) })}</div>
-                  )}
-                  {shop && i !== idx ? <div className="text-xs text-dim">{t("job.tapToSet")}</div> : null}
-                </div>
-              </div>
-            );
-            if (!shop) return <div key={s}>{row}</div>;
-            return (
-              <button
-                key={s}
-                type="button"
-                className="tap w-full"
-                onClick={async () => {
-                  await Store.updateJob(job.id, { status: s });
-                  await Store.addNote(job.id, "Status set to " + meta.label, "shop");
-                  flash?.(t("toast.statusUpdated"));
+                );
+                if (!shop) return <div key={s}>{row}</div>;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    className="tap w-full"
+                    onClick={async () => {
+                      await Store.updateJob(job.id, { status: s });
+                      await Store.addNote(job.id, "Status set to " + meta.label, "shop");
+                      flash?.(t("toast.statusUpdated"));
+                      bump();
+                    }}
+                  >
+                    {row}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {showDecline && (
+            <div className="mt-1 rounded-xl border border-line bg-surface p-4" data-ticket-action="decline">
+              <p className="text-sm font-semibold">{t("job.decline")}</p>
+              <p className="mt-1 text-sm text-muted">{t("job.declineHint")}</p>
+              <form
+                className="mt-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const reason = String(new FormData(e.currentTarget).get("reason") || "").trim();
+                  const res = await Store.declineJob(job.id, reason);
+                  if (!res.ok) {
+                    flash?.(translateStoreError(locale, res.error));
+                    return;
+                  }
+                  flash?.(t("toast.bookingDeclined"));
                   bump();
                 }}
               >
-                {row}
-              </button>
+                <Field label={t("job.declineReason")}>
+                  <textarea name="reason" className={inputClass + " min-h-20"} placeholder={t("job.declineReasonPh")} />
+                </Field>
+                <button
+                  type="submit"
+                  className="mt-2 h-12 w-full rounded-xl border border-danger/50 bg-danger/10 font-semibold text-danger"
+                >
+                  {t("job.declineConfirm")}
+                </button>
+              </form>
+            </div>
+          )}
+          {shop && user?.role === "shop" && shopRec && !declined && (
+            <Field label={t("job.assign")}>
+              <select
+                className={inputClass}
+                defaultValue={job.assignedTo || ""}
+                onChange={async (e) => {
+                  await Store.updateJob(job.id, { assignedTo: e.target.value });
+                  flash?.(t("toast.assigned"));
+                  bump();
+                }}
+              >
+                <option value="">{t("job.unassigned")}</option>
+                {shopRec.techs.map((n) => (
+                  <option key={n}>{n}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {shop && !declined && (
+            <div className="mt-3">
+              <form
+                className="mt-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  await postUpdate(noteText);
+                }}
+              >
+                <Field label={t("job.customerUpdate")}>
+                  <textarea
+                    name="note"
+                    className={inputClass + " min-h-24"}
+                    placeholder={t("job.notePh")}
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    disabled={posting}
+                  />
+                </Field>
+                <button
+                  type="submit"
+                  disabled={posting}
+                  data-post-update=""
+                  className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink disabled:opacity-60"
+                >
+                  {posting ? t("job.posting") : t("job.postUpdate")}
+                </button>
+              </form>
+            </div>
+          )}
+          <h2 className="mb-2 mt-4 font-semibold">{t("job.updates")}</h2>
+          {orderedNotes.map((n, i) => {
+            const isNew = !shop && isNewProviderNote(n, seenAt);
+            return (
+              <div
+                key={`${n.at}-${i}`}
+                data-job-note=""
+                className={`mb-2 rounded-xl p-2.5 text-sm ${isNew ? "border border-accent/40 bg-accent/10 text-fg" : "bg-bg2 text-muted"}`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  {isNew ? (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-ink" data-note-new="">
+                      {t("job.newUpdate")}
+                    </span>
+                  ) : null}
+                  <strong className="text-fg">
+                    {n.by === "shop" ? providerNoteLabel(job, t) : t("job.system")}
+                  </strong>
+                  <span>· {fmtShort(n.at, dates)}</span>
+                </div>
+                <p className="mt-1">{translateNote(locale, n.text)}</p>
+              </div>
             );
           })}
         </div>
-      )}
-      {showDecline && (
-        <div className="mt-1 rounded-xl border border-line bg-surface p-4" data-ticket-action="decline">
-          <p className="text-sm font-semibold">{t("job.decline")}</p>
-          <p className="mt-1 text-sm text-muted">{t("job.declineHint")}</p>
-          <form
-            className="mt-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const reason = String(new FormData(e.currentTarget).get("reason") || "").trim();
-              const res = await Store.declineJob(job.id, reason);
-              if (!res.ok) {
-                flash?.(translateStoreError(locale, res.error));
-                return;
-              }
-              flash?.(t("toast.bookingDeclined"));
-              bump();
-            }}
-          >
-            <Field label={t("job.declineReason")}>
-              <textarea name="reason" className={inputClass + " min-h-20"} placeholder={t("job.declineReasonPh")} />
-            </Field>
-            <button
-              type="submit"
-              className="mt-2 h-12 w-full rounded-xl border border-danger/50 bg-danger/10 font-semibold text-danger"
-            >
-              {t("job.declineConfirm")}
-            </button>
-          </form>
-        </div>
-      )}
-      {shop && user?.role === "shop" && shopRec && !declined && (
-        <Field label={t("job.assign")}>
-          <select
-            className={inputClass}
-            defaultValue={job.assignedTo || ""}
-            onChange={async (e) => {
-              await Store.updateJob(job.id, { assignedTo: e.target.value });
-              flash?.(t("toast.assigned"));
-              bump();
-            }}
-          >
-            <option value="">{t("job.unassigned")}</option>
-            {shopRec.techs.map((n) => (
-              <option key={n}>{n}</option>
-            ))}
-          </select>
-        </Field>
-      )}
-      {shop && !declined && (
-        <div className="mt-3">
-          <form
-            className="mt-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const note = new FormData(e.currentTarget).get("note");
-              const text = String(note || "").trim();
-              if (!text) return;
-              await Store.addNote(job.id, text, "shop");
-              (e.currentTarget as HTMLFormElement).reset();
-              flash?.(t("toast.updateSent"));
-              bump();
-            }}
-          >
-            <Field label={t("job.customerUpdate")}>
-              <textarea name="note" className={inputClass + " min-h-24"} placeholder={t("job.notePh")} />
-            </Field>
-            <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
-              {t("job.postUpdate")}
-            </button>
-          </form>
-        </div>
-      )}
-      <h2 className="mb-2 mt-4 font-semibold">{t("job.updates")}</h2>
-      {[...job.notes].reverse().map((n, i) => (
-        <div key={i} className="mb-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">
-          <strong className="text-fg">{n.by === "shop" ? t("job.shopUpdate") : t("job.system")}</strong> · {fmtShort(n.at, dates)}
-          <br />
-          {translateNote(locale, n.text)}
-        </div>
-      ))}
+      </div>
     </div>
   );
 }

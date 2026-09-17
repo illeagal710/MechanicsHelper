@@ -41,6 +41,11 @@ export function jobPhotoOf(job: Pick<Job, "jobPhoto" | "photo"> | null | undefin
   return String(job.jobPhoto || job.photo || "");
 }
 
+/** True only when the bay slot actually has an image. Empty placeholders must not open a lightbox. */
+export function hasBayPhoto(src: string | null | undefined): boolean {
+  return String(src || "").trim().length > 0;
+}
+
 /**
  * Ticket header / hero above the vehicle name.
  * Uses stock car art (sedan/suv/…) — never jobPhoto / photo (the bay slot).

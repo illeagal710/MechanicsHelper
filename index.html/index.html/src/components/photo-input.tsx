@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Camera, ImageIcon } from "lucide-react";
+import { Camera, ImageIcon, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, isMobilePhotoDevice, type PhotoSlot } from "@/lib/photos";
+import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, hasBayPhoto, isMobilePhotoDevice, type PhotoSlot } from "@/lib/photos";
 import { resizePhoto } from "@/lib/store";
 
 export function ProfileSilhouette({
@@ -46,15 +46,147 @@ export function Face({
   return <ProfileSilhouette size={size} label={t("photo.silhouetteAlt", { name: name || "?" })} />;
 }
 
+function clampZoom(n: number) {
+  return Math.min(4, Math.max(1, n));
+}
+
+export function PhotoLightbox({
+  src,
+  onClose,
+}: {
+  src: string;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const [scale, setScale] = useState(1);
+  const pinch = useRef<{ dist: number; scale: number } | null>(null);
+
+  useEffect(() => {
+    if (!hasBayPhoto(src)) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose, src]);
+
+  if (!hasBayPhoto(src)) return null;
+
+  function pinchDist(e: React.TouchEvent) {
+    return Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY,
+    );
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("job.tapToEnlarge")}
+      data-photo-lightbox=""
+      className="fixed inset-0 z-[80] flex flex-col bg-black/94"
+      onClick={onClose}
+    >
+      <div className="flex items-center justify-between gap-2 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          data-lightbox-close=""
+          className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-semibold text-white"
+          onClick={onClose}
+        >
+          <X className="size-4" />
+          {t("job.closePhoto")}
+        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="grid size-11 place-items-center rounded-xl border border-white/20 bg-white/10 text-lg font-semibold text-white"
+            aria-label={t("job.zoomOut")}
+            onClick={() => setScale((s) => clampZoom(s - 0.5))}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="grid size-11 place-items-center rounded-xl border border-white/20 bg-white/10 text-lg font-semibold text-white"
+            aria-label={t("job.zoomIn")}
+            onClick={() => setScale((s) => clampZoom(s + 0.5))}
+          >
+            +
+          </button>
+        </div>
+      </div>
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => {
+          if (e.touches.length === 2) pinch.current = { dist: pinchDist(e), scale };
+        }}
+        onTouchMove={(e) => {
+          if (e.touches.length === 2 && pinch.current) {
+            const dist = pinchDist(e);
+            if (pinch.current.dist > 0) {
+              setScale(clampZoom(pinch.current.scale * (dist / pinch.current.dist)));
+            }
+          }
+        }}
+        onTouchEnd={() => {
+          pinch.current = null;
+        }}
+      >
+        <img
+          src={src}
+          alt=""
+          data-lightbox-image=""
+          className="max-h-full max-w-full origin-center object-contain"
+          style={{ transform: `scale(${scale})`, touchAction: "none" }}
+          onDoubleClick={() => setScale((s) => (s > 1 ? 1 : 2.5))}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function BayPreview({ src }: { src?: string }) {
   const { t } = useI18n();
-  if (src) {
-    return <img src={src} alt="" className="h-28 w-full rounded-xl border border-line object-cover" data-ticket-bay-preview="" />;
+  const [open, setOpen] = useState(false);
+  const photo = hasBayPhoto(src) ? String(src).trim() : "";
+
+  useEffect(() => {
+    if (!photo) setOpen(false);
+  }, [photo]);
+
+  if (!photo) {
+    return (
+      <p className="text-sm text-muted" data-ticket-bay-preview="empty">
+        {t("photo.noBay")}
+      </p>
+    );
   }
   return (
-    <div className="grid h-28 place-items-center rounded-xl border border-dashed border-line bg-bg2 px-3 text-center text-sm text-muted">
-      {t("photo.noBay")}
-    </div>
+    <>
+      <button
+        type="button"
+        data-ticket-bay-preview="filled"
+        data-bay-preview-open=""
+        className="block w-full cursor-zoom-in overflow-hidden rounded-xl border border-line bg-bg2"
+        aria-label={t("job.tapToEnlarge")}
+        onClick={() => setOpen(true)}
+      >
+        <img
+          src={photo}
+          alt=""
+          className="mx-auto max-h-72 min-h-44 w-full object-contain md:max-h-[28rem]"
+        />
+      </button>
+      {open ? <PhotoLightbox src={photo} onClose={() => setOpen(false)} /> : null}
+    </>
   );
 }
 
@@ -163,9 +295,10 @@ export function PhotoPicker({
   }
 
   const isProfile = slot === PROFILE_PHOTO_SLOT;
+  const bayFilled = !isProfile && hasBayPhoto(value);
 
   return (
-    <div data-photo-slot={slot} className="flex flex-col gap-3">
+    <div data-photo-slot={slot} className="flex flex-col gap-3" data-bay-empty={isProfile ? undefined : bayFilled ? "false" : "true"}>
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
         <p className="mt-1 text-sm text-muted">{hint}</p>
@@ -175,23 +308,23 @@ export function PhotoPicker({
           <Face src={value} name={name} size="lg" />
           <p className="text-sm text-muted">{value ? t("photo.profileSet") : t("photo.profileEmpty")}</p>
         </div>
-      ) : (
+      ) : bayFilled ? (
         <BayPreview src={value} />
-      )}
+      ) : null}
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           disabled={disabled || busy}
-          className="tap flex h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
+          className="tap flex h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
           onClick={() => chooseRef.current?.click()}
         >
           <ImageIcon className="size-4 shrink-0" />
-          {t("photo.choose")}
+          {isProfile || bayFilled ? t("photo.choose") : t("photo.addBay")}
         </button>
         <button
           type="button"
           disabled={disabled || busy}
-          className="tap flex h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
+          className="tap flex h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
           onClick={() => {
             if (isMobilePhotoDevice()) takeRef.current?.click();
             else void openDesktopCamera();

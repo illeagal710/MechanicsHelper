@@ -5,6 +5,7 @@ import {
   PROFILE_PHOTO_SLOT,
   VEHICLE_PHOTO_SLOT,
   jobPhotoOf,
+  hasBayPhoto,
   profilePhotoOf,
   sanitizeJobPatch,
   ticketPhotoSlots,
@@ -165,4 +166,13 @@ test("ticketVehiclePhotoOf ignores jobPhoto even if it looks like a car picture"
   assert.equal(jobPhotoOf(spoofed), "/img/car-sedan.jpg");
   assert.equal(ticketVehiclePhotoOf(spoofed), carImage(job));
   assert.equal(ticketPhotoSlots(spoofed).vehicle, carImage(job));
+});
+
+test("hasBayPhoto is false for empty placeholders so the UI can stay compact", () => {
+  assert.equal(hasBayPhoto(""), false);
+  assert.equal(hasBayPhoto("   "), false);
+  assert.equal(hasBayPhoto(undefined), false);
+  assert.equal(hasBayPhoto(jobPhotoOf({ photo: "", jobPhoto: "" })), false);
+  assert.equal(hasBayPhoto("data:image/jpeg;base64,abc"), true);
+  assert.equal(hasBayPhoto(jobPhotoOf(job)), true);
 });
