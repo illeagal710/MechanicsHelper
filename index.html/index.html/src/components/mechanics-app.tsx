@@ -84,6 +84,7 @@ import {
   isShopTechnician,
   rankShopJobsForViewer,
   shopPortalKind,
+  usesWideProviderShell,
 } from "@/lib/shop-role";
 
 type View =
@@ -244,7 +245,7 @@ export function MechanicsApp() {
     if (goBook && user?.role === "customer") setView("book");
   }
 
-  const isProvider = user?.role === "shop" || user?.role === "independent";
+  const isProvider = usesWideProviderShell(user);
   const showShare = canShareCustomerQr(user);
   const shareCode = showShare ? Store.customerCodeFor(user) : "";
   const portalKind = shopPortalKind(user);
@@ -269,6 +270,7 @@ export function MechanicsApp() {
   return (
     <div
       data-app-shell={isProvider ? "provider" : "customer"}
+      data-wide-shell={isProvider ? "true" : "false"}
       className={`mx-auto flex min-h-dvh w-full flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)] ${shellMax}`}
     >
       <header className="flex items-center justify-between gap-2 px-4 pt-3" data-app-header="" data-shop-portal={portalKind || undefined}>
@@ -771,12 +773,13 @@ function Welcome({
           <p className="mt-2 text-sm text-muted">{t("welcome.body")}</p>
         </div>
       )}
-      <div className="mt-4 rounded-xl border border-line bg-surface p-4">
+      <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
           <input
             className={inputClass}
             placeholder={t("welcome.codePlaceholder")}
+            aria-label={t("welcome.haveCode")}
             value={codeInput}
             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
@@ -1253,12 +1256,13 @@ function CustomerHome({
           })}
         </div>
       ) : null}
-      <div className="mt-4 rounded-xl border border-line bg-surface p-4">
+      <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
           <input
             className={inputClass}
             placeholder={t("welcome.codePlaceholder")}
+            aria-label={t("welcome.haveCode")}
             value={codeInput}
             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
@@ -1324,13 +1328,14 @@ function Book({
     return (
       <div>
         <Top title={t("book.title")} onBack={onBack} />
-        <div className="rounded-xl border border-line bg-surface p-4" data-book-link-shop="">
+        <div className="rounded-xl border border-line bg-surface p-4" data-book-link-shop="" data-find-code-entry="">
           <p className="text-sm font-semibold">{t("book.linkTitle")}</p>
           <p className="mt-1 text-sm text-muted">{t("book.linkHint")}</p>
           <div className="mt-3 flex gap-2">
             <input
               className={inputClass}
               placeholder={t("welcome.codePlaceholder")}
+              aria-label={t("welcome.haveCode")}
               value={linkCode}
               autoCapitalize="characters"
               onChange={(e) => setLinkCode(e.target.value.toUpperCase())}

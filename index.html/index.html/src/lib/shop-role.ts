@@ -84,3 +84,8 @@ export function rankShopJobsForViewer<T extends AssignableJob>(jobs: T[], user: 
 export function techPortalLabel(shopName: string, fallback = "Shop"): string {
   return `Technician · ${shopName.trim() || fallback}`;
 }
+
+/** Owner, technician, and independent — same ~980px Jobs shell from PR #23. Customers stay phone-narrow. */
+export function usesWideProviderShell(user: ShopRoleUser | null | undefined): boolean {
+  return user?.role === "shop" || user?.role === "independent";
+}

@@ -29,6 +29,19 @@ test("landing welcome body uses Leon QR/referral copy in English and Spanish", (
   assert.doesNotMatch(translate("es", "welcome.body"), /comparten un código/);
 });
 
+test("welcome find-code field says Shop or Mechanic code, not demo codes", () => {
+  assert.equal(translate("en", "welcome.haveCode"), "Shop or Mechanic code");
+  assert.equal(translate("en", "welcome.codePlaceholder"), "Shop or Mechanic code");
+  assert.equal(translate("es", "welcome.haveCode"), "Código de taller o mecánico");
+  assert.equal(translate("es", "welcome.codePlaceholder"), "Código de taller o mecánico");
+  for (const locale of ["en", "es"] as const) {
+    const blob = `${translate(locale, "welcome.haveCode")} ${translate(locale, "welcome.codePlaceholder")}`;
+    assert.doesNotMatch(blob, /demo/i);
+    assert.doesNotMatch(blob, /RIV4/);
+    assert.doesNotMatch(blob, /LEON/);
+  }
+});
+
 test("English and Spanish dictionaries share the same keys", () => {
   const enKeys = Object.keys(messages.en).sort();
   const esKeys = Object.keys(messages.es).sort();
