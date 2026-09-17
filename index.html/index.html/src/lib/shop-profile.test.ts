@@ -1,17 +1,33 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  ADDRESS_MAX,
   CREDENTIAL_IDS,
   SERVICE_AREA_MAX,
   SPECIALTY_IDS,
   TAGS_MAX,
   publicProfileFromRecord,
+  sanitizeAddress,
   sanitizePublicProfile,
   sanitizeServiceArea,
   sanitizeTags,
   sanitizeYearsWrenching,
   toggleTag,
 } from "./shop-profile.ts";
+
+test("address collapses whitespace, strips angle brackets, and caps length", () => {
+  assert.equal(sanitizeAddress("  123 Main St,\n  Riverside, CA  "), "123 Main St, Riverside, CA");
+  assert.equal(sanitizeAddress("<b>10 Oak Ave</b>"), "b10 Oak Ave/b");
+  assert.equal(sanitizeAddress(""), "");
+  assert.equal(sanitizeAddress(undefined), "");
+  assert.ok(sanitizeAddress("x".repeat(ADDRESS_MAX + 50)).length <= ADDRESS_MAX);
+});
+
+test("public profile carries an address through sanitize and record reads", () => {
+  assert.equal(sanitizePublicProfile({ address: " 5 Bay Rd " }).address, "5 Bay Rd");
+  assert.equal(publicProfileFromRecord({ address: " 5 Bay Rd " }).address, "5 Bay Rd");
+  assert.equal(publicProfileFromRecord(null).address, "");
+});
 
 test("preset specialty chips stay as ids and custom Other is kept", () => {
   assert.deepEqual(sanitizeTags(["Brakes", "diagnostics", "Euro vans"], SPECIALTY_IDS), [
@@ -55,12 +71,14 @@ test("row JSON from shops/users maps onto the public card fields", () => {
     credentials_json: '["ase","insured"]',
     service_area: "Riverside, CA",
     years_wrenching: "25",
+    address: "1450 Market St, Riverside, CA 92501",
   });
   assert.deepEqual(profile, {
     specialties: ["brakes", "mobile"],
     credentials: ["ase", "insured"],
     serviceArea: "Riverside, CA",
     yearsWrenching: "25",
+    address: "1450 Market St, Riverside, CA 92501",
   });
 });
 

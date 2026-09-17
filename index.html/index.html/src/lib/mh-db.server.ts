@@ -167,6 +167,10 @@ export async function ensureSeeded() {
       "25",
     ],
   );
+  await sql.query("update mh_shops set address = $2 where id = $1", [
+    "s-main",
+    "1450 Market St, Riverside, CA 92501",
+  ]);
 
   const users: unknown[][] = [
     ["u-maya", "Maya Chen", "maya@example.com", "5550148821", "customer", passHash("demo123"), null, null, null, null, null, null, ""],
@@ -599,6 +603,7 @@ export async function updateShopProfile(
     credentials?: string[];
     serviceArea?: string;
     yearsWrenching?: string;
+    address?: string;
   },
 ) {
   const board = await loadBoard();
@@ -648,17 +653,19 @@ export async function updateShopProfile(
     patch.specialties !== undefined ||
     patch.credentials !== undefined ||
     patch.serviceArea !== undefined ||
-    patch.yearsWrenching !== undefined
+    patch.yearsWrenching !== undefined ||
+    patch.address !== undefined
   ) {
     const next = sanitizePublicProfile({
       specialties: patch.specialties ?? shop.specialties,
       credentials: patch.credentials ?? shop.credentials,
       serviceArea: patch.serviceArea ?? shop.serviceArea,
       yearsWrenching: patch.yearsWrenching ?? shop.yearsWrenching,
+      address: patch.address ?? shop.address,
     });
     await sql.query(
-      "update mh_shops set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5 where id = $1",
-      [shop.id, JSON.stringify(next.specialties), JSON.stringify(next.credentials), next.serviceArea, next.yearsWrenching],
+      "update mh_shops set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5, address = $6 where id = $1",
+      [shop.id, JSON.stringify(next.specialties), JSON.stringify(next.credentials), next.serviceArea, next.yearsWrenching, next.address],
     );
   }
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
@@ -684,6 +691,7 @@ export async function updateIndependentProfile(
     credentials?: string[];
     serviceArea?: string;
     yearsWrenching?: string;
+    address?: string;
   },
 ) {
   const board = await loadBoard();
@@ -713,9 +721,10 @@ export async function updateIndependentProfile(
     credentials: patch.credentials ?? user.credentials,
     serviceArea: patch.serviceArea ?? user.serviceArea,
     yearsWrenching: patch.yearsWrenching ?? user.yearsWrenching,
+    address: patch.address ?? user.address,
   });
   await sql.query(
-    "update mh_users set business_name = $2, bio = $3, service_mode = $4, photo = $5, support_email = $6, support_phone = $7, hours_days = $8, hours_open = $9, hours_close = $10, specialties_json = $11, credentials_json = $12, service_area = $13, years_wrenching = $14 where id = $1",
+    "update mh_users set business_name = $2, bio = $3, service_mode = $4, photo = $5, support_email = $6, support_phone = $7, hours_days = $8, hours_open = $9, hours_close = $10, specialties_json = $11, credentials_json = $12, service_area = $13, years_wrenching = $14, address = $15 where id = $1",
     [
       user.id,
       name,
@@ -731,6 +740,7 @@ export async function updateIndependentProfile(
       JSON.stringify(next.credentials),
       next.serviceArea,
       next.yearsWrenching,
+      next.address,
     ],
   );
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
