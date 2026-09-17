@@ -82,6 +82,7 @@ import {
 } from "@/lib/shop-profile";
 import { openDirections } from "@/lib/directions";
 import {
+  notificationsActive,
   notificationsSupported,
   permissionState,
   requestNotificationPermission,
@@ -2384,7 +2385,7 @@ function NotificationsCard({
   const [busy, setBusy] = useState(false);
   const supported = notificationsSupported();
   const perm = permissionState();
-  const on = !!user.alertsOn && perm !== "denied";
+  const on = notificationsActive(user.alertsOn);
 
   async function turnOn() {
     setBusy(true);
