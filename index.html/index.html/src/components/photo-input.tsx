@@ -310,11 +310,7 @@ export function PhotoPicker({
         </div>
       ) : bayFilled ? (
         <BayPreview src={value} />
-      ) : (
-        <p className="text-sm text-muted" data-ticket-bay-preview="empty">
-          {t("photo.noBay")}
-        </p>
-      )}
+      ) : null}
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
