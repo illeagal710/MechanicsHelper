@@ -106,6 +106,8 @@ test("QR lock wins over an older saved ticket so a new referral lands on the rig
     jobs: [
       {
         userId: customer.id,
+        email: customer.email,
+        phone: customer.phone,
         providerId: "s-main",
         providerType: "shop",
         createdAt: 500,
@@ -168,6 +170,8 @@ test("explicit unlink does not snap back to last ticket", () => {
     jobs: [
       {
         userId: customer.id,
+        email: customer.email,
+        phone: customer.phone,
         providerId: "s-main",
         providerType: "shop",
         createdAt: 10,
