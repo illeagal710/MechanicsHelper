@@ -29,6 +29,19 @@ test("landing welcome body uses Leon QR/referral copy in English and Spanish", (
   assert.doesNotMatch(translate("es", "welcome.body"), /comparten un código/);
 });
 
+test("welcome find-code field says Shop or Mechanic code, not demo codes", () => {
+  assert.equal(translate("en", "welcome.haveCode"), "Shop or Mechanic code");
+  assert.equal(translate("en", "welcome.codePlaceholder"), "Shop or Mechanic code");
+  assert.equal(translate("es", "welcome.haveCode"), "Código de taller o mecánico");
+  assert.equal(translate("es", "welcome.codePlaceholder"), "Código de taller o mecánico");
+  for (const locale of ["en", "es"] as const) {
+    const blob = `${translate(locale, "welcome.haveCode")} ${translate(locale, "welcome.codePlaceholder")}`;
+    assert.doesNotMatch(blob, /demo/i);
+    assert.doesNotMatch(blob, /RIV4/);
+    assert.doesNotMatch(blob, /LEON/);
+  }
+});
+
 test("English and Spanish dictionaries share the same keys", () => {
   const enKeys = Object.keys(messages.en).sort();
   const esKeys = Object.keys(messages.es).sort();
@@ -146,6 +159,19 @@ test("helper fence, loading, and fallback strings exist in English and Spanish",
   assert.equal(translate("es", "diag.loading"), "Revisando eso…");
   assert.match(translate("en", "diag.error"), /shop rules/i);
   assert.match(translate("es", "diag.error"), /reglas del taller/i);
+});
+
+test("shop technician portal copy exists in English and Spanish", () => {
+  assert.equal(translate("en", "shop.techBadge", { shop: "Riverside Auto" }), "Technician · Riverside Auto");
+  assert.equal(translate("es", "shop.techBadge", { shop: "Riverside Auto" }), "Técnico · Riverside Auto");
+  assert.equal(translate("en", "shop.assignedToYou"), "Assigned to you");
+  assert.equal(translate("es", "shop.assignedToYou"), "Asignado a ti");
+  assert.match(translate("en", "shop.techWorkHint"), /assigned/i);
+  assert.match(translate("es", "shop.techWorkHint"), /asignad/i);
+  assert.match(translate("en", "account.techShopHint"), /owner/i);
+  assert.match(translate("es", "account.techShopHint"), /dueño/i);
+  assert.match(translate("en", "account.deleteBodyTech"), /does not delete the shop/i);
+  assert.match(translate("es", "account.deleteBodyTech"), /no elimina el taller/i);
 });
 
 test("shop history and decline copy exists in English and Spanish", () => {

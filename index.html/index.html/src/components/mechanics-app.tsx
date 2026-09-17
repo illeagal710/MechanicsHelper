@@ -77,6 +77,15 @@ import {
   sanitizeYearsWrenching,
   toggleTag,
 } from "@/lib/shop-profile";
+import {
+  canRotateFindCode,
+  canShareCustomerQr,
+  isAssignedToUser,
+  isShopTechnician,
+  rankShopJobsForViewer,
+  shopPortalKind,
+  usesWideProviderShell,
+} from "@/lib/shop-role";
 
 type View =
   | "welcome"
@@ -220,6 +229,10 @@ export function MechanicsApp() {
     };
   }, []);
 
+  useEffect(() => {
+    if (view === "share" && user && !canShareCustomerQr(user)) setView("shopHome");
+  }, [view, user]);
+
   function applyCode(raw: string, goBook = true) {
     const p = Store.findProviderByCode(raw);
     if (!p) {
@@ -232,8 +245,10 @@ export function MechanicsApp() {
     if (goBook && user?.role === "customer") setView("book");
   }
 
-  const isProvider = user?.role === "shop" || user?.role === "independent";
-  const shareCode = Store.customerCodeFor(user);
+  const isProvider = usesWideProviderShell(user);
+  const showShare = canShareCustomerQr(user);
+  const shareCode = showShare ? Store.customerCodeFor(user) : "";
+  const portalKind = shopPortalKind(user);
   const liveLocked = lockedProvider
     ? Store.findProviderByCode(lockedProvider.code) || lockedProvider
     : null;
@@ -244,20 +259,30 @@ export function MechanicsApp() {
     view === "recover" ||
     view === "forgotPassword" ||
     view === "forgotUsername";
-  const bayLabel = isProvider ? shareCode || t("app.bay") : lockedProvider?.code || t("app.bay");
+  const bayLabel = isShopTechnician(user)
+    ? t("shop.techBadge", { shop: user?.shopName || t("shop.shop") })
+    : isProvider
+      ? shareCode || t("app.bay")
+      : lockedProvider?.code || t("app.bay");
 
   const shellMax = isProvider ? "max-w-[430px] md:max-w-[980px]" : "max-w-[430px]";
 
   return (
     <div
       data-app-shell={isProvider ? "provider" : "customer"}
+      data-wide-shell={isProvider ? "true" : "false"}
       className={`mx-auto flex min-h-dvh w-full flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)] ${shellMax}`}
     >
-      <header className="flex items-center justify-between gap-2 px-4 pt-3" data-app-header="">
+      <header className="flex items-center justify-between gap-2 px-4 pt-3" data-app-header="" data-shop-portal={portalKind || undefined}>
         {showWordmark ? (
           <BrandWordmark className="h-[72px] w-auto max-w-[min(220px,58%)] object-contain object-left" />
         ) : (
-          <span className="font-mono text-xs font-semibold text-dim">{bayLabel}</span>
+          <span
+            className={`text-xs font-semibold text-dim ${isShopTechnician(user) ? "" : "font-mono"}`}
+            data-tech-badge={isShopTechnician(user) ? "true" : undefined}
+          >
+            {bayLabel}
+          </span>
         )}
         <div className="flex shrink-0 items-center gap-2 text-xs font-semibold text-muted">
           <ThemeToggle compact />
@@ -386,14 +411,14 @@ export function MechanicsApp() {
             tick={tick}
           />
         )}
-        {view === "share" && user && shareCode && (
+        {view === "share" && user && shareCode && showShare && (
           <div>
             <Top title={t("share.titleQr")} onBack={() => setView("shopHome")} />
             <QrShare
               key={shareCode}
               code={shareCode}
               title={user.role === "independent" ? user.businessName || user.name : user.shopName || t("share.yourShop")}
-              canRotate={user.role === "independent" || user.shopRole === "owner"}
+              canRotate={canRotateFindCode(user)}
               rotateHint={
                 user.role === "shop"
                   ? t("share.rotateShop")
@@ -436,9 +461,11 @@ export function MechanicsApp() {
       {user && !["welcome", "login", "register", "recover", "forgotPassword", "forgotUsername"].includes(view) && (
         <nav className={`fixed bottom-0 left-1/2 z-20 w-full -translate-x-1/2 border-t border-line bg-bg/95 px-2 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2 backdrop-blur ${shellMax}`}>
           {isProvider ? (
-            <div className="grid grid-cols-3">
+            <div className={`grid ${showShare ? "grid-cols-3" : "grid-cols-2"}`} data-provider-nav={portalKind || undefined}>
               <Tab active={view === "shopHome" || view === "shopJob"} onClick={() => setView("shopHome")} icon={<ClipboardList className="size-5" />} label={t("nav.jobs")} />
-              <Tab active={view === "share"} onClick={() => setView("share")} icon={<QrCode className="size-5" />} label={t("nav.qr")} />
+              {showShare ? (
+                <Tab active={view === "share"} onClick={() => setView("share")} icon={<QrCode className="size-5" />} label={t("nav.qr")} />
+              ) : null}
               <Tab active={view === "account"} onClick={() => setView("account")} icon={<UserRound className="size-5" />} label={t("nav.account")} />
             </div>
           ) : (
@@ -746,12 +773,13 @@ function Welcome({
           <p className="mt-2 text-sm text-muted">{t("welcome.body")}</p>
         </div>
       )}
-      <div className="mt-4 rounded-xl border border-line bg-surface p-4">
+      <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
           <input
             className={inputClass}
             placeholder={t("welcome.codePlaceholder")}
+            aria-label={t("welcome.haveCode")}
             value={codeInput}
             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
@@ -1228,12 +1256,13 @@ function CustomerHome({
           })}
         </div>
       ) : null}
-      <div className="mt-4 rounded-xl border border-line bg-surface p-4">
+      <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
           <input
             className={inputClass}
             placeholder={t("welcome.codePlaceholder")}
+            aria-label={t("welcome.haveCode")}
             value={codeInput}
             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
@@ -1299,13 +1328,14 @@ function Book({
     return (
       <div>
         <Top title={t("book.title")} onBack={onBack} />
-        <div className="rounded-xl border border-line bg-surface p-4" data-book-link-shop="">
+        <div className="rounded-xl border border-line bg-surface p-4" data-book-link-shop="" data-find-code-entry="">
           <p className="text-sm font-semibold">{t("book.linkTitle")}</p>
           <p className="mt-1 text-sm text-muted">{t("book.linkHint")}</p>
           <div className="mt-3 flex gap-2">
             <input
               className={inputClass}
               placeholder={t("welcome.codePlaceholder")}
+              aria-label={t("welcome.haveCode")}
               value={linkCode}
               autoCapitalize="characters"
               onChange={(e) => setLinkCode(e.target.value.toUpperCase())}
@@ -1488,18 +1518,32 @@ function JobCard({
   shop,
   onClick,
   userId,
+  mine,
 }: {
   job: Job;
   shop: boolean;
   onClick: () => void;
   userId?: string;
+  mine?: boolean;
 }) {
   const { locale, t } = useI18n();
   const st = statusMeta(job.status);
   const note = !shop ? latestProviderNote(job) : null;
   const isNew = !!(note && userId && isNewProviderNote(note, readSeenNoteAt(userId, job.id)));
   return (
-    <button type="button" onClick={onClick} className="tap w-full rounded-2xl border border-line bg-surface p-3.5 text-left" data-job-id={job.id} data-job-status={job.status}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`tap w-full rounded-2xl border p-3.5 text-left ${mine ? "border-accent/40 bg-accent/10" : "border-line bg-surface"}`}
+      data-job-id={job.id}
+      data-job-status={job.status}
+      data-assigned-to-you={mine ? "true" : undefined}
+    >
+      {mine ? (
+        <span className="mb-2 inline-flex rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-ink">
+          {t("shop.assignedToYou")}
+        </span>
+      ) : null}
       {note ? (
         <div
           className={`mb-2.5 rounded-xl px-2.5 py-2 text-left ${isNew ? "bg-accent/15" : "bg-bg2"}`}
@@ -1580,17 +1624,19 @@ function ShopHome({
   const active = shopBoardJobs(jobs, "active");
   const ready = jobs.filter((j) => j.status === "ready").length;
   const busy = jobs.filter((j) => ["enroute", "checkedin", "diagnosing", "parts", "repair"].includes(j.status)).length;
-  const list = shopBoardJobs(jobs, filter);
+  const list = rankShopJobsForViewer(shopBoardJobs(jobs, filter), user);
   const title = user.role === "independent" ? user.businessName || t("shop.independent") : user.shopName || t("shop.shop");
+  const tech = isShopTechnician(user);
+  const showShare = canShareCustomerQr(user);
   const publicBio =
     user.role === "independent"
       ? user.bio || ""
-      : user.shopId
+      : !tech && user.shopId
         ? Store.shopRecord(user.shopId)?.bio || ""
         : "";
   void tick;
   return (
-    <div>
+    <div data-shop-home={shopPortalKind(user) || undefined}>
       <div className="mb-4 flex items-center gap-2.5">
         <Face
           src={user.role === "independent" ? user.photo : Store.shopRecord(user.shopId || "")?.photo}
@@ -1599,19 +1645,31 @@ function ShopHome({
         />
         <div className="min-w-0">
           <div className="font-bold">{title}</div>
-          <div className="text-xs text-muted">{user.role === "independent" ? t("shop.yourJobs") : user.name}</div>
+          {tech ? (
+            <span
+              className="mt-1 inline-flex rounded-full bg-surface2 px-2 py-0.5 text-[11px] font-semibold"
+              data-tech-badge=""
+            >
+              {t("shop.techBadge", { shop: title })}
+            </span>
+          ) : (
+            <div className="text-xs text-muted">{user.role === "independent" ? t("shop.yourJobs") : user.name}</div>
+          )}
         </div>
       </div>
-      {publicBio ? <p className="mb-3 text-sm text-muted">{publicBio}</p> : null}
+      {tech ? <p className="mb-3 text-sm text-muted">{t("shop.techWorkHint")}</p> : publicBio ? <p className="mb-3 text-sm text-muted">{publicBio}</p> : null}
+      {showShare ? (
       <button
         type="button"
         onClick={onShare}
+        data-shop-find-code=""
         className="mb-3 w-full rounded-xl border border-line bg-surface p-4 text-left"
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("shop.findCodeShort")}</p>
         <p className="font-mono text-2xl tracking-[0.2em] text-accent">{shareCode || "—"}</p>
         <p className="mt-1 text-sm text-muted">{t("shop.qrTabHint")}</p>
       </button>
+      ) : null}
       <div className="mb-3 grid grid-cols-3 gap-2">
         <div className="rounded-xl border border-line bg-surface py-3 text-center">
           <div className="text-xl font-bold">{active.length}</div>
@@ -1635,7 +1693,7 @@ function ShopHome({
       </div>
       <div className="flex flex-col gap-2.5 md:grid md:grid-cols-2" data-shop-board="">
         {list.map((j) => (
-          <JobCard key={j.id} job={j} shop onClick={() => onOpen(j.id)} />
+          <JobCard key={j.id} job={j} shop mine={isAssignedToUser(j, user) && tech} onClick={() => onOpen(j.id)} />
         ))}
         {!list.length && (
           <p className="p-6 text-center text-sm text-muted">
@@ -2350,6 +2408,7 @@ function Account({
   const { locale, t } = useI18n();
   const shop = user.shopId ? Store.shopRecord(user.shopId) : null;
   const canEditShop = user.role === "shop" && user.shopRole === "owner" && !!shop;
+  const tech = isShopTechnician(user);
   const [shopName, setShopName] = useState(shop?.name || "");
   const [shopBio, setShopBio] = useState(shop?.bio || "");
   const [bizName, setBizName] = useState(user.businessName || user.name);
@@ -2402,7 +2461,7 @@ function Account({
   }
 
   return (
-    <div>
+    <div data-account-portal={shopPortalKind(user) || undefined}>
       <Top
         title={t("account.title")}
         onBack={onBack}
@@ -2533,7 +2592,13 @@ function Account({
         </span>
         <Settings className="size-5 shrink-0 text-muted" />
       </button>
-      {shop && (
+      {tech && shop ? (
+        <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-account-tech-shop="">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.techShop", { shop: shop.name })}</p>
+          <p className="mt-2 text-sm text-muted">{t("account.techShopHint")}</p>
+        </div>
+      ) : null}
+      {shop && !tech && (
         <form
           className="mt-3 rounded-xl border border-line bg-surface p-4"
           data-account-public-profile="shop"
@@ -2856,7 +2921,7 @@ function Account({
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.deleteTitle")}</p>
         <p className="mt-2 text-sm text-muted">
-          {t("account.deleteBody")}
+          {tech ? t("account.deleteBodyTech") : t("account.deleteBody")}
         </p>
         <input
           type="password"
