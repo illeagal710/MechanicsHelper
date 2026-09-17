@@ -58,6 +58,7 @@ export const mhUpdateShop = createServerFn({ method: "POST" })
       credentials?: string[];
       serviceArea?: string;
       yearsWrenching?: string;
+      address?: string;
     }) => d,
   )
   .handler(async ({ data }) => {
@@ -83,6 +84,7 @@ export const mhUpdateIndy = createServerFn({ method: "POST" })
       credentials?: string[];
       serviceArea?: string;
       yearsWrenching?: string;
+      address?: string;
     }) => d,
   )
   .handler(async ({ data }) => {

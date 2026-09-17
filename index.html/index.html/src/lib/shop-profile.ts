@@ -19,6 +19,7 @@ export type CredentialId = (typeof CREDENTIAL_IDS)[number];
 export const TAG_MAX = 32;
 export const TAGS_MAX = 12;
 export const SERVICE_AREA_MAX = 80;
+export const ADDRESS_MAX = 140;
 export const YEARS_MIN = 1;
 export const YEARS_MAX = 60;
 
@@ -27,6 +28,8 @@ export type PublicProfileFields = {
   credentials: string[];
   serviceArea: string;
   yearsWrenching: string;
+  /** Street address customers can navigate to. Blank when not shared. */
+  address: string;
 };
 
 const EMPTY: PublicProfileFields = {
@@ -34,6 +37,7 @@ const EMPTY: PublicProfileFields = {
   credentials: [],
   serviceArea: "",
   yearsWrenching: "",
+  address: "",
 };
 
 function isPreset(id: string, allowed: readonly string[]) {
@@ -88,6 +92,16 @@ export function sanitizeServiceArea(raw: unknown): string {
     .slice(0, SERVICE_AREA_MAX);
 }
 
+/** A single-line street address (no angle brackets, collapsed whitespace). */
+export function sanitizeAddress(raw: unknown): string {
+  return String(raw || "")
+    .replace(/[<>]/g, "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, ADDRESS_MAX);
+}
+
 export function sanitizeYearsWrenching(raw: unknown): string {
   const digits = String(raw ?? "").replace(/\D/g, "").slice(0, 2);
   if (!digits) return "";
@@ -101,12 +115,14 @@ export function sanitizePublicProfile(patch: {
   credentials?: unknown;
   serviceArea?: unknown;
   yearsWrenching?: unknown;
+  address?: unknown;
 }): PublicProfileFields {
   return {
     specialties: sanitizeTags(patch.specialties, SPECIALTY_IDS),
     credentials: sanitizeTags(patch.credentials, CREDENTIAL_IDS),
     serviceArea: sanitizeServiceArea(patch.serviceArea),
     yearsWrenching: sanitizeYearsWrenching(patch.yearsWrenching),
+    address: sanitizeAddress(patch.address),
   };
 }
 
@@ -119,6 +135,7 @@ export function publicProfileFromRecord(r: {
   service_area?: unknown;
   yearsWrenching?: unknown;
   years_wrenching?: unknown;
+  address?: unknown;
 } | null | undefined): PublicProfileFields {
   if (!r) return { ...EMPTY };
   return {
@@ -126,6 +143,7 @@ export function publicProfileFromRecord(r: {
     credentials: sanitizeTags(r.credentials ?? r.credentials_json, CREDENTIAL_IDS),
     serviceArea: sanitizeServiceArea(r.serviceArea ?? r.service_area),
     yearsWrenching: sanitizeYearsWrenching(r.yearsWrenching ?? r.years_wrenching),
+    address: sanitizeAddress(r.address),
   };
 }
 

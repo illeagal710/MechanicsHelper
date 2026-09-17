@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Bell,
   CalendarPlus,
   ChevronDown,
   ClipboardList,
   House,
   MapPin,
   MessageCircle,
+  Navigation,
   QrCode,
   Settings,
   UserRound,
@@ -68,6 +70,7 @@ import {
 import { trimOptions } from "@/lib/trims";
 import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
 import {
+  ADDRESS_MAX,
   CREDENTIAL_IDS,
   SERVICE_AREA_MAX,
   SPECIALTY_IDS,
@@ -77,6 +80,13 @@ import {
   sanitizeYearsWrenching,
   toggleTag,
 } from "@/lib/shop-profile";
+import { openDirections } from "@/lib/directions";
+import {
+  notificationsSupported,
+  permissionState,
+  requestNotificationPermission,
+  showLocalNotification,
+} from "@/lib/notifications";
 import {
   canRotateFindCode,
   canShareCustomerQr,
@@ -620,6 +630,23 @@ function PublicProviderCard({
           ) : null}
         </div>
       </div>
+      {provider.address ? (
+        <div className="mt-2 flex items-start justify-between gap-3 rounded-lg border border-line bg-surface p-3">
+          <p className="flex items-start gap-1.5 text-sm text-fg">
+            <MapPin className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
+            <span>{provider.address}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => openDirections(provider.address || "")}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-ink"
+            data-directions=""
+          >
+            <Navigation className="size-3.5" aria-hidden />
+            {t("profile.directions")}
+          </button>
+        </div>
+      ) : null}
       {provider.bio ? <p className="mt-2 text-sm text-fg">{provider.bio}</p> : null}
       <TagPills kind="spec" tags={specialties} />
       <TagPills
@@ -2322,16 +2349,8 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
   );
 }
 
-function AccountSettingsPanels({
-  user,
-  flash,
-  onSaved,
-}: {
-  user: User;
-  flash: (s: string) => void;
-  onSaved: (u: User) => void;
-}) {
-  const { locale, t } = useI18n();
+function AccountSettingsPanels() {
+  const { t } = useI18n();
   return (
     <>
       <div className="rounded-xl border border-line bg-surface p-4">
@@ -2346,38 +2365,100 @@ function AccountSettingsPanels({
       </div>
       <div className="mt-3 rounded-xl border border-line bg-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
-        <p className="mt-2 text-sm text-muted">
-          {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
-        </p>
-        <button
-          type="button"
-          className="mt-3 h-11 w-full rounded-xl border border-line bg-surface2 font-semibold"
-          onClick={async () => {
-            if (typeof Notification === "undefined") {
-              flash(t("toast.alertsUnsupported"));
-              return;
-            }
-            const perm = await Notification.requestPermission();
-            if (perm !== "granted") {
-              await Store.saveAlerts(user, user.pushToken || "", false);
-              return flash(t("toast.alertsOff"));
-            }
-            const token = "web-" + user.id;
-            const res = await Store.saveAlerts(user, token, true);
-            if (!res.ok) return flash(translateStoreError(locale, res.error));
-            onSaved(res.user);
-            try {
-              new Notification(t("app.name"), { body: t("account.alertsNotifBody") });
-            } catch {
-              /* ignore */
-            }
-            flash(t("toast.alertsOn"));
-          }}
-        >
-          {user.alertsOn ? t("account.alertsOnBtn") : t("account.alertsTurnOn")}
-        </button>
+        <p className="mt-2 text-sm text-muted">{t("account.alertsManageHint")}</p>
       </div>
     </>
+  );
+}
+
+function NotificationsCard({
+  user,
+  flash,
+  onSaved,
+}: {
+  user: User;
+  flash: (s: string) => void;
+  onSaved: (u: User) => void;
+}) {
+  const { locale, t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const supported = notificationsSupported();
+  const perm = permissionState();
+  const on = !!user.alertsOn && perm !== "denied";
+
+  async function turnOn() {
+    setBusy(true);
+    try {
+      const res = await requestNotificationPermission();
+      if (res === "unsupported") {
+        flash(t("toast.alertsUnsupported"));
+        return;
+      }
+      if (res !== "granted") {
+        const saved = await Store.saveAlerts(user, user.pushToken || "", false);
+        if (saved.ok) onSaved(saved.user);
+        flash(t("toast.alertsBlocked"));
+        return;
+      }
+      const saved = await Store.saveAlerts(user, user.pushToken || "web-" + user.id, true);
+      if (!saved.ok) {
+        flash(translateStoreError(locale, saved.error));
+        return;
+      }
+      onSaved(saved.user);
+      await showLocalNotification(t("app.name"), t("account.alertsNotifBody"));
+      flash(t("toast.alertsOn"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTest() {
+    await showLocalNotification(t("app.name"), t("account.alertsNotifBody"));
+    flash(t("toast.alertsTestSent"));
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-notifications-card={on ? "on" : "off"}>
+      <div className="flex items-start gap-3">
+        <div className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-accent/15 text-accent">
+          <Bell className="size-4" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-fg">{t("account.notifTitle")}</p>
+          <p className="mt-0.5 text-sm text-muted">
+            {user.role === "customer" ? t("account.alertsCustomer") : t("account.alertsProvider")}
+          </p>
+          {!supported ? (
+            <p className="mt-2 text-xs text-dim">{t("account.notifUnsupported")}</p>
+          ) : perm === "denied" ? (
+            <p className="mt-2 text-xs text-dim">{t("account.notifBlocked")}</p>
+          ) : on ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-1 text-xs font-semibold text-accent">
+                <Bell className="size-3.5" aria-hidden /> {t("account.notifOn")}
+              </span>
+              <button
+                type="button"
+                onClick={sendTest}
+                className="h-9 rounded-lg border border-line bg-surface2 px-3 text-xs font-semibold"
+              >
+                {t("account.notifTest")}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={turnOn}
+              className="mt-3 h-11 w-full rounded-xl bg-accent font-semibold text-ink disabled:opacity-60"
+            >
+              {t("account.notifEnable")}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2423,6 +2504,7 @@ function Account({
   const [shopSpecialties, setShopSpecialties] = useState(shop?.specialties || []);
   const [shopCredentials, setShopCredentials] = useState(shop?.credentials || []);
   const [shopArea, setShopArea] = useState(shop?.serviceArea || "");
+  const [shopAddress, setShopAddress] = useState(shop?.address || "");
   const [shopYears, setShopYears] = useState(shop?.yearsWrenching || "");
   const [indyDays, setIndyDays] = useState(user.hoursDays || "123456");
   const [indyOpen, setIndyOpen] = useState(user.hoursOpen || "08:00");
@@ -2430,6 +2512,7 @@ function Account({
   const [indySpecialties, setIndySpecialties] = useState(user.specialties || []);
   const [indyCredentials, setIndyCredentials] = useState(user.credentials || []);
   const [indyArea, setIndyArea] = useState(user.serviceArea || "");
+  const [indyAddress, setIndyAddress] = useState(user.address || "");
   const [indyYears, setIndyYears] = useState(user.yearsWrenching || "");
   const [deletePw, setDeletePw] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -2450,7 +2533,7 @@ function Account({
     return (
       <div data-account-settings="">
         <Top title={t("account.settings")} onBack={() => setSettingsOpen(false)} />
-        <AccountSettingsPanels user={user} flash={flash} onSaved={onSaved} />
+        <AccountSettingsPanels />
       </div>
     );
   }
@@ -2486,6 +2569,7 @@ function Account({
           </div>
         </div>
       </div>
+      <NotificationsCard user={user} flash={flash} onSaved={onSaved} />
       <div className="mt-3 rounded-xl border border-line bg-surface p-4">
         <PhotoPicker
           slot={PROFILE_PHOTO_SLOT}
@@ -2612,6 +2696,7 @@ function Account({
               specialties: shopSpecialties,
               credentials: shopCredentials,
               serviceArea: shopArea,
+              address: shopAddress,
               yearsWrenching: shopYears,
             });
             if (!res.ok) return flash(translateStoreError(locale, res.error));
@@ -2698,6 +2783,22 @@ function Account({
               </>
             ) : (
               <p className="text-sm text-muted">{shop.serviceArea || t("account.noServiceArea")}</p>
+            )}
+          </Field>
+          <Field label={t("account.address")}>
+            {canEditShop ? (
+              <>
+                <input
+                  className={inputClass}
+                  value={shopAddress}
+                  maxLength={ADDRESS_MAX}
+                  onChange={(e) => setShopAddress(e.target.value.slice(0, ADDRESS_MAX))}
+                  placeholder={t("account.addressPh")}
+                />
+                <p className="mt-1 text-xs text-dim">{t("account.addressHint")}</p>
+              </>
+            ) : (
+              <p className="text-sm text-muted">{shop.address || t("account.noAddress")}</p>
             )}
           </Field>
           <Field label={t("account.supportEmail")}>
@@ -2787,6 +2888,7 @@ function Account({
               specialties: indySpecialties,
               credentials: indyCredentials,
               serviceArea: indyArea,
+              address: indyAddress,
               yearsWrenching: indyYears,
             });
             if (!res.ok) return flash(translateStoreError(locale, res.error));
@@ -2863,6 +2965,16 @@ function Account({
             <p className="mt-1 text-right text-xs text-dim tabular-nums">
               {indyArea.length}/{SERVICE_AREA_MAX}
             </p>
+          </Field>
+          <Field label={t("account.addressOptional")}>
+            <input
+              className={inputClass}
+              value={indyAddress}
+              maxLength={ADDRESS_MAX}
+              onChange={(e) => setIndyAddress(e.target.value.slice(0, ADDRESS_MAX))}
+              placeholder={t("account.addressPh")}
+            />
+            <p className="mt-1 text-xs text-dim">{t("account.addressIndyHint")}</p>
           </Field>
           <Field label={t("account.supportEmail")}>
             <input

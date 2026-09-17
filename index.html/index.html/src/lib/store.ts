@@ -58,6 +58,7 @@ export type User = {
   credentials?: string[];
   serviceArea?: string;
   yearsWrenching?: string;
+  address?: string;
 };
 
 export type Shop = {
@@ -77,6 +78,7 @@ export type Shop = {
   credentials?: string[];
   serviceArea?: string;
   yearsWrenching?: string;
+  address?: string;
 };
 
 export type Note = { at: number; text: string; by: string };
@@ -125,6 +127,7 @@ export type Provider = {
   credentials?: string[];
   serviceArea?: string;
   yearsWrenching?: string;
+  address?: string;
 };
 
 function withPublicProfile<T extends object>(row: T, extra?: Partial<PublicProfileFields>): T & PublicProfileFields {
@@ -513,6 +516,7 @@ export const Store = {
       credentials?: string[];
       serviceArea?: string;
       yearsWrenching?: string;
+      address?: string;
     },
   ) {
     const profilePhoto = patch.profilePhoto !== undefined ? patch.profilePhoto : patch.photo;
@@ -547,6 +551,7 @@ export const Store = {
       credentials?: string[];
       serviceArea?: string;
       yearsWrenching?: string;
+      address?: string;
     },
   ) {
     const profilePhoto = patch.profilePhoto !== undefined ? patch.profilePhoto : patch.photo;
