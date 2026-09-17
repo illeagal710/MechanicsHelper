@@ -7,6 +7,12 @@ import { applyDecline, slotTakenAmong } from "@/lib/job-status";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode } from "@/lib/shop-role";
+import {
+  activateFields,
+  canStartTrial,
+  requiresSubscription,
+  startTrialFields,
+} from "@/lib/subscription";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
@@ -76,6 +82,12 @@ function rowUser(r: Record<string, unknown>): User {
     hoursDays: String(r.hours_days || "123456"),
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
+    subStatus:
+      r.sub_status === "trialing" || r.sub_status === "active" || r.sub_status === "canceled"
+        ? r.sub_status
+        : "none",
+    trialEndsAt: r.trial_ends_at != null ? Number(r.trial_ends_at) : undefined,
+    subRenewsAt: r.sub_renews_at != null ? Number(r.sub_renews_at) : undefined,
     ...publicProfileFromRecord(r),
   };
 }
@@ -191,6 +203,9 @@ export async function ensureSeeded() {
       "14",
     ],
   );
+  // Comp the demo shop + independent so the seeded portal works out of the box;
+  // brand-new signups still start locked and go through the paywall.
+  await sql.query("update mh_users set sub_status = 'active' where role in ('shop', 'independent')");
 
   const jobs: Job[] = [
     {
@@ -575,6 +590,43 @@ export async function rotateCustomerCode(userId: string) {
     return next;
   }
   return "";
+}
+
+/**
+ * Start a provider subscription. `trial` opens the one-time free trial; both
+ * `trial` and `subscribe` are placeholders for a real payment provider — no card
+ * is charged. This is the seam where Stripe Checkout + webhooks land later.
+ */
+export async function startSubscription(userId: string, mode: "trial" | "subscribe") {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user) return { ok: false as const, error: "Account not found." };
+  if (!requiresSubscription(user.role)) {
+    return { ok: false as const, error: "Only shops and independents subscribe." };
+  }
+  const sql = await getSql();
+  if (mode === "trial") {
+    if (!canStartTrial(user)) {
+      return { ok: false as const, error: "Your free trial has already been used." };
+    }
+    const fields = startTrialFields();
+    await sql.query("update mh_users set sub_status = $2, trial_ends_at = $3 where id = $1", [
+      user.id,
+      fields.subStatus,
+      fields.trialEndsAt,
+    ]);
+  } else {
+    const fields = activateFields();
+    await sql.query("update mh_users set sub_status = $2, sub_renews_at = $3 where id = $1", [
+      user.id,
+      fields.subStatus,
+      fields.subRenewsAt,
+    ]);
+  }
+  const fresh = (await loadBoard()).users.find((u) => u.id === userId);
+  if (!fresh) return { ok: false as const, error: "Account not found." };
+  const { pass: _p, ...rest } = fresh;
+  return { ok: true as const, user: { ...rest, pass: "" } };
 }
 
 function profilePhotoFrom(patch: { photo?: string; profilePhoto?: string }) {

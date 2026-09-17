@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CalendarPlus,
+  Check,
   ChevronDown,
   ClipboardList,
   House,
@@ -85,6 +86,14 @@ import {
   rankShopJobsForViewer,
   shopPortalKind,
 } from "@/lib/shop-role";
+import {
+  TRIAL_DAYS,
+  canStartTrial,
+  planForRole,
+  requiresSubscription,
+  subscriptionAccess,
+  trialDaysLeft,
+} from "@/lib/subscription";
 
 type View =
   | "welcome"
@@ -148,7 +157,7 @@ function slots() {
 }
 
 export function MechanicsApp() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [view, setView] = useState<View>("welcome");
   const [user, setUser] = useState<User | null>(null);
   const [toast, setToast] = useState("");
@@ -245,6 +254,24 @@ export function MechanicsApp() {
   }
 
   const isProvider = user?.role === "shop" || user?.role === "independent";
+  const access = user ? subscriptionAccess(user) : "free";
+  const providerLocked = isProvider && access === "locked";
+  const providerViews: View[] = ["shopHome", "shopJob", "share"];
+  const paywalled = providerLocked && providerViews.includes(view);
+
+  async function startSub(mode: "trial" | "subscribe") {
+    if (!user) return;
+    const res = await Store.startSubscription(user, mode);
+    if (res.ok) {
+      setUser(res.user);
+      setView(homeFor(res.user.role));
+      flash(mode === "trial" ? t("toast.trialStarted") : t("toast.subscribed"));
+      bump();
+    } else {
+      flash(translateStoreError(locale, res.error));
+    }
+  }
+
   const showShare = canShareCustomerQr(user);
   const shareCode = showShare ? Store.customerCodeFor(user) : "";
   const portalKind = shopPortalKind(user);
@@ -386,7 +413,18 @@ export function MechanicsApp() {
             }}
           />
         )}
-        {view === "shopHome" && user && (
+        {paywalled && user && (
+          <ProviderPaywall
+            user={user}
+            t={t}
+            onStartTrial={() => startSub("trial")}
+            onSubscribe={() => startSub("subscribe")}
+          />
+        )}
+        {isProvider && access === "trialing" && providerViews.includes(view) && user && (
+          <TrialBanner user={user} t={t} onSubscribe={() => startSub("subscribe")} />
+        )}
+        {view === "shopHome" && user && !paywalled && (
           <ShopHome
             user={user}
             tick={tick}
@@ -398,7 +436,7 @@ export function MechanicsApp() {
             }}
           />
         )}
-        {view === "shopJob" && selectedId && user && (
+        {view === "shopJob" && selectedId && user && !paywalled && (
           <JobDetail
             id={selectedId}
             shop
@@ -409,7 +447,7 @@ export function MechanicsApp() {
             tick={tick}
           />
         )}
-        {view === "share" && user && shareCode && showShare && (
+        {view === "share" && user && shareCode && showShare && !paywalled && (
           <div>
             <Top title={t("share.titleQr")} onBack={() => setView("shopHome")} />
             <QrShare
@@ -482,6 +520,138 @@ export function MechanicsApp() {
           {toast}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ProviderPaywall({
+  user,
+  t,
+  onStartTrial,
+  onSubscribe,
+}: {
+  user: User;
+  t: TranslateFn;
+  onStartTrial: () => void;
+  onSubscribe: () => void;
+}) {
+  const plan = planForRole(user.role);
+  if (!plan) return null;
+  const planName = t(user.role === "shop" ? "pay.plan.shop" : "pay.plan.independent");
+  const canTrial = canStartTrial(user);
+  return (
+    <div className="mx-auto max-w-[430px] pt-1" data-provider-paywall={user.role}>
+      <div className="rounded-2xl border border-accent/40 bg-linear-to-br from-accent/15 to-surface p-5">
+        <span className="inline-flex rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-bold text-ink">
+          {planName}
+        </span>
+        <h1 className="mt-3 text-2xl font-semibold leading-tight text-fg">
+          {t("pay.title", { plan: planName })}
+        </h1>
+        <p className="mt-2 text-sm text-muted">{t("pay.blurb")}</p>
+        <p className="mt-4 text-3xl font-bold text-fg">{t("pay.price", { price: plan.priceMonthly })}</p>
+        <ul className="mt-4 space-y-2">
+          {plan.featureKeys.map((key) => (
+            <li key={key} className="flex items-start gap-2 text-sm text-fg">
+              <Check className="mt-0.5 size-4 shrink-0 text-accent" />
+              <span>{t(key as MessageKey)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="mt-4 space-y-2.5">
+        {canTrial ? (
+          <button
+            type="button"
+            onClick={onStartTrial}
+            className="h-12 w-full rounded-xl bg-accent font-semibold text-ink"
+          >
+            {t("pay.startTrial", { days: TRIAL_DAYS })}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onSubscribe}
+          className={
+            canTrial
+              ? "h-12 w-full rounded-xl border border-line bg-surface font-semibold text-fg"
+              : "h-12 w-full rounded-xl bg-accent font-semibold text-ink"
+          }
+        >
+          {t("pay.subscribe", { price: plan.priceMonthly })}
+        </button>
+        {canTrial ? (
+          <p className="text-center text-xs text-dim">{t("pay.trialLine", { days: TRIAL_DAYS })}</p>
+        ) : null}
+        <p className="pt-1 text-center text-xs text-dim">{t("pay.customerFree")}</p>
+      </div>
+    </div>
+  );
+}
+
+function TrialBanner({
+  user,
+  t,
+  onSubscribe,
+}: {
+  user: User;
+  t: TranslateFn;
+  onSubscribe: () => void;
+}) {
+  const days = trialDaysLeft(user);
+  return (
+    <div
+      className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-2.5"
+      data-trial-banner=""
+    >
+      <span className="text-sm font-semibold text-fg">
+        {days <= 0 ? t("pay.trialLast") : t("pay.trialLeft", { days })}
+      </span>
+      <button
+        type="button"
+        onClick={onSubscribe}
+        className="h-9 shrink-0 rounded-lg bg-accent px-3 text-sm font-semibold text-ink"
+      >
+        {t("pay.subscribeShort")}
+      </button>
+    </div>
+  );
+}
+
+function ProviderPlanCard({
+  user,
+  t,
+  onSubscribe,
+}: {
+  user: User;
+  t: TranslateFn;
+  onSubscribe: () => void;
+}) {
+  if (!requiresSubscription(user.role)) return null;
+  const access = subscriptionAccess(user);
+  const line =
+    access === "active"
+      ? t("pay.account.active")
+      : access === "trialing"
+        ? t("pay.account.trialing", { days: trialDaysLeft(user) })
+        : t("pay.account.locked");
+  return (
+    <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-plan-card={access}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-dim">{t("pay.account.title")}</p>
+          <p className="mt-0.5 text-sm font-semibold text-fg">{line}</p>
+        </div>
+        {access !== "active" ? (
+          <button
+            type="button"
+            onClick={onSubscribe}
+            className="h-10 shrink-0 rounded-xl bg-accent px-4 text-sm font-semibold text-ink"
+          >
+            {t("pay.account.manage")}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -2446,6 +2616,17 @@ function Account({
         ? t("account.indyMech")
         : t("account.customer");
 
+  async function subscribeFromAccount() {
+    const res = await Store.startSubscription(user, "subscribe");
+    if (res.ok) {
+      onSaved(res.user);
+      flash(t("toast.subscribed"));
+      bump();
+    } else {
+      flash(translateStoreError(locale, res.error));
+    }
+  }
+
   if (settingsOpen) {
     return (
       <div data-account-settings="">
@@ -2486,6 +2667,7 @@ function Account({
           </div>
         </div>
       </div>
+      <ProviderPlanCard user={user} t={t} onSubscribe={subscribeFromAccount} />
       <div className="mt-3 rounded-xl border border-line bg-surface p-4">
         <PhotoPicker
           slot={PROFILE_PHOTO_SLOT}

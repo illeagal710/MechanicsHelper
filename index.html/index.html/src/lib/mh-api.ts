@@ -41,6 +41,13 @@ export const mhRotateCode = createServerFn({ method: "POST" })
     return db.rotateCustomerCode(data.userId);
   });
 
+export const mhStartSubscription = createServerFn({ method: "POST" })
+  .validator((d: { userId: string; mode: "trial" | "subscribe" }) => d)
+  .handler(async ({ data }) => {
+    const db = await import("./mh-db.server");
+    return db.startSubscription(data.userId, data.mode);
+  });
+
 export const mhUpdateShop = createServerFn({ method: "POST" })
   .validator(
     (d: {
