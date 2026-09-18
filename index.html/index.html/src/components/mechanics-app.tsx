@@ -54,6 +54,7 @@ import { resolveBookingProvider } from "@/lib/booking-provider";
 import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
 import {
   PIPELINE_STATUSES,
+  canCustomerCancel,
   canDeclineStatus,
   declineReasonFromNotes,
   searchJobs,
@@ -389,7 +390,7 @@ export function MechanicsApp() {
           />
         )}
         {view === "job" && selectedId && (
-          <JobDetail id={selectedId} shop={false} onBack={() => setView("track")} bump={bump} tick={tick} />
+          <JobDetail id={selectedId} shop={false} user={user || undefined} onBack={() => setView("track")} bump={bump} flash={flash} tick={tick} />
         )}
         {view === "diagnose" && (
           <Diagnose
@@ -1778,6 +1779,8 @@ function JobDetail({
   const { locale, t } = useI18n();
   const [posting, setPosting] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [rescheduling, setRescheduling] = useState(false);
+  const [busyAction, setBusyAction] = useState(false);
   void tick;
   const job = Store.load().jobs.find((j) => j.id === id);
 
@@ -1861,6 +1864,83 @@ function JobDetail({
               </p>
             </div>
           </div>
+          {!shop && canCustomerCancel(job.status) ? (
+            <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-customer-actions="">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.manageTitle")}</p>
+              {!rescheduling ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRescheduling(true)}
+                    className="h-11 rounded-xl border border-line bg-surface2 font-semibold"
+                    data-reschedule=""
+                  >
+                    {t("job.reschedule")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyAction}
+                    data-cancel-appointment=""
+                    onClick={async () => {
+                      if (busyAction) return;
+                      if (typeof window !== "undefined" && !window.confirm(t("job.cancelConfirm"))) return;
+                      setBusyAction(true);
+                      const res = await Store.cancelJob(job.id);
+                      setBusyAction(false);
+                      if (!res.ok) {
+                        flash?.(translateStoreError(locale, res.error));
+                        return;
+                      }
+                      flash?.(t("toast.canceled"));
+                      bump();
+                    }}
+                    className="h-11 rounded-xl border border-danger/40 bg-danger/10 font-semibold text-danger disabled:opacity-60"
+                  >
+                    {t("job.cancel")}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <p className="mb-2 text-sm text-muted">{t("job.pickNewTime")}</p>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    {Store.openSlots(job.providerId).slice(0, 9).map((d) => (
+                      <button
+                        key={d.toISOString()}
+                        type="button"
+                        disabled={busyAction}
+                        onClick={async () => {
+                          if (busyAction) return;
+                          setBusyAction(true);
+                          const res = await Store.rescheduleJob(job.id, d.toISOString());
+                          setBusyAction(false);
+                          if (!res.ok) {
+                            flash?.(translateStoreError(locale, res.error));
+                            return;
+                          }
+                          setRescheduling(false);
+                          flash?.(t("toast.rescheduled"));
+                          bump();
+                        }}
+                        className="rounded-xl border border-line bg-bg2 p-2 text-xs font-semibold disabled:opacity-60"
+                      >
+                        {fmtWhen(d.toISOString(), dates)}
+                      </button>
+                    ))}
+                  </div>
+                  {Store.openSlots(job.providerId).length === 0 ? (
+                    <p className="mt-1 text-sm text-muted">{t("job.noSlots")}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setRescheduling(false)}
+                    className="mt-3 text-sm font-semibold text-muted underline"
+                  >
+                    {t("nav.back")}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : null}
           {(shop || bayFilled) ? (
           <div
             className="mt-3 rounded-xl border border-line bg-surface p-4"
