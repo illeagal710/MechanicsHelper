@@ -82,7 +82,7 @@ export function QrShare({
   <img src="${png}" alt="QR" />
   <div class="code">${safeCode}</div>
   <p class="hint">${hint}</p>
-  <script>window.onload = function () { window.print(); }<\/script>
+  <script>window.onload = function () { window.print(); }</${"script"}>
 </body></html>`);
     win.document.close();
   }

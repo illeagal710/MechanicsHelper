@@ -11,6 +11,11 @@ import {
   declineNoteText,
   declineReasonFromNotes,
   declinedMailContent,
+  applyCancel,
+  canCustomerCancel,
+  canManageAppointment,
+  CANCEL_LEAD_MS,
+  CANCEL_TOO_LATE,
   historyJobs,
   isTerminalStatus,
   jobMatchesQuery,
@@ -214,6 +219,42 @@ test("searchJobs filters a list and keeps order; blank returns all", () => {
   assert.deepEqual(searchJobs(list, "toyota"), [other]);
   assert.deepEqual(searchJobs(list, "honda"), [searchJob]);
   assert.deepEqual(searchJobs(list, "zzz"), []);
+});
+
+test("a customer can cancel only before work starts", () => {
+  assert.equal(canCustomerCancel("scheduled"), true);
+  assert.equal(canCustomerCancel("enroute"), true);
+  assert.equal(canCustomerCancel("checkedin"), false);
+  assert.equal(canCustomerCancel("repair"), false);
+  assert.equal(canCustomerCancel("done"), false);
+});
+
+test("applyCancel marks the job canceled with a customer note", () => {
+  const res = applyCancel(job({ id: "MH-7", status: "scheduled" }), 42);
+  assert.equal(res.ok, true);
+  if (res.ok) {
+    assert.equal(res.job.status, "canceled");
+    assert.equal(isTerminalStatus(res.job.status), true);
+    assert.equal(res.job.notes?.at(-1)?.by, "customer");
+  }
+});
+
+test("applyCancel refuses once the vehicle is checked in", () => {
+  const res = applyCancel(job({ id: "MH-8", status: "checkedin" }));
+  assert.equal(res.ok, false);
+});
+
+test("customers cannot cancel or reschedule inside the 1-hour window", () => {
+  const now = Date.parse("2026-09-18T12:00:00.000Z");
+  const tooSoon = new Date(now + 30 * 60 * 1000).toISOString();
+  const farEnough = new Date(now + CANCEL_LEAD_MS).toISOString();
+  const later = new Date(now + CANCEL_LEAD_MS + 60 * 1000).toISOString();
+  assert.equal(canManageAppointment(job({ id: "MH-9", status: "scheduled", slot: tooSoon }), now), false);
+  assert.equal(canManageAppointment(job({ id: "MH-9", status: "scheduled", slot: farEnough }), now), true);
+  const late = applyCancel(job({ id: "MH-9", status: "scheduled", slot: tooSoon }), now);
+  assert.deepEqual(late, { ok: false, error: CANCEL_TOO_LATE });
+  const ok = applyCancel(job({ id: "MH-9", status: "scheduled", slot: later }), now);
+  assert.equal(ok.ok, true);
 });
 
 test("declined mail body stays bilingual and includes job id", () => {

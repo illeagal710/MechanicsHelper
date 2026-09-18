@@ -17,14 +17,10 @@ import {
 } from "./i18n.ts";
 
 test("landing welcome body uses Leon QR/referral copy in English and Spanish", () => {
-  assert.equal(
-    translate("en", "welcome.body"),
-    "Customers track repairs. Shops and independents each get a QR or referral code so people land on the right bay.",
-  );
-  assert.equal(
-    translate("es", "welcome.body"),
-    "Los clientes siguen las reparaciones. Cada taller e independiente recibe un QR o un código de referido para que la gente llegue al lugar correcto.",
-  );
+  assert.match(translate("en", "welcome.body"), /QR or referral code/);
+  assert.match(translate("en", "welcome.body"), /mobile or independent/i);
+  assert.match(translate("es", "welcome.body"), /QR o un código de referido/);
+  assert.match(translate("es", "welcome.body"), /móvil o independiente/i);
   assert.doesNotMatch(translate("en", "welcome.body"), /find code/i);
   assert.doesNotMatch(translate("es", "welcome.body"), /comparten un código/);
 });
@@ -56,6 +52,12 @@ test("store errors and known notes translate without changing source text", () =
   assert.equal(translateNote("es", "Booking declined."), "Cita rechazada.");
   assert.equal(translateNote("es", "Booking declined: Bay is full."), "Cita rechazada: Bay is full.");
   assert.equal(translateDetail("es", "Mobile mechanic"), "Mecánico a domicilio");
+  assert.equal(translateDetail("es", "Independent mechanic"), "Mecánico independiente");
+  assert.equal(translateStoreError("es", "That find code is already taken."), "Ese código ya está en uso.");
+  assert.equal(
+    translateStoreError("es", "It's too close to the appointment to cancel or reschedule in the app. Call the shop."),
+    "Es demasiado cerca de la cita para cancelar o reprogramar en la app. Llama al taller.",
+  );
 });
 
 test("status labels stay distinct between shop and customer", () => {

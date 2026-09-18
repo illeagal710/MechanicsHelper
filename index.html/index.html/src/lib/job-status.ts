@@ -10,12 +10,23 @@ export const PIPELINE_STATUSES = [
   "done",
 ] as const;
 
-export const TERMINAL_STATUSES = ["done", "declined"] as const;
+export const TERMINAL_STATUSES = ["done", "declined", "canceled"] as const;
 
 /** Incoming bookings the shop can decline (not mid-repair). */
 export const DECLINABLE_STATUSES = ["scheduled", "enroute"] as const;
 
-export const ALL_STATUSES = [...PIPELINE_STATUSES, "declined"] as const;
+/** Appointments a customer can still cancel or reschedule (before work starts). */
+export const CUSTOMER_CANCELABLE_STATUSES = ["scheduled", "enroute"] as const;
+
+/** Customers must leave at least this much time before the slot to cancel/reschedule in-app. */
+export const CANCEL_LEAD_MS = 60 * 60 * 1000;
+
+export const CANCEL_TOO_LATE =
+  "It's too close to the appointment to cancel or reschedule in the app. Call the shop.";
+export const CANCEL_CLOSED = "This appointment can no longer be canceled.";
+export const RESCHEDULE_CLOSED = "This appointment can no longer be rescheduled.";
+
+export const ALL_STATUSES = [...PIPELINE_STATUSES, "declined", "canceled"] as const;
 
 export type PipelineStatus = (typeof PIPELINE_STATUSES)[number];
 export type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
@@ -58,6 +69,50 @@ export function occupiesSlot(status: string): boolean {
 export function canDeclineStatus(status: string): boolean {
   return (DECLINABLE_STATUSES as readonly string[]).includes(status);
 }
+
+/** Whether a customer may still cancel or reschedule this appointment by status. */
+export function canCustomerCancel(status: string): boolean {
+  return (CUSTOMER_CANCELABLE_STATUSES as readonly string[]).includes(status);
+}
+
+/** True when the slot is at least one hour away. */
+export function withinCancelWindow(slotIso: string, now = Date.now()): boolean {
+  const t = new Date(slotIso).getTime();
+  if (!Number.isFinite(t)) return false;
+  return t - now >= CANCEL_LEAD_MS;
+}
+
+/** Status + 1-hour lead time. Use this for the customer Manage buttons. */
+export function canManageAppointment(
+  job: Pick<JobLike, "status" | "slot">,
+  now = Date.now(),
+): boolean {
+  return canCustomerCancel(job.status) && withinCancelWindow(job.slot, now);
+}
+
+export const CANCEL_NOTE = "Appointment canceled by the customer.";
+
+export type CancelResult<T extends JobLike> =
+  | { ok: true; job: T }
+  | { ok: false; error: string };
+
+/** Customer-initiated cancellation. Terminal, like a decline. */
+export function applyCancel<T extends JobLike>(job: T, at = Date.now()): CancelResult<T> {
+  if (!canCustomerCancel(job.status)) {
+    return { ok: false, error: CANCEL_CLOSED };
+  }
+  if (!withinCancelWindow(job.slot, at)) {
+    return { ok: false, error: CANCEL_TOO_LATE };
+  }
+  const next: T = {
+    ...job,
+    status: "canceled",
+    notes: [...(job.notes || []), { at, text: CANCEL_NOTE, by: "customer" }],
+  };
+  return { ok: true, job: next };
+}
+
+export const RESCHEDULE_NOTE = "Appointment rescheduled by the customer.";
 
 export function jobOccupiesSlot(
   job: Pick<JobLike, "providerId" | "status" | "slot">,

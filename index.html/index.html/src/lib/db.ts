@@ -230,6 +230,17 @@ const globalBoot = globalThis as typeof globalThis & {
   __pgBootstrapPromise__?: Promise<void>;
 };
 if (typeof window === "undefined" && dbSource === "pglite") {
+  // A deployed server on the in-memory PGLite fallback loses every account and
+  // job on each restart/redeploy. That is fine for local preview but almost
+  // never intended in production — make it loud so a missing DATABASE_URL is
+  // caught before real testers rely on data sticking around.
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      "[db] WARNING: DATABASE_URL is not set — running on the in-memory PGLite " +
+        "fallback. All accounts and jobs will be LOST on the next restart or " +
+        "deploy. Set DATABASE_URL (Neon Postgres) for a persistent database.",
+    );
+  }
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
     console.error("[db] PGLite bootstrap failed:", err);

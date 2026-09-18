@@ -40,6 +40,7 @@ import {
   Store,
   BIO_MAX,
   DAY_BITS,
+  soloMechanicDetail,
   type Job,
   type Provider,
   type Role,
@@ -54,6 +55,8 @@ import { resolveBookingProvider } from "@/lib/booking-provider";
 import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
 import {
   PIPELINE_STATUSES,
+  canCustomerCancel,
+  canManageAppointment,
   canDeclineStatus,
   declineReasonFromNotes,
   searchJobs,
@@ -389,7 +392,7 @@ export function MechanicsApp() {
           />
         )}
         {view === "job" && selectedId && (
-          <JobDetail id={selectedId} shop={false} onBack={() => setView("track")} bump={bump} tick={tick} />
+          <JobDetail id={selectedId} shop={false} user={user || undefined} onBack={() => setView("track")} bump={bump} flash={flash} tick={tick} />
         )}
         {view === "diagnose" && (
           <Diagnose
@@ -443,6 +446,17 @@ export function MechanicsApp() {
                 bump();
               }}
             />
+            {canRotateFindCode(user) ? (
+              <ClaimFindCode
+                user={user}
+                onClaimed={(code) => {
+                  setUser(Store.getSession());
+                  flash(t("toast.newCode", { code }));
+                  bump();
+                }}
+                onErr={flash}
+              />
+            ) : null}
           </div>
         )}
         {view === "account" && user && (
@@ -543,6 +557,56 @@ function Top({
       <h2 className="min-w-0 flex-1 text-lg font-semibold">{title}</h2>
       {action ?? null}
     </div>
+  );
+}
+
+function ClaimFindCode({
+  user,
+  onClaimed,
+  onErr,
+}: {
+  user: User;
+  onClaimed: (code: string) => void;
+  onErr: (s: string) => void;
+}) {
+  const { locale, t } = useI18n();
+  const [desired, setDesired] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="mt-3 rounded-xl border border-line bg-surface p-4"
+      data-claim-code=""
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        setBusy(true);
+        const res = await Store.claimCustomerCode(user, desired);
+        setBusy(false);
+        if (!res.ok) return onErr(translateStoreError(locale, res.error));
+        setDesired("");
+        onClaimed(res.code);
+      }}
+    >
+      <Field label={t("share.pickCode")}>
+        <input
+          className={inputClass}
+          value={desired}
+          onChange={(e) => setDesired(e.target.value.toUpperCase())}
+          placeholder={t("share.pickCodePh")}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+      </Field>
+      <button
+        type="submit"
+        disabled={busy || !desired.trim()}
+        className="mt-3 h-11 w-full rounded-xl bg-accent font-semibold text-ink disabled:opacity-60"
+      >
+        {t("share.useCode")}
+      </button>
+      <p className="mt-2 text-xs text-dim">{t("share.pickCodeHint")}</p>
+    </form>
   );
 }
 
@@ -1130,6 +1194,7 @@ function Register({
           shopJoin: join,
           shopName: String(fd.get("shopName") || ""),
           shopCode: String(fd.get("shopCode") || ""),
+          findCode: String(fd.get("findCode") || ""),
           businessName: String(fd.get("biz") || ""),
           serviceMode: (String(fd.get("mode") || "both") as User["serviceMode"]),
         });
@@ -1163,6 +1228,7 @@ function Register({
           </button>
         ))}
       </div>
+      {role === "independent" ? <p className="text-sm text-muted">{t("register.roleHint")}</p> : null}
       {role === "shop" && (
         <>
           <div className="flex rounded-xl bg-bg2 p-1">
@@ -1174,9 +1240,15 @@ function Register({
             </button>
           </div>
           {join === "create" ? (
+            <>
             <Field label={t("register.shopName")}>
               <input name="shopName" className={inputClass} placeholder={t("register.shopNamePh")} />
             </Field>
+            <Field label={t("register.findCode")}>
+              <input name="findCode" className={inputClass} placeholder={t("register.findCodePh")} autoCapitalize="characters" />
+            </Field>
+            <p className="-mt-1 text-xs text-dim">{t("register.findCodeHint")}</p>
+            </>
           ) : (
             <Field label={t("register.shopCode")}>
               <input name="shopCode" className={inputClass} placeholder={t("register.shopCodePh")} />
@@ -1196,6 +1268,10 @@ function Register({
               <option value="both">{t("register.modeBoth")}</option>
             </select>
           </Field>
+          <Field label={t("register.findCode")}>
+            <input name="findCode" className={inputClass} placeholder={t("register.findCodePh")} autoCapitalize="characters" />
+          </Field>
+          <p className="-mt-1 text-xs text-dim">{t("register.findCodeHint")}</p>
         </>
       )}
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
@@ -1778,6 +1854,8 @@ function JobDetail({
   const { locale, t } = useI18n();
   const [posting, setPosting] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [rescheduling, setRescheduling] = useState(false);
+  const [busyAction, setBusyAction] = useState(false);
   void tick;
   const job = Store.load().jobs.find((j) => j.id === id);
 
@@ -1861,6 +1939,91 @@ function JobDetail({
               </p>
             </div>
           </div>
+          {!shop && canCustomerCancel(job.status) ? (
+            <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-customer-actions="">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.manageTitle")}</p>
+              {canManageAppointment(job) ? (
+              <>
+              {!rescheduling ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRescheduling(true)}
+                    className="h-11 rounded-xl border border-line bg-surface2 font-semibold"
+                    data-reschedule=""
+                  >
+                    {t("job.reschedule")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyAction}
+                    data-cancel-appointment=""
+                    onClick={async () => {
+                      if (busyAction) return;
+                      if (typeof window !== "undefined" && !window.confirm(t("job.cancelConfirm"))) return;
+                      setBusyAction(true);
+                      const res = await Store.cancelJob(job.id);
+                      setBusyAction(false);
+                      if (!res.ok) {
+                        flash?.(translateStoreError(locale, res.error));
+                        return;
+                      }
+                      flash?.(t("toast.canceled"));
+                      bump();
+                    }}
+                    className="h-11 rounded-xl border border-danger/40 bg-danger/10 font-semibold text-danger disabled:opacity-60"
+                  >
+                    {t("job.cancel")}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <p className="mb-2 text-sm text-muted">{t("job.pickNewTime")}</p>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    {Store.openSlots(job.providerId).slice(0, 9).map((d) => (
+                      <button
+                        key={d.toISOString()}
+                        type="button"
+                        disabled={busyAction}
+                        onClick={async () => {
+                          if (busyAction) return;
+                          setBusyAction(true);
+                          const res = await Store.rescheduleJob(job.id, d.toISOString());
+                          setBusyAction(false);
+                          if (!res.ok) {
+                            flash?.(translateStoreError(locale, res.error));
+                            return;
+                          }
+                          setRescheduling(false);
+                          flash?.(t("toast.rescheduled"));
+                          bump();
+                        }}
+                        className="rounded-xl border border-line bg-bg2 p-2 text-xs font-semibold disabled:opacity-60"
+                      >
+                        {fmtWhen(d.toISOString(), dates)}
+                      </button>
+                    ))}
+                  </div>
+                  {Store.openSlots(job.providerId).length === 0 ? (
+                    <p className="mt-1 text-sm text-muted">{t("job.noSlots")}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setRescheduling(false)}
+                    className="mt-3 text-sm font-semibold text-muted underline"
+                  >
+                    {t("nav.back")}
+                  </button>
+                </div>
+              )}
+              </>
+              ) : (
+                <p className="mt-3 text-sm leading-relaxed text-muted" data-cancel-too-late="">
+                  {t("job.cancelTooLate")}
+                </p>
+              )}
+            </div>
+          ) : null}
           {(shop || bayFilled) ? (
           <div
             className="mt-3 rounded-xl border border-line bg-surface p-4"
@@ -2557,7 +2720,7 @@ function Account({
         ? t("account.shopOwner")
         : t("account.shopTech")
       : user.role === "independent"
-        ? t("account.indyMech")
+        ? translateDetail(locale, soloMechanicDetail(user.serviceMode))
         : t("account.customer");
 
   if (settingsOpen) {

@@ -23,7 +23,7 @@ function matchProvider(providers: Provider[], id: string | undefined, type?: Pro
   return providers.find((p) => p.id === id) || null;
 }
 
-function customerOwnsJob(
+export function customerOwnsJob(
   user: Pick<User, "id" | "email" | "phone">,
   job: Pick<Job, "userId" | "email" | "phone">,
 ) {
