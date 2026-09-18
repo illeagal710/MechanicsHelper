@@ -25,6 +25,7 @@ export const mhRegister = createServerFn({ method: "POST" })
       shopJoin?: string;
       shopName?: string;
       shopCode?: string;
+      findCode?: string;
       businessName?: string;
       serviceMode?: User["serviceMode"];
     }) => d,
@@ -42,6 +43,16 @@ export const mhRotateCode = createServerFn({ method: "POST" })
     if (!uid) return "";
     const db = await import("./mh-db.server");
     return db.rotateCustomerCode(uid);
+  });
+
+export const mhClaimCode = createServerFn({ method: "POST" })
+  .validator((d: { desired: string; authToken?: string }) => d)
+  .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
+    const db = await import("./mh-db.server");
+    return db.claimCustomerCode(uid, data.desired);
   });
 
 export const mhUpdateShop = createServerFn({ method: "POST" })

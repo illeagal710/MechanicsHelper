@@ -12,6 +12,7 @@ import {
   mhRequestPasswordReset,
   mhResetPassword,
   mhRotateCode,
+  mhClaimCode,
   mhUpdateIndy,
   mhUpdateJob,
   mhUpdateUserPhoto,
@@ -29,6 +30,14 @@ import {
 } from "@/lib/customer-vehicles";
 import { TIME_12H } from "@/lib/i18n";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
+
+export function soloMechanicDetail(
+  mode?: "mobile" | "shop" | "both",
+): "Mobile mechanic" | "Independent mechanic" | "Mobile or drop-off" {
+  if (mode === "shop") return "Independent mechanic";
+  if (mode === "mobile") return "Mobile mechanic";
+  return "Mobile or drop-off";
+}
 
 export type Role = "customer" | "shop" | "independent";
 
@@ -248,7 +257,7 @@ function providersFrom(data: DB): Provider[] {
           u.serviceMode === "mobile"
             ? "Mobile mechanic"
             : u.serviceMode === "shop"
-              ? "Independent shop"
+              ? "Independent mechanic"
               : "Mobile or drop-off",
         code: u.code || "",
         bio: u.bio || "",
@@ -507,6 +516,7 @@ export const Store = {
     shopJoin?: string;
     shopName?: string;
     shopCode?: string;
+    findCode?: string;
     businessName?: string;
     serviceMode?: User["serviceMode"];
   }) {
@@ -525,6 +535,14 @@ export const Store = {
     const fresh = this.getSession();
     if (fresh) this.setSession(fresh);
     return next;
+  },
+
+  async claimCustomerCode(user: User, desired: string) {
+    const res = await mhClaimCode({ data: { desired, authToken: this.getToken() } });
+    await this.hydrate();
+    const fresh = this.getSession();
+    if (fresh) this.setSession(fresh);
+    return res;
   },
 
   async updateShopProfile(

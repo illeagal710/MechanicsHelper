@@ -13,6 +13,9 @@ import {
   declinedMailContent,
   applyCancel,
   canCustomerCancel,
+  canManageAppointment,
+  CANCEL_LEAD_MS,
+  CANCEL_TOO_LATE,
   historyJobs,
   isTerminalStatus,
   jobMatchesQuery,
@@ -239,6 +242,19 @@ test("applyCancel marks the job canceled with a customer note", () => {
 test("applyCancel refuses once the vehicle is checked in", () => {
   const res = applyCancel(job({ id: "MH-8", status: "checkedin" }));
   assert.equal(res.ok, false);
+});
+
+test("customers cannot cancel or reschedule inside the 1-hour window", () => {
+  const now = Date.parse("2026-09-18T12:00:00.000Z");
+  const tooSoon = new Date(now + 30 * 60 * 1000).toISOString();
+  const farEnough = new Date(now + CANCEL_LEAD_MS).toISOString();
+  const later = new Date(now + CANCEL_LEAD_MS + 60 * 1000).toISOString();
+  assert.equal(canManageAppointment(job({ id: "MH-9", status: "scheduled", slot: tooSoon }), now), false);
+  assert.equal(canManageAppointment(job({ id: "MH-9", status: "scheduled", slot: farEnough }), now), true);
+  const late = applyCancel(job({ id: "MH-9", status: "scheduled", slot: tooSoon }), now);
+  assert.deepEqual(late, { ok: false, error: CANCEL_TOO_LATE });
+  const ok = applyCancel(job({ id: "MH-9", status: "scheduled", slot: later }), now);
+  assert.equal(ok.ok, true);
 });
 
 test("declined mail body stays bilingual and includes job id", () => {

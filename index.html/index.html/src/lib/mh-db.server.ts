@@ -6,13 +6,17 @@ import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.se
 import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
 import {
+  CANCEL_TOO_LATE,
+  RESCHEDULE_CLOSED,
   RESCHEDULE_NOTE,
   applyCancel,
   applyDecline,
   canCustomerCancel,
+  canManageAppointment,
   slotTakenAmong,
 } from "@/lib/job-status";
 import { customerOwnsJob } from "@/lib/booking-provider";
+import { claimFindCode, FIND_CODE_TAKEN, generateFindCode } from "@/lib/find-code";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode } from "@/lib/shop-role";
@@ -25,12 +29,6 @@ const LEON_BIO =
 
 export const BIO_MAX = 320;
 
-function shopCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s = "";
-  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
-}
 
 function slotDays(days: number, hhmm: string) {
   const d = new Date();
@@ -135,15 +133,25 @@ async function usedCodes() {
 
 export async function uniqueCode() {
   const used = await usedCodes();
-  let c = shopCode();
-  while (used.has(c)) c = shopCode();
+  let c = generateFindCode();
+  while (used.has(c)) c = generateFindCode();
   return c;
+}
+
+async function allocateCode(preferred: string | undefined, used: Set<string>, current?: string) {
+  const raw = String(preferred || "").trim();
+  if (!raw) {
+    let c = generateFindCode();
+    while (used.has(c) || (current && c === current)) c = generateFindCode();
+    return { ok: true as const, code: c };
+  }
+  return claimFindCode(raw, used, current);
 }
 
 export async function ensureSeeded() {
   const sql = await getSql();  const live = Boolean(process.env.DATABASE_URL?.trim()) && process.env.SEED_DEMO !== "1";
   if (live) {
-    await sql.query("delete from mh_jobs where id in ('MH-4821','MH-4822','MH-1094') or provider_id in ('s-main','u-indy') or user_id in ('u-maya','u-shop','u-alex','u-indy')");
+    await sql.query("delete from mh_jobs where id in ('MH-4821','MH-4822','MH-4823','MH-4824','MH-1094') or provider_id in ('s-main','u-indy') or user_id in ('u-maya','u-shop','u-alex','u-indy')");
     await sql.query("delete from mh_users where id in ('u-maya','u-shop','u-alex','u-indy') or email in ('maya@example.com','shop@example.com','alex@example.com','indy@example.com')");
     await sql.query("delete from mh_shops where id = 's-main' or code = 'RIV4'");
     return;
@@ -301,6 +309,24 @@ export async function ensureSeeded() {
       slot: slotDays(2, "13:00"),
       status: "scheduled",
       notes: [{ at: now - 3600000, text: "Booked from customer app.", by: "system" }],
+    },
+    {
+      id: "MH-4824",
+      createdAt: now - 1800000,
+      providerId: "s-main",
+      providerType: "shop",
+      providerName: "Riverside Auto",
+      assignedTo: "",
+      name: "Maya Chen",
+      phone: "5550148821",
+      email: "maya@example.com",
+      year: "2014",
+      make: "Toyota",
+      model: "Corolla",
+      symptoms: "Squeak when turning into the driveway.",
+      slot: new Date(now + 25 * 60 * 1000).toISOString(),
+      status: "scheduled",
+      notes: [{ at: now - 1800000, text: "Booked from customer app.", by: "system" }],
     },
   ];
   for (const j of jobs) {
@@ -487,6 +513,7 @@ export async function register(fields: {
   shopJoin?: string;
   shopName?: string;
   shopCode?: string;
+  findCode?: string;
   businessName?: string;
   serviceMode?: User["serviceMode"];
 }) {
@@ -527,10 +554,13 @@ export async function register(fields: {
       await sql.query("update mh_shops set techs_json = $2 where id = $1", [shop.id, JSON.stringify(shop.techs)]);
     } else {
       const shopName = String(fields.shopName || "").trim() || user.name + "'s Shop";
+      const used = await usedCodes();
+      const allocated = await allocateCode(fields.findCode, used);
+      if (!allocated.ok) return allocated;
       const shop: Shop = {
         id: "s-" + Math.random().toString(36).slice(2, 7),
         name: shopName,
-        code: await uniqueCode(),
+        code: allocated.code,
         ownerId: user.id,
         techs: [user.name],
         bio: "",
@@ -547,7 +577,10 @@ export async function register(fields: {
   if (role === "independent") {
     user.businessName = String(fields.businessName || "").trim() || user.name;
     user.serviceMode = fields.serviceMode || "both";
-    user.code = await uniqueCode();
+    const used = await usedCodes();
+    const allocated = await allocateCode(fields.findCode, used);
+    if (!allocated.ok) return allocated;
+    user.code = allocated.code;
     user.bio = "";
   }
   await sql.query(
@@ -588,6 +621,35 @@ export async function rotateCustomerCode(userId: string) {
     return next;
   }
   return "";
+}
+
+export async function claimCustomerCode(userId: string, desired: string) {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user || !canRotateFindCode(user)) {
+    return { ok: false as const, error: "Only the shop owner can edit this." };
+  }
+  const used = await usedCodes();
+  let current = "";
+  if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
+    current = board.shops.find((s) => s.id === user.shopId)?.code || "";
+  } else if (user.role === "independent") {
+    current = user.code || "";
+  }
+  if (current) used.delete(current);
+  const allocated = await allocateCode(desired, used, current);
+  if (!allocated.ok) return allocated;
+  if (allocated.code === current) return { ok: true as const, code: current };
+  const sql = await getSql();
+  if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
+    await sql.query("update mh_shops set code = $2 where id = $1", [user.shopId, allocated.code]);
+    return { ok: true as const, code: allocated.code };
+  }
+  if (user.role === "independent") {
+    await sql.query("update mh_users set code = $2 where id = $1", [user.id, allocated.code]);
+    return { ok: true as const, code: allocated.code };
+  }
+  return { ok: false as const, error: FIND_CODE_TAKEN };
 }
 
 function profilePhotoFrom(patch: { photo?: string; profilePhoto?: string }) {
@@ -967,7 +1029,10 @@ export async function rescheduleJob(id: string, slotIso: string, actorUserId: st
     return { ok: false as const, error: "You can only reschedule your own appointment." };
   }
   if (!canCustomerCancel(job.status)) {
-    return { ok: false as const, error: "This appointment can no longer be rescheduled." };
+    return { ok: false as const, error: RESCHEDULE_CLOSED };
+  }
+  if (!canManageAppointment(job)) {
+    return { ok: false as const, error: CANCEL_TOO_LATE };
   }
   const when = new Date(slotIso);
   if (!Number.isFinite(when.getTime()) || when.getTime() < Date.now()) {
