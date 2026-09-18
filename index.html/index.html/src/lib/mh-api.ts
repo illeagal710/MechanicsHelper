@@ -35,10 +35,13 @@ export const mhRegister = createServerFn({ method: "POST" })
   });
 
 export const mhRotateCode = createServerFn({ method: "POST" })
-  .validator((d: { userId: string }) => d)
+  .validator((d: { userId: string; authToken?: string }) => d)
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return "";
     const db = await import("./mh-db.server");
-    return db.rotateCustomerCode(data.userId);
+    return db.rotateCustomerCode(uid);
   });
 
 export const mhUpdateShop = createServerFn({ method: "POST" })
@@ -59,11 +62,15 @@ export const mhUpdateShop = createServerFn({ method: "POST" })
       serviceArea?: string;
       yearsWrenching?: string;
       address?: string;
+      authToken?: string;
     }) => d,
   )
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
-    return db.updateShopProfile(data.userId, data);
+    return db.updateShopProfile(uid, data);
   });
 
 export const mhUpdateIndy = createServerFn({ method: "POST" })
@@ -85,18 +92,25 @@ export const mhUpdateIndy = createServerFn({ method: "POST" })
       serviceArea?: string;
       yearsWrenching?: string;
       address?: string;
+      authToken?: string;
     }) => d,
   )
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
-    return db.updateIndependentProfile(data.userId, data);
+    return db.updateIndependentProfile(uid, data);
   });
 
 export const mhUpdateUserPhoto = createServerFn({ method: "POST" })
-  .validator((d: { userId: string; profilePhoto: string }) => d)
+  .validator((d: { userId: string; profilePhoto: string; authToken?: string }) => d)
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
-    return db.updateUserPhoto(data.userId, data.profilePhoto);
+    return db.updateUserPhoto(uid, data.profilePhoto);
   });
 
 export const mhAddTech = createServerFn({ method: "POST" })
@@ -123,10 +137,13 @@ export const mhUpdateJob = createServerFn({ method: "POST" })
   });
 
 export const mhSavePush = createServerFn({ method: "POST" })
-  .validator((d: { userId: string; token: string; alertsOn: boolean }) => d)
+  .validator((d: { userId: string; token: string; alertsOn: boolean; authToken?: string }) => d)
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
-    return db.savePushToken(data.userId, data.token, data.alertsOn);
+    return db.savePushToken(uid, data.token, data.alertsOn);
   });
 
 export const mhRequestPasswordReset = createServerFn({ method: "POST" })
@@ -151,10 +168,13 @@ export const mhRecoverUsername = createServerFn({ method: "POST" })
   });
 
 export const mhDeleteAccount = createServerFn({ method: "POST" })
-  .validator((d: { userId: string; password: string }) => d)
+  .validator((d: { userId: string; password: string; authToken?: string }) => d)
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
-    return db.deleteAccount(data.userId, data.password);
+    return db.deleteAccount(uid, data.password);
   });
 
 export const mhAddNote = createServerFn({ method: "POST" })
@@ -169,6 +189,26 @@ export const mhDeclineJob = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const db = await import("./mh-db.server");
     return db.declineJob(data.id, data.reason || "");
+  });
+
+export const mhCancelJob = createServerFn({ method: "POST" })
+  .validator((d: { id: string; authToken?: string }) => d)
+  .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
+    const db = await import("./mh-db.server");
+    return db.cancelJob(data.id, uid);
+  });
+
+export const mhRescheduleJob = createServerFn({ method: "POST" })
+  .validator((d: { id: string; slot: string; authToken?: string }) => d)
+  .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
+    const db = await import("./mh-db.server");
+    return db.rescheduleJob(data.id, data.slot, uid);
   });
 
 export const mhDiagnose = createServerFn({ method: "POST" })

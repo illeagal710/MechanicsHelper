@@ -1,9 +1,18 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
+import { hashPassword, verifyPassword } from "@/lib/password";
+import { signSession } from "@/lib/session-token";
 import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
 import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
-import { applyDecline, slotTakenAmong } from "@/lib/job-status";
+import {
+  RESCHEDULE_NOTE,
+  applyCancel,
+  applyDecline,
+  canCustomerCancel,
+  slotTakenAmong,
+} from "@/lib/job-status";
+import { customerOwnsJob } from "@/lib/booking-provider";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode } from "@/lib/shop-role";
@@ -15,16 +24,6 @@ const LEON_BIO =
   "I come to your driveway. Scan tools, common parts, and straight talk. Nights and weekends if the car is down.";
 
 export const BIO_MAX = 320;
-
-function passHash(s: string) {
-  let h = 2166136261;
-  const str = "mh|" + String(s || "");
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16);
-}
 
 function shopCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -173,10 +172,10 @@ export async function ensureSeeded() {
   ]);
 
   const users: unknown[][] = [
-    ["u-maya", "Maya Chen", "maya@example.com", "5550148821", "customer", passHash("demo123"), null, null, null, null, null, null, ""],
-    ["u-shop", "Shop Desk", "shop@example.com", "5550100000", "shop", passHash("demo123"), "s-main", "Riverside Auto", "owner", null, null, null, ""],
-    ["u-alex", "Alex Ruiz", "alex@example.com", "5550100001", "shop", passHash("demo123"), "s-main", "Riverside Auto", "tech", null, null, null, ""],
-    ["u-indy", "Leon Miles", "indy@example.com", "5550166000", "independent", passHash("demo123"), null, null, null, "Leon Mobile Repair", "mobile", "LEON", LEON_BIO],
+    ["u-maya", "Maya Chen", "maya@example.com", "5550148821", "customer", hashPassword("demo123"), null, null, null, null, null, null, ""],
+    ["u-shop", "Shop Desk", "shop@example.com", "5550100000", "shop", hashPassword("demo123"), "s-main", "Riverside Auto", "owner", null, null, null, ""],
+    ["u-alex", "Alex Ruiz", "alex@example.com", "5550100001", "shop", hashPassword("demo123"), "s-main", "Riverside Auto", "tech", null, null, null, ""],
+    ["u-indy", "Leon Miles", "indy@example.com", "5550166000", "independent", hashPassword("demo123"), null, null, null, "Leon Mobile Repair", "mobile", "LEON", LEON_BIO],
   ];
   for (const u of users) {
     await sql.query(
@@ -336,11 +335,21 @@ export async function findUser(emailOrPhone: string) {
 
 export async function login(emailOrPhone: string, password: string) {
   const user = await findUser(emailOrPhone);
-  if (!user || user.pass !== passHash(password)) {
+  const verdict = user ? verifyPassword(password, user.pass) : { ok: false, needsRehash: false };
+  if (!user || !verdict.ok) {
     return { ok: false as const, error: "Email/phone or password is wrong." };
   }
+  if (verdict.needsRehash) {
+    // Transparently upgrade a legacy (unsalted) hash to salted scrypt on login.
+    try {
+      const sql = await getSql();
+      await sql.query("update mh_users set pass = $2 where id = $1", [user.id, hashPassword(password)]);
+    } catch {
+      /* best-effort upgrade; login still succeeds */
+    }
+  }
   const { pass: _p, ...rest } = user;
-  return { ok: true as const, user: { ...rest, pass: "" } };
+  return { ok: true as const, user: { ...rest, pass: "" }, token: signSession(user.id) };
 }
 
 const RECOVERY_TTL_MS = 15 * 60 * 1000;
@@ -446,7 +455,7 @@ export async function resetPassword(emailOrPhone: string, code: string, password
     return recoveryCodesMatch(String(r.code_hash || ""), rawCode);
   });
   if (!match) return { ok: false as const, error: "That reset code is wrong or expired." };
-  await sql.query("update mh_users set pass = $2 where id = $1", [user.id, passHash(password)]);
+  await sql.query("update mh_users set pass = $2 where id = $1", [user.id, hashPassword(password)]);
   await sql.query("update mh_recovery set used_at = $2 where id = $1", [String(match.id), now]);
   return { ok: true as const };
 }
@@ -502,7 +511,7 @@ export async function register(fields: {
     email: emailL,
     phone: phoneD,
     role,
-    pass: passHash(fields.password),
+    pass: hashPassword(fields.password),
     bio: "",
   };
   if (role === "shop") {
@@ -561,7 +570,7 @@ export async function register(fields: {
     ],
   );
   const { pass: _p, ...rest } = user;
-  return { ok: true as const, user: { ...rest, pass: "" } };
+  return { ok: true as const, user: { ...rest, pass: "" }, token: signSession(user.id) };
 }
 
 export async function rotateCustomerCode(userId: string) {
@@ -930,6 +939,56 @@ export async function declineJob(id: string, reason = "") {
   return { ok: true as const, job, mail };
 }
 
+export async function cancelJob(id: string, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!actor || !customerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "You can only cancel your own appointment." };
+  }
+  const result = applyCancel(job);
+  if (!result.ok) return result;
+  const sql = await getSql();
+  await sql.query("update mh_jobs set status = $2, notes_json = $3 where id = $1", [
+    job.id,
+    result.job.status,
+    JSON.stringify(result.job.notes),
+  ]);
+  return { ok: true as const, job: result.job };
+}
+
+export async function rescheduleJob(id: string, slotIso: string, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!actor || !customerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "You can only reschedule your own appointment." };
+  }
+  if (!canCustomerCancel(job.status)) {
+    return { ok: false as const, error: "This appointment can no longer be rescheduled." };
+  }
+  const when = new Date(slotIso);
+  if (!Number.isFinite(when.getTime()) || when.getTime() < Date.now()) {
+    return { ok: false as const, error: "Pick a valid upcoming time." };
+  }
+  const slot = when.toISOString();
+  const others = board.jobs.filter((j) => j.id !== job.id);
+  if (slotTakenAmong(others, job.providerId, slot)) {
+    return { ok: false as const, error: "That time is already booked. Pick another slot." };
+  }
+  const notes = appendJobNote(job.notes, RESCHEDULE_NOTE, "customer");
+  const sql = await getSql();
+  await sql.query("update mh_jobs set slot = $2, status = $3, notes_json = $4 where id = $1", [
+    job.id,
+    slot,
+    "scheduled",
+    JSON.stringify(notes),
+  ]);
+  return { ok: true as const, job: { ...job, slot, status: "scheduled" as const, notes } };
+}
+
 export function jobCode() {
   return "MH-" + Math.floor(1000 + Math.random() * 9000);
 }
@@ -938,7 +997,7 @@ export async function deleteAccount(userId: string, password: string) {
   const board = await loadBoard();
   const user = board.users.find((u) => u.id === userId);
   if (!user) return { ok: false as const, error: "Account not found." };
-  if (user.pass !== passHash(password)) {
+  if (!verifyPassword(password, user.pass).ok) {
     return { ok: false as const, error: "Password is wrong." };
   }
   const sql = await getSql();

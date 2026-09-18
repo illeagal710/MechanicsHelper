@@ -1,7 +1,9 @@
 import {
   mhAddJob,
   mhAddNote,
+  mhCancelJob,
   mhDeclineJob,
+  mhRescheduleJob,
   mhAddTech,
   mhBoard,
   mhLogin,
@@ -197,11 +199,13 @@ export const STATUSES: {
   { id: "ready", label: "Ready for pickup", customer: "Your vehicle is ready", badge: "ready" },
   { id: "done", label: "Completed", customer: "Picked up — thank you", badge: "done" },
   { id: "declined", label: "Declined", customer: "The shop declined this booking", badge: "declined" },
+  { id: "canceled", label: "Canceled", customer: "You canceled this appointment", badge: "declined" },
 ];
 
 type DB = { shops: Shop[]; users: User[]; jobs: Job[] };
 
 const SESSION = "mh.session";
+const TOKEN = "mh.token";
 const REF = "mh.ref";
 const LINKED = "mh.linked.";
 const UNLINKED = "-";
@@ -285,8 +289,25 @@ export const Store = {
     return cache;
   },
 
+  getToken(): string {
+    try {
+      return localStorage.getItem(TOKEN) || "";
+    } catch {
+      return "";
+    }
+  },
+
+  setToken(token: string | null) {
+    if (typeof localStorage === "undefined") return;
+    if (!token) localStorage.removeItem(TOKEN);
+    else localStorage.setItem(TOKEN, token);
+  },
+
   getSession(): User | null {
     try {
+      // A signed session token is required — a session without one (e.g. from
+      // before tokens existed) is treated as signed out, prompting a re-login.
+      if (!this.getToken()) return null;
       const raw = localStorage.getItem(SESSION);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as User;
@@ -438,6 +459,7 @@ export const Store = {
   async login(emailOrPhone: string, password: string) {
     const res = await mhLogin({ data: { id: emailOrPhone, password } });
     if (res.ok) {
+      this.setToken(res.token);
       this.setSession(res.user);
       await this.hydrate();
     }
@@ -458,17 +480,21 @@ export const Store = {
 
   logout() {
     this.setSession(null);
+    this.setToken(null);
   },
 
   async saveAlerts(user: User, token: string, alertsOn: boolean) {
-    const res = await mhSavePush({ data: { userId: user.id, token, alertsOn } });
+    const res = await mhSavePush({ data: { userId: user.id, token, alertsOn, authToken: this.getToken() } });
     if (res.ok) this.setSession(res.user);
     return res;
   },
 
   async deleteAccount(user: User, password: string) {
-    const res = await mhDeleteAccount({ data: { userId: user.id, password } });
-    if (res.ok) this.setSession(null);
+    const res = await mhDeleteAccount({ data: { userId: user.id, password, authToken: this.getToken() } });
+    if (res.ok) {
+      this.setSession(null);
+      this.setToken(null);
+    }
     return res;
   },
 
@@ -486,6 +512,7 @@ export const Store = {
   }) {
     const res = await mhRegister({ data: fields });
     if (res.ok) {
+      this.setToken(res.token);
       this.setSession(res.user);
       await this.hydrate();
     }
@@ -493,7 +520,7 @@ export const Store = {
   },
 
   async rotateCustomerCode(user: User) {
-    const next = await mhRotateCode({ data: { userId: user.id } });
+    const next = await mhRotateCode({ data: { userId: user.id, authToken: this.getToken() } });
     await this.hydrate();
     const fresh = this.getSession();
     if (fresh) this.setSession(fresh);
@@ -523,6 +550,7 @@ export const Store = {
     const res = await mhUpdateShop({
       data: {
         userId: user.id,
+        authToken: this.getToken(),
         ...patch,
         ...(profilePhoto !== undefined ? { profilePhoto, photo: profilePhoto } : { photo: undefined, profilePhoto: undefined }),
       },
@@ -558,6 +586,7 @@ export const Store = {
     const res = await mhUpdateIndy({
       data: {
         userId: user.id,
+        authToken: this.getToken(),
         ...patch,
         ...(profilePhoto !== undefined ? { profilePhoto, photo: profilePhoto } : { photo: undefined, profilePhoto: undefined }),
       },
@@ -577,7 +606,7 @@ export const Store = {
     if (user.role === "independent") {
       return this.updateIndependentProfile(user, { profilePhoto });
     }
-    const res = await mhUpdateUserPhoto({ data: { userId: user.id, profilePhoto } });
+    const res = await mhUpdateUserPhoto({ data: { userId: user.id, profilePhoto, authToken: this.getToken() } });
     if (res.ok) {
       this.setSession(res.user);
       await this.hydrate();
@@ -627,6 +656,18 @@ export const Store = {
 
   async declineJob(id: string, reason = "") {
     const res = await mhDeclineJob({ data: { id, reason } });
+    await this.hydrate();
+    return res;
+  },
+
+  async cancelJob(id: string) {
+    const res = await mhCancelJob({ data: { id, authToken: this.getToken() } });
+    await this.hydrate();
+    return res;
+  },
+
+  async rescheduleJob(id: string, slotIso: string) {
+    const res = await mhRescheduleJob({ data: { id, slot: slotIso, authToken: this.getToken() } });
     await this.hydrate();
     return res;
   },
