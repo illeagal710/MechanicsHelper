@@ -40,6 +40,7 @@ import {
   Store,
   BIO_MAX,
   DAY_BITS,
+  soloMechanicDetail,
   type Job,
   type Provider,
   type Role,
@@ -55,6 +56,7 @@ import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/custome
 import {
   PIPELINE_STATUSES,
   canCustomerCancel,
+  canManageAppointment,
   canDeclineStatus,
   declineReasonFromNotes,
   searchJobs,
@@ -444,6 +446,17 @@ export function MechanicsApp() {
                 bump();
               }}
             />
+            {canRotateFindCode(user) ? (
+              <ClaimFindCode
+                user={user}
+                onClaimed={(code) => {
+                  setUser(Store.getSession());
+                  flash(t("toast.newCode", { code }));
+                  bump();
+                }}
+                onErr={flash}
+              />
+            ) : null}
           </div>
         )}
         {view === "account" && user && (
@@ -544,6 +557,56 @@ function Top({
       <h2 className="min-w-0 flex-1 text-lg font-semibold">{title}</h2>
       {action ?? null}
     </div>
+  );
+}
+
+function ClaimFindCode({
+  user,
+  onClaimed,
+  onErr,
+}: {
+  user: User;
+  onClaimed: (code: string) => void;
+  onErr: (s: string) => void;
+}) {
+  const { locale, t } = useI18n();
+  const [desired, setDesired] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="mt-3 rounded-xl border border-line bg-surface p-4"
+      data-claim-code=""
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        setBusy(true);
+        const res = await Store.claimCustomerCode(user, desired);
+        setBusy(false);
+        if (!res.ok) return onErr(translateStoreError(locale, res.error));
+        setDesired("");
+        onClaimed(res.code);
+      }}
+    >
+      <Field label={t("share.pickCode")}>
+        <input
+          className={inputClass}
+          value={desired}
+          onChange={(e) => setDesired(e.target.value.toUpperCase())}
+          placeholder={t("share.pickCodePh")}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+      </Field>
+      <button
+        type="submit"
+        disabled={busy || !desired.trim()}
+        className="mt-3 h-11 w-full rounded-xl bg-accent font-semibold text-ink disabled:opacity-60"
+      >
+        {t("share.useCode")}
+      </button>
+      <p className="mt-2 text-xs text-dim">{t("share.pickCodeHint")}</p>
+    </form>
   );
 }
 
@@ -1131,6 +1194,7 @@ function Register({
           shopJoin: join,
           shopName: String(fd.get("shopName") || ""),
           shopCode: String(fd.get("shopCode") || ""),
+          findCode: String(fd.get("findCode") || ""),
           businessName: String(fd.get("biz") || ""),
           serviceMode: (String(fd.get("mode") || "both") as User["serviceMode"]),
         });
@@ -1164,6 +1228,7 @@ function Register({
           </button>
         ))}
       </div>
+      {role === "independent" ? <p className="text-sm text-muted">{t("register.roleHint")}</p> : null}
       {role === "shop" && (
         <>
           <div className="flex rounded-xl bg-bg2 p-1">
@@ -1175,9 +1240,15 @@ function Register({
             </button>
           </div>
           {join === "create" ? (
+            <>
             <Field label={t("register.shopName")}>
               <input name="shopName" className={inputClass} placeholder={t("register.shopNamePh")} />
             </Field>
+            <Field label={t("register.findCode")}>
+              <input name="findCode" className={inputClass} placeholder={t("register.findCodePh")} autoCapitalize="characters" />
+            </Field>
+            <p className="-mt-1 text-xs text-dim">{t("register.findCodeHint")}</p>
+            </>
           ) : (
             <Field label={t("register.shopCode")}>
               <input name="shopCode" className={inputClass} placeholder={t("register.shopCodePh")} />
@@ -1197,6 +1268,10 @@ function Register({
               <option value="both">{t("register.modeBoth")}</option>
             </select>
           </Field>
+          <Field label={t("register.findCode")}>
+            <input name="findCode" className={inputClass} placeholder={t("register.findCodePh")} autoCapitalize="characters" />
+          </Field>
+          <p className="-mt-1 text-xs text-dim">{t("register.findCodeHint")}</p>
         </>
       )}
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
@@ -1867,6 +1942,8 @@ function JobDetail({
           {!shop && canCustomerCancel(job.status) ? (
             <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-customer-actions="">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.manageTitle")}</p>
+              {canManageAppointment(job) ? (
+              <>
               {!rescheduling ? (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
@@ -1938,6 +2015,12 @@ function JobDetail({
                     {t("nav.back")}
                   </button>
                 </div>
+              )}
+              </>
+              ) : (
+                <p className="mt-3 text-sm leading-relaxed text-muted" data-cancel-too-late="">
+                  {t("job.cancelTooLate")}
+                </p>
               )}
             </div>
           ) : null}
@@ -2637,7 +2720,7 @@ function Account({
         ? t("account.shopOwner")
         : t("account.shopTech")
       : user.role === "independent"
-        ? t("account.indyMech")
+        ? translateDetail(locale, soloMechanicDetail(user.serviceMode))
         : t("account.customer");
 
   if (settingsOpen) {

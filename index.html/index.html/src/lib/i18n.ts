@@ -34,7 +34,7 @@ const en = {
   "welcome.title1": "Sign in to book",
   "welcome.title2": "or run the bay.",
   "welcome.body":
-    "Customers track repairs. Shops and independents each get a QR or referral code so people land on the right bay.",
+    "Customers track repairs. Shops and mechanics — mobile or independent — each get a QR or referral code so people land on the right bay.",
   "welcome.haveCode": "Have a shop or mechanic code?",
   "welcome.codePlaceholder": "RIV4 or LEON",
   "welcome.find": "Find",
@@ -98,6 +98,8 @@ const en = {
   "register.roleCustomer": "Customer",
   "register.roleShop": "Shop",
   "register.roleIndependent": "Mobile",
+  "register.roleHint":
+    "Mobile is how most customers search. Garage independents: pick “They come to me” below.",
   "register.createShop": "Create shop",
   "register.joinShop": "Join shop",
   "register.shopName": "Shop name",
@@ -107,9 +109,13 @@ const en = {
   "register.bizName": "Business name",
   "register.bizPh": "Leon Mobile Repair",
   "register.howYouWork": "How you work",
-  "register.modeMobile": "I go to the customer",
-  "register.modeShop": "They come to me",
+  "register.modeMobile": "I go to the customer (mobile)",
+  "register.modeShop": "They come to me (independent / garage)",
   "register.modeBoth": "Both",
+  "register.findCode": "Your find code (optional)",
+  "register.findCodePh": "LEON or GARAGE1",
+  "register.findCodeHint":
+    "4–8 letters or numbers. Unique — nobody else can take it. Leave blank and we’ll pick one.",
   "register.submit": "Create account",
 
   "home.bookingWith": "Booking with",
@@ -179,6 +185,10 @@ const en = {
   "share.rotateShop":
     "A new code also replaces the employee join code. Old printed QRs stop working.",
   "share.rotateIndy": "Old printed QRs stop working after you generate a new code.",
+  "share.pickCode": "Choose your own code",
+  "share.pickCodePh": "4–8 letters or numbers",
+  "share.useCode": "Use this code",
+  "share.pickCodeHint": "Unique across every shop and mechanic. Old QRs stop working if you change it.",
 
   "job.notFound": "Job not found.",
   "job.progress": "Progress",
@@ -333,7 +343,7 @@ const en = {
   "qr.findCode": "Customer find code",
   "qr.hint":
     "Print, text, or leave on the counter. Customers scan or type this and book you — not a random shop.",
-  "qr.fourLetter": "4-letter find code",
+  "qr.fourLetter": "4–8 character find code",
   "qr.copied": "Copied",
   "qr.copyCode": "Copy code",
   "qr.copyLink": "Copy link",
@@ -376,6 +386,16 @@ const en = {
   "err.resetCodeWrong": "That reset code is wrong or expired.",
   "err.cannotDecline": "Only incoming or scheduled bookings can be declined.",
   "err.jobNotFound": "Job not found.",
+  "err.cancelTooLate":
+    "It's too close to the appointment to cancel or reschedule in the app. Call the shop.",
+  "err.cancelClosed": "This appointment can no longer be canceled.",
+  "err.rescheduleClosed": "This appointment can no longer be rescheduled.",
+  "err.cancelOwn": "You can only cancel your own appointment.",
+  "err.rescheduleOwn": "You can only reschedule your own appointment.",
+  "err.findCodeInvalid": "Use 4–8 letters or numbers for your find code.",
+  "err.findCodeTaken": "That find code is already taken.",
+  "err.signInAgain": "Please sign in again.",
+  "err.slotPast": "Pick a valid upcoming time.",
 
   "status.scheduled.label": "Scheduled",
   "status.scheduled.customer": "Appointment booked",
@@ -406,7 +426,7 @@ const en = {
 
   "detail.repairShop": "Repair shop",
   "detail.mobile": "Mobile mechanic",
-  "detail.indyShop": "Independent shop",
+  "detail.indyShop": "Independent mechanic",
   "detail.mobileOrDrop": "Mobile or drop-off",
 
   "note.bookedApp": "Booked from customer app.",
@@ -414,6 +434,8 @@ const en = {
   "note.statusSet": "Status set to {label}",
   "note.bookingDeclined": "Booking declined.",
   "note.bookingDeclinedReason": "Booking declined: {reason}",
+  "note.canceledByCustomer": "Appointment canceled by the customer.",
+  "note.rescheduledByCustomer": "Appointment rescheduled by the customer.",
 
   "vehicle.other": "Other",
 
@@ -649,6 +671,9 @@ const en = {
   "job.cancelConfirm": "Cancel this appointment?",
   "job.pickNewTime": "Pick a new time",
   "job.noSlots": "No open times right now.",
+  "job.cancelTooLate":
+    "It's less than an hour before your appointment. Cancel or reschedule by calling the shop.",
+  "job.callShop": "Call the shop",
   "toast.canceled": "Appointment canceled.",
   "toast.rescheduled": "Appointment rescheduled.",
   "profile.directions": "Get directions",
@@ -701,7 +726,7 @@ const es: Record<MessageKey, string> = {
   "welcome.title1": "Inicia sesión para reservar",
   "welcome.title2": "o atender el taller.",
   "welcome.body":
-    "Los clientes siguen las reparaciones. Cada taller e independiente recibe un QR o un código de referido para que la gente llegue al lugar correcto.",
+    "Los clientes siguen las reparaciones. Cada taller y mecánico — móvil o independiente — recibe un QR o un código de referido para que la gente llegue al lugar correcto.",
   "welcome.haveCode": "¿Tienes un código de taller o mecánico?",
   "welcome.codePlaceholder": "RIV4 o LEON",
   "welcome.find": "Buscar",
@@ -765,6 +790,8 @@ const es: Record<MessageKey, string> = {
   "register.roleCustomer": "Cliente",
   "register.roleShop": "Taller",
   "register.roleIndependent": "Móvil",
+  "register.roleHint":
+    "Móvil es como más busca la gente. Independientes de garaje: elige “Ellos vienen a mí” abajo.",
   "register.createShop": "Crear taller",
   "register.joinShop": "Unirme al taller",
   "register.shopName": "Nombre del taller",
@@ -774,9 +801,13 @@ const es: Record<MessageKey, string> = {
   "register.bizName": "Nombre del negocio",
   "register.bizPh": "Leon Mobile Repair",
   "register.howYouWork": "Cómo trabajas",
-  "register.modeMobile": "Voy al cliente",
-  "register.modeShop": "Ellos vienen a mí",
+  "register.modeMobile": "Voy al cliente (móvil)",
+  "register.modeShop": "Ellos vienen a mí (independiente / garaje)",
   "register.modeBoth": "Ambos",
+  "register.findCode": "Tu código (opcional)",
+  "register.findCodePh": "LEON o GARAGE1",
+  "register.findCodeHint":
+    "4–8 letras o números. Único: nadie más puede tomarlo. Déjalo en blanco y te asignamos uno.",
   "register.submit": "Crear cuenta",
 
   "home.bookingWith": "Reservando con",
@@ -846,6 +877,10 @@ const es: Record<MessageKey, string> = {
   "share.rotateShop":
     "Un código nuevo también reemplaza el código de ingreso de empleados. Los QR impresos dejan de funcionar.",
   "share.rotateIndy": "Los QR impresos dejan de funcionar cuando generas un código nuevo.",
+  "share.pickCode": "Elige tu propio código",
+  "share.pickCodePh": "4–8 letras o números",
+  "share.useCode": "Usar este código",
+  "share.pickCodeHint": "Único entre todos los talleres y mecánicos. Si lo cambias, los QR viejos dejan de funcionar.",
 
   "job.notFound": "Trabajo no encontrado.",
   "job.progress": "Progreso",
@@ -1000,7 +1035,7 @@ const es: Record<MessageKey, string> = {
   "qr.findCode": "Código para clientes",
   "qr.hint":
     "Imprímelo, envíalo o déjalo en el mostrador. Los clientes lo escanean o lo escriben y te reservan a ti, no a un taller al azar.",
-  "qr.fourLetter": "Código de 4 letras",
+  "qr.fourLetter": "Código de 4 a 8 caracteres",
   "qr.copied": "Copiado",
   "qr.copyCode": "Copiar código",
   "qr.copyLink": "Copiar enlace",
@@ -1043,6 +1078,16 @@ const es: Record<MessageKey, string> = {
   "err.resetCodeWrong": "Ese código es incorrecto o ya caducó.",
   "err.cannotDecline": "Solo se pueden rechazar citas nuevas o programadas.",
   "err.jobNotFound": "Trabajo no encontrado.",
+  "err.cancelTooLate":
+    "Es demasiado cerca de la cita para cancelar o reprogramar en la app. Llama al taller.",
+  "err.cancelClosed": "Esta cita ya no se puede cancelar.",
+  "err.rescheduleClosed": "Esta cita ya no se puede reprogramar.",
+  "err.cancelOwn": "Solo puedes cancelar tu propia cita.",
+  "err.rescheduleOwn": "Solo puedes reprogramar tu propia cita.",
+  "err.findCodeInvalid": "Usa 4–8 letras o números para tu código.",
+  "err.findCodeTaken": "Ese código ya está en uso.",
+  "err.signInAgain": "Vuelve a iniciar sesión.",
+  "err.slotPast": "Elige un horario próximo válido.",
 
   "status.scheduled.label": "Programado",
   "status.scheduled.customer": "Cita reservada",
@@ -1073,7 +1118,7 @@ const es: Record<MessageKey, string> = {
 
   "detail.repairShop": "Taller de reparación",
   "detail.mobile": "Mecánico a domicilio",
-  "detail.indyShop": "Taller independiente",
+  "detail.indyShop": "Mecánico independiente",
   "detail.mobileOrDrop": "A domicilio o en taller",
 
   "note.bookedApp": "Reservado desde la app del cliente.",
@@ -1081,6 +1126,8 @@ const es: Record<MessageKey, string> = {
   "note.statusSet": "Estado cambiado a {label}",
   "note.bookingDeclined": "Cita rechazada.",
   "note.bookingDeclinedReason": "Cita rechazada: {reason}",
+  "note.canceledByCustomer": "Cita cancelada por el cliente.",
+  "note.rescheduledByCustomer": "Cita reprogramada por el cliente.",
 
   "vehicle.other": "Otro",
 
@@ -1317,6 +1364,9 @@ const es: Record<MessageKey, string> = {
   "job.cancelConfirm": "¿Cancelar esta cita?",
   "job.pickNewTime": "Elige un nuevo horario",
   "job.noSlots": "No hay horarios disponibles ahora.",
+  "job.cancelTooLate":
+    "Falta menos de una hora para tu cita. Cancela o reprograma llamando al taller.",
+  "job.callShop": "Llama al taller",
   "toast.canceled": "Cita cancelada.",
   "toast.rescheduled": "Cita reprogramada.",
   "profile.directions": "Cómo llegar",
@@ -1361,18 +1411,30 @@ const STORE_ERROR_KEYS: Record<string, MessageKey> = {
   "That reset code is wrong or expired.": "err.resetCodeWrong",
   "Only incoming or scheduled bookings can be declined.": "err.cannotDecline",
   "Job not found.": "err.jobNotFound",
+  "It's too close to the appointment to cancel or reschedule in the app. Call the shop.": "err.cancelTooLate",
+  "This appointment can no longer be canceled.": "err.cancelClosed",
+  "This appointment can no longer be rescheduled.": "err.rescheduleClosed",
+  "You can only cancel your own appointment.": "err.cancelOwn",
+  "You can only reschedule your own appointment.": "err.rescheduleOwn",
+  "Use 4–8 letters or numbers for your find code.": "err.findCodeInvalid",
+  "That find code is already taken.": "err.findCodeTaken",
+  "Please sign in again.": "err.signInAgain",
+  "Pick a valid upcoming time.": "err.slotPast",
 };
 
 const DETAIL_KEYS: Record<string, MessageKey> = {
   "Repair shop": "detail.repairShop",
   "Mobile mechanic": "detail.mobile",
   "Independent shop": "detail.indyShop",
+  "Independent mechanic": "detail.indyShop",
   "Mobile or drop-off": "detail.mobileOrDrop",
 };
 
 const NOTE_KEYS: Record<string, MessageKey> = {
   "Booked from customer app.": "note.bookedApp",
   "Booked online.": "note.bookedOnline",
+  "Appointment canceled by the customer.": "note.canceledByCustomer",
+  "Appointment rescheduled by the customer.": "note.rescheduledByCustomer",
 };
 
 const STATUS_LABEL_EN: Record<string, string> = {
