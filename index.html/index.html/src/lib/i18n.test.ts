@@ -276,6 +276,18 @@ test("booking symptoms are marked optional in English and Spanish", () => {
   assert.equal(translate("es", "book.noSymptoms"), "Sin descripción");
 });
 
+test("vehicle photo hint exists in English and Spanish", () => {
+  assert.equal(translate("en", "vehicle.photoHint"), "Add photo for a better match");
+  assert.match(translate("es", "vehicle.photoHint"), /foto/i);
+  assert.equal(translate("en", "kind.hatchback"), "hatchback");
+  assert.equal(translate("en", "kind.coupe"), "coupe");
+  assert.equal(translate("es", "kind.coupe"), "cupé");
+  assert.equal(translate("en", "color.red"), "Red");
+  assert.equal(translate("es", "color.red"), "Rojo");
+  assert.match(translate("en", "privacy.photos.body"), /not a public directory/i);
+  assert.match(translate("es", "privacy.photos.body"), /directorio/i);
+});
+
 test("profile vs bay photo labels exist in English and Spanish", () => {
   assert.equal(translate("en", "photo.choose"), "Choose photo");
   assert.equal(translate("en", "photo.take"), "Take photo");

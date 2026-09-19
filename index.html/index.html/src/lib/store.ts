@@ -116,6 +116,9 @@ export type Job = {
   photo?: string;
   /** Bay / job-ticket media. Never the account profile photo. */
   jobPhoto?: string;
+  /** Customer photo of the car on this ticket. Never the bay slot or profile. */
+  vehiclePhoto?: string;
+  color?: string;
 };
 
 export type Provider = {
@@ -659,6 +662,10 @@ export const Store = {
 
   async saveJobPhoto(id: string, jobPhoto: string) {
     return this.updateJob(id, withJobPhoto({ jobPhoto: "", photo: "" }, jobPhoto));
+  },
+
+  async saveVehiclePhoto(id: string, vehiclePhoto: string) {
+    return this.updateJob(id, { vehiclePhoto });
   },
 
   async addNote(id: string, text: string, by = "shop") {

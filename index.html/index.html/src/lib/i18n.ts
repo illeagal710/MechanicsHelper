@@ -419,6 +419,8 @@ const en = {
   "kind.sports": "sports",
   "kind.suv": "suv",
   "kind.sedan": "sedan",
+  "kind.hatchback": "hatchback",
+  "kind.coupe": "coupe",
 
   "detail.repairShop": "Repair shop",
   "detail.mobile": "Mobile mechanic",
@@ -471,6 +473,24 @@ const en = {
   "vehicle.typeHere": "Type it here",
   "vehicle.onAppointment": "On this appointment",
   "vehicle.notChosen": "Not chosen yet",
+  "vehicle.color": "Color (optional)",
+  "vehicle.chooseColor": "Skip or choose color",
+  "vehicle.photoLabel": "Vehicle photo (optional)",
+  "vehicle.photoHint": "Add photo for a better match",
+  "vehicle.photoHintTicket": "A photo of this car — not the bay / work shot.",
+  "color.white": "White",
+  "color.black": "Black",
+  "color.silver": "Silver",
+  "color.gray": "Gray",
+  "color.red": "Red",
+  "color.blue": "Blue",
+  "color.green": "Green",
+  "color.yellow": "Yellow",
+  "color.orange": "Orange",
+  "color.brown": "Brown",
+  "color.beige": "Beige",
+  "color.gold": "Gold",
+  "color.maroon": "Maroon",
 
   "confirm.saveCode": "Job code — save this",
 
@@ -507,6 +527,8 @@ const en = {
   "photo.cameraCancel": "Cancel",
   "photo.noBay": "No progress photo yet",
   "photo.addBay": "Add photo",
+  "photo.addVehicle": "Add photo",
+  "toast.vehiclePhotoSaved": "Vehicle photo saved on the ticket",
 
   "toast.photoOnTicket": "Photo on the ticket",
   "toast.accountDeleted": "Account deleted",
@@ -598,7 +620,7 @@ const en = {
     "A shop or independent can store a business name, find code, bio, specialties, credentials, service area, hours, support email or phone, and a profile photo or shop logo. Customers book jobs with that shop. Job tickets store the vehicle year, make, and model, optional symptoms, the time slot, job status, and notes the shop writes.",
   "privacy.photos.title": "Photos",
   "privacy.photos.body":
-    "A profile photo or shop logo lives on the account and the public shop or mechanic page. A photo from the bay (the car or a part on a job) stays on that job ticket. A bay photo does not replace your profile photo.",
+    "A profile photo or shop logo lives on the account and the public shop or mechanic page. A photo of your vehicle on the ticket or your vehicle list stays between you and that shop — it is not a public directory. A photo from the bay (work or a part on a job) stays on that job ticket. A bay photo does not replace your profile photo or your vehicle photo.",
   "privacy.recovery.title": "Password and username recovery",
   "privacy.recovery.body":
     "If you forget your password or username, we can email a reset code or login reminder to the address on the account. That mail is sent with Resend. We use that email for account recovery, not for ads.",
@@ -1100,6 +1122,8 @@ const es: Record<MessageKey, string> = {
   "kind.sports": "deportivo",
   "kind.suv": "suv",
   "kind.sedan": "sedán",
+  "kind.hatchback": "hatchback",
+  "kind.coupe": "cupé",
 
   "detail.repairShop": "Taller de reparación",
   "detail.mobile": "Mecánico a domicilio",
@@ -1153,6 +1177,24 @@ const es: Record<MessageKey, string> = {
   "vehicle.typeHere": "Escríbelo aquí",
   "vehicle.onAppointment": "En esta cita",
   "vehicle.notChosen": "Aún no elegido",
+  "vehicle.color": "Color (opcional)",
+  "vehicle.chooseColor": "Saltar o elegir color",
+  "vehicle.photoLabel": "Foto del vehículo (opcional)",
+  "vehicle.photoHint": "Agrega una foto para un mejor parecido",
+  "vehicle.photoHintTicket": "Una foto de este auto — no la de la bahía / el trabajo.",
+  "color.white": "Blanco",
+  "color.black": "Negro",
+  "color.silver": "Plata",
+  "color.gray": "Gris",
+  "color.red": "Rojo",
+  "color.blue": "Azul",
+  "color.green": "Verde",
+  "color.yellow": "Amarillo",
+  "color.orange": "Naranja",
+  "color.brown": "Café",
+  "color.beige": "Beige",
+  "color.gold": "Dorado",
+  "color.maroon": "Granate",
 
   "confirm.saveCode": "Código del trabajo — guárdalo",
 
@@ -1189,6 +1231,8 @@ const es: Record<MessageKey, string> = {
   "photo.cameraCancel": "Cancelar",
   "photo.noBay": "Aún no hay foto del avance",
   "photo.addBay": "Agregar foto",
+  "photo.addVehicle": "Agregar foto",
+  "toast.vehiclePhotoSaved": "Foto del vehículo guardada en el ticket",
 
   "toast.photoOnTicket": "Foto en el ticket",
   "toast.accountDeleted": "Cuenta eliminada",
@@ -1280,7 +1324,7 @@ const es: Record<MessageKey, string> = {
     "Un taller o independiente puede guardar el nombre del negocio, el código, la bio, especialidades, credenciales, zona de servicio, el horario, el correo o teléfono de soporte y una foto de perfil o logo. Los clientes reservan trabajos con ese taller. Los tickets guardan el año, marca y modelo del vehículo, síntomas opcionales, el horario, el estado del trabajo y las notas que escribe el taller.",
   "privacy.photos.title": "Fotos",
   "privacy.photos.body":
-    "La foto de perfil o el logo del taller viven en la cuenta y en la página pública. Una foto de la bahía (el auto o una pieza en un trabajo) se queda en ese ticket. Una foto de la bahía no reemplaza tu foto de perfil.",
+    "La foto de perfil o el logo del taller viven en la cuenta y en la página pública. Una foto de tu vehículo en el ticket o en tu lista se queda entre tú y ese taller — no es un directorio público. Una foto de la bahía (el trabajo o una pieza) se queda en ese ticket. Una foto de la bahía no reemplaza tu foto de perfil ni la de tu vehículo.",
   "privacy.recovery.title": "Recuperar contraseña y usuario",
   "privacy.recovery.body":
     "Si olvidas la contraseña o el usuario, podemos enviar un código o un recordatorio al correo de la cuenta. Ese correo se envía con Resend. Usamos ese correo para recuperar la cuenta, no para anuncios.",

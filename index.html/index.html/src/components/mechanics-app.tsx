@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
 import { BayPreview, Face, PhotoPicker } from "@/components/photo-input";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
+import { VehicleArt } from "@/components/vehicle-art";
+import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf } from "@/lib/photos";
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
@@ -54,7 +55,7 @@ import {
   type BlockAfterHours,
 } from "@/lib/booking-block";
 import { resolveBookingProvider } from "@/lib/booking-provider";
-import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
+import { isCompleteVehicle, vehicleFromTicket, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
 import {
   PIPELINE_STATUSES,
   canDeclineStatus,
@@ -73,7 +74,15 @@ import {
   readSeenNoteAt,
 } from "@/lib/job-updates";
 import { trimOptions } from "@/lib/trims";
-import { OTHER_VALUE, VEHICLE_DATA, YEARS, carImage, resolveListedOrOther, vehicleKind } from "@/lib/vehicles";
+import {
+  OTHER_VALUE,
+  VEHICLE_COLOR_IDS,
+  VEHICLE_DATA,
+  YEARS,
+  isCustomerVehiclePhoto,
+  resolveListedOrOther,
+  vehicleKind,
+} from "@/lib/vehicles";
 import {
   ADDRESS_MAX,
   CREDENTIAL_IDS,
@@ -1505,6 +1514,8 @@ function Book({
         e.preventDefault();
         const f = e.currentTarget;
         const fd = new FormData(f);
+        const picked = vehicleFromPickerForm(fd);
+        const savedMatch = savedVehicles.find((v) => vehicleKey(v) === vehicleKey(picked)) || pickedVehicle;
         const job: Job = {
           id: Store.jobCode(),
           userId: user.id,
@@ -1512,7 +1523,12 @@ function Book({
           name: String(fd.get("name")),
           phone: String(fd.get("phone")).replace(/\D/g, ""),
           email: String(fd.get("email")),
-          ...vehicleFromPickerForm(fd),
+          year: picked.year,
+          make: picked.make,
+          model: picked.model,
+          trim: picked.trim,
+          vehiclePhoto: picked.photo || savedMatch?.photo || "",
+          color: picked.color || savedMatch?.color || "",
           symptoms: normalizeSymptoms(fd.get("symptoms")),
           slot: new Date(String(fd.get("slot"))).toISOString(),
           status: "scheduled",
@@ -1542,6 +1558,14 @@ function Book({
           return onErr(translateStoreError(locale, saved.error));
         }
         Store.setLinkedCode(user, provider.code);
+        Store.addCustomerVehicle(user, {
+          year: job.year,
+          make: job.make,
+          model: job.model,
+          trim: job.trim,
+          photo: job.vehiclePhoto,
+          color: job.color,
+        });
         sessionStorage.removeItem("mh.symptoms");
         onBooked(job);
       }}
@@ -1581,7 +1605,13 @@ function Book({
                     <span className="block font-semibold">{vehicleLabel(v)}</span>
                     <span className="text-sm text-muted">{t("book.useVehicle")}</span>
                   </span>
-                  <img src={carImage(v)} alt="" decoding="async" className="h-10 w-[3.6rem] shrink-0 rounded-lg object-cover [image-rendering:auto]" />
+                  <VehicleArt
+                    make={v.make}
+                    model={v.model}
+                    vehiclePhoto={v.photo}
+                    color={v.color}
+                    className="h-10 w-[3.6rem] shrink-0 rounded-lg"
+                  />
                 </button>
               );
             })}
@@ -1636,7 +1666,13 @@ function Confirm({ job, onTrack, onHome }: { job: Job; onTrack: () => void; onHo
         <p className="mt-1 text-sm text-muted">{t("confirm.goingTo", { name: job.providerName })}</p>
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border border-line bg-surface">
-        <img src={carImage(job)} alt="" decoding="async" className="h-40 w-full object-cover [image-rendering:auto]" />
+        <VehicleArt
+          make={job.make}
+          model={job.model}
+          vehiclePhoto={job.vehiclePhoto}
+          color={job.color}
+          className="block h-40 w-full"
+        />
         <div className="p-4">
           <h3 className="font-semibold">{vehicleLabel(job)}</h3>
           <p className="text-sm text-muted">{fmtWhen(job.slot, localeTag(locale))}</p>
@@ -1697,12 +1733,13 @@ function JobCard({
         </div>
       ) : null}
       <div className="flex gap-3">
-        <img
-          src={ticketVehiclePhotoOf(job)}
-          alt=""
-          decoding="async"
-          className={`shrink-0 rounded-xl object-cover [image-rendering:auto] ${shop ? "h-[4.5rem] w-[5.25rem] md:h-20 md:w-28" : "h-16 w-[4.75rem]"}`}
-          data-ticket-photo={VEHICLE_PHOTO_SLOT}
+        <VehicleArt
+          make={job.make}
+          model={job.model}
+          vehiclePhoto={job.vehiclePhoto}
+          color={job.color}
+          photoSlot={VEHICLE_PHOTO_SLOT}
+          className={`shrink-0 rounded-xl ${shop ? "h-[4.5rem] w-[5.25rem] md:h-20 md:w-28" : "h-16 w-[4.75rem]"}`}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -1925,12 +1962,13 @@ function JobDetail({
       <div className={shop ? "md:grid md:grid-cols-2 md:items-start md:gap-5" : ""}>
         <div>
           <div className="overflow-hidden rounded-xl border border-line bg-surface" data-ticket-block="vehicle">
-            <img
-              src={ticketVehiclePhotoOf(job)}
-              alt=""
-              decoding="async"
-              className={`w-full object-cover [image-rendering:auto] ${shop ? "h-44 md:h-56" : "h-44"}`}
-              data-ticket-photo={VEHICLE_PHOTO_SLOT}
+            <VehicleArt
+              make={job.make}
+              model={job.model}
+              vehiclePhoto={job.vehiclePhoto}
+              color={job.color}
+              photoSlot={VEHICLE_PHOTO_SLOT}
+              className={`block w-full ${shop ? "h-44 md:h-56" : "h-44"}`}
             />
             <div className="p-4">
               <p className="text-[10px] font-bold uppercase tracking-wide text-dim">{kindText(locale, vehicleKind(job))}</p>
@@ -1945,6 +1983,26 @@ function JobDetail({
                 {job.symptoms || t("book.noSymptoms")}
               </p>
             </div>
+          </div>
+          <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-ticket-vehicle-photo="">
+            <PhotoPicker
+              slot={VEHICLE_PHOTO_SLOT}
+              value={isCustomerVehiclePhoto(job.vehiclePhoto) ? job.vehiclePhoto : ""}
+              name={vehicleLabel(job)}
+              label={t("vehicle.photoLabel")}
+              hint={
+                isCustomerVehiclePhoto(job.vehiclePhoto) ? t("vehicle.photoHintTicket") : t("vehicle.photoHint")
+              }
+              onErr={(msg) => flash?.(translateStoreError(locale, msg))}
+              onPick={async (dataUrl) => {
+                await Store.saveVehiclePhoto(job.id, dataUrl);
+                if (user?.role === "customer") {
+                  Store.addCustomerVehicle(user, vehicleFromTicket({ ...job, photo: dataUrl, vehiclePhoto: dataUrl }));
+                }
+                flash?.(t("toast.vehiclePhotoSaved"));
+                bump();
+              }}
+            />
           </div>
           {(shop || bayFilled) ? (
           <div
@@ -2177,6 +2235,8 @@ function vehicleFromPickerForm(fd: FormData): VehicleFields {
       if (!listed) return "";
       return resolveListedOrOther(listed, String(fd.get("trimOther") || ""));
     })(),
+    color: String(fd.get("color") || "").trim(),
+    photo: String(fd.get("vehiclePhoto") || "").trim(),
   };
 }
 
@@ -2199,7 +2259,10 @@ function VehiclePicker({
   const [makeOther, setMakeOther] = useState(makeSplit.other);
   const [modelOther, setModelOther] = useState(modelSplit.other);
   const [trimOther, setTrimOther] = useState(trimSplit.other);
-  const { t } = useI18n();
+  const [color, setColor] = useState(defaults?.color || "");
+  const [vehiclePhoto, setVehiclePhoto] = useState(defaults?.photo || "");
+  const [photoErr, setPhotoErr] = useState("");
+  const { locale, t } = useI18n();
   const trims = model ? trimOptions(make, model) : [];
   const preview = [
     year,
@@ -2217,11 +2280,12 @@ function VehiclePicker({
           <p className="text-sm text-muted">{t("vehicle.sub")}</p>
         </div>
         {make ? (
-          <img
-            src={carImage({ make, model })}
-            alt=""
-            decoding="async"
-            className="h-11 w-[4.5rem] rounded-lg object-cover [image-rendering:auto]"
+          <VehicleArt
+            make={make}
+            model={model}
+            vehiclePhoto={vehiclePhoto}
+            color={color}
+            className="h-11 w-[4.5rem] rounded-lg"
           />
         ) : null}
       </div>
@@ -2355,6 +2419,35 @@ function VehiclePicker({
             />
           </label>
         ) : null}
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.color")}</span>
+          <SelectWrap>
+            <select name="color" className={selectClass} value={color} onChange={(e) => setColor(e.target.value)}>
+              <option value="">{t("vehicle.chooseColor")}</option>
+              {VEHICLE_COLOR_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {t(`color.${id}` as MessageKey)}
+                </option>
+              ))}
+            </select>
+          </SelectWrap>
+        </label>
+        <div>
+          <input type="hidden" name="vehiclePhoto" value={vehiclePhoto} />
+          <PhotoPicker
+            slot={VEHICLE_PHOTO_SLOT}
+            value={vehiclePhoto}
+            name={preview || t("vehicle.notChosen")}
+            label={t("vehicle.photoLabel")}
+            hint={t("vehicle.photoHint")}
+            onErr={(msg) => setPhotoErr(translateStoreError(locale, msg))}
+            onPick={(dataUrl) => {
+              setPhotoErr("");
+              setVehiclePhoto(dataUrl);
+            }}
+          />
+          {photoErr ? <p className="mt-2 text-sm text-danger">{photoErr}</p> : null}
+        </div>
       </div>
       <div className="border-t border-line bg-bg2 px-4 py-3">
         <p className="text-sm text-muted">{t(footerKey)}</p>
@@ -2730,7 +2823,13 @@ function Account({
                   key={vehicleKey(v)}
                   className="flex items-center gap-3 rounded-xl border border-line bg-bg2 p-3"
                 >
-                  <img src={carImage(v)} alt="" decoding="async" className="h-12 w-[4.25rem] shrink-0 rounded-lg object-cover [image-rendering:auto]" />
+                  <VehicleArt
+                    make={v.make}
+                    model={v.model}
+                    vehiclePhoto={v.photo}
+                    color={v.color}
+                    className="h-12 w-[4.25rem] shrink-0 rounded-lg"
+                  />
                   <div className="min-w-0">
                     <p className="font-semibold">{vehicleLabel(v)}</p>
                     <p className="text-sm text-muted">{kindText(locale, vehicleKind(v))}</p>

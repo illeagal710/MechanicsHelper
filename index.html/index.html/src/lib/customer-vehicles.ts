@@ -4,6 +4,9 @@ export type VehicleFields = {
   make: string;
   model: string;
   trim?: string;
+  /** Customer photo of this car — never a shop/account avatar. */
+  photo?: string;
+  color?: string;
 };
 
 export const CUSTOMER_VEHICLES_KEY = "mh.vehicles";
@@ -14,6 +17,8 @@ export function normalizeVehicle(v: Partial<VehicleFields> | null | undefined): 
     make: String(v?.make || "").trim(),
     model: String(v?.model || "").trim(),
     trim: String(v?.trim || "").trim(),
+    photo: String(v?.photo || "").trim(),
+    color: String(v?.color || "").trim(),
   };
 }
 
@@ -27,17 +32,37 @@ export function isCompleteVehicle(v: Partial<VehicleFields> | null | undefined):
   return Boolean(n.year && n.make && n.model);
 }
 
+export function vehicleFromTicket(
+  j: Partial<VehicleFields> & { vehiclePhoto?: string; createdAt?: number } | null | undefined,
+): VehicleFields {
+  return normalizeVehicle({
+    year: j?.year,
+    make: j?.make,
+    model: j?.model,
+    trim: j?.trim,
+    photo: j?.photo || j?.vehiclePhoto,
+    color: j?.color,
+  });
+}
+
 export function mergeCustomerVehicles(
-  jobs: Array<Partial<VehicleFields> & { createdAt?: number }>,
+  jobs: Array<Partial<VehicleFields> & { vehiclePhoto?: string; createdAt?: number }>,
   extras: VehicleFields[] = [],
 ): VehicleFields[] {
   const out: VehicleFields[] = [];
   const seen = new Set<string>();
-  const add = (v: Partial<VehicleFields>) => {
-    const n = normalizeVehicle(v);
+  const add = (v: Partial<VehicleFields> & { vehiclePhoto?: string }) => {
+    const n = vehicleFromTicket(v);
     if (!isCompleteVehicle(n)) return;
     const k = vehicleKey(n);
-    if (seen.has(k)) return;
+    if (seen.has(k)) {
+      const existing = out.find((row) => vehicleKey(row) === k);
+      if (existing) {
+        if (!existing.photo && n.photo) existing.photo = n.photo;
+        if (!existing.color && n.color) existing.color = n.color;
+      }
+      return;
+    }
     seen.add(k);
     out.push(n);
   };
@@ -76,7 +101,17 @@ export function addSavedVehicle(userId: string, vehicle: VehicleFields): Vehicle
   const extras = readSavedVehicles(userId);
   const n = normalizeVehicle(vehicle);
   if (!isCompleteVehicle(n)) return extras;
-  if (extras.some((v) => vehicleKey(v) === vehicleKey(n))) return extras;
+  const i = extras.findIndex((v) => vehicleKey(v) === vehicleKey(n));
+  if (i >= 0) {
+    extras[i] = {
+      ...extras[i],
+      ...n,
+      photo: n.photo || extras[i].photo,
+      color: n.color || extras[i].color,
+    };
+    writeSavedVehicles(userId, extras);
+    return extras;
+  }
   const next = [n, ...extras];
   writeSavedVehicles(userId, next);
   return next;
