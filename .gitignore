@@ -3,3 +3,6 @@
 *.keystore
 keystore.properties
 **/local.properties
+.env
+.env.*
+!.env.example

@@ -9,7 +9,7 @@ export const Route = createFileRoute("/scanner")({
       { title: "Chart scanner · Mechanics Helper" },
       {
         name: "description",
-        content: "Scan Binance USDT pairs for a buy setup. Alerts only — never auto-trades.",
+        content: "Scan Binance USDT pairs for the Crypto Lifers buy setup. Paper by default. WEEX live only when armed.",
       },
     ],
   }),

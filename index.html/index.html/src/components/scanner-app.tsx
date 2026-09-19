@@ -10,12 +10,15 @@ import {
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { ScannerChart } from "@/components/scanner-chart";
+import { WeexPanel } from "@/components/scanner-weex";
 import { DEFAULT_INTERVAL, DEFAULT_RULES, SCAN_MS, SETUP_NAME, SUGGESTED_SYMBOLS } from "@/lib/scanner/defaults";
 import { fmtPrice } from "@/lib/scanner/indicators";
 import { isUsdtSymbol, loadKlines, loadTicker, loadTickers, normalizeSymbol } from "@/lib/scanner/market";
 import { evaluateSetup } from "@/lib/scanner/rules";
 import { useScannerStore } from "@/lib/scanner/scanner-store";
 import { INTERVALS, type Candle, type Interval, type SymbolScan } from "@/lib/scanner/types";
+import { executeLifersEntry } from "@/lib/scanner/weex-exec";
+import { useWeexStore } from "@/lib/scanner/weex-store";
 import { LanguageToggle } from "@/lib/i18n-context";
 import { ThemeToggle } from "@/lib/theme-context";
 
@@ -41,7 +44,10 @@ export function ScannerApp() {
   const [error, setError] = useState<string | null>(null);
   const [addValue, setAddValue] = useState("");
   const [adding, setAdding] = useState(false);
-  const [tab, setTab] = useState<"watch" | "chart" | "rules" | "signals">("chart");
+  const [tab, setTab] = useState<"watch" | "chart" | "rules" | "weex" | "signals">("chart");
+  const execution = useWeexStore((s) => s.execution);
+  const liveArmed = useWeexStore((s) => s.liveArmed);
+  const killed = useWeexStore((s) => s.killed);
   const inFlight = useRef(false);
   const rulesRef = useRef(rules);
   rulesRef.current = rules;
@@ -126,6 +132,22 @@ export function ScannerApp() {
             });
             if (added) {
               toast(`${symbol} buy setup`, { description: ev.reasons.join(" · ") });
+              void executeLifersEntry({
+                symbol,
+                price: ev.price,
+                candleOpenTime: ev.candleOpenTime,
+                reasons: ev.reasons,
+                source: "signal",
+                watchlist: state.watchlist,
+              }).then((fill) => {
+                if (fill?.mode === "live" && (fill.status === "submitted" || fill.status === "filled")) {
+                  toast.success(`WEEX ${fill.status} ${symbol}`);
+                } else if (fill?.status === "simulated") {
+                  toast.message(`Paper fill ${symbol}`);
+                } else if (fill?.status === "rejected") {
+                  toast.error(fill.error || "Order rejected");
+                }
+              });
             }
           }
         });
@@ -186,8 +208,18 @@ export function ScannerApp() {
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Mechanics Helper</p>
           <h1 className="text-lg font-semibold tracking-tight">Chart scanner</h1>
-          <p className="text-sm text-muted">
-            {SETUP_NAME} buy setup · alerts only — never places trades. Binance public data, no API key.
+          <p className="text-sm text-muted" data-scanner-mode="">
+            {SETUP_NAME} ·{" "}
+            {killed
+              ? "kill switch on — no orders"
+              : execution === "live"
+                ? liveArmed
+                  ? "LIVE armed — WEEX market buys on matches"
+                  : "Live selected, not armed (paper/dry-run)"
+                : execution === "paper"
+                  ? "paper / dry-run — no live orders"
+                  : "alerts only — no orders"}
+            . Charts via Binance. Orders via official WEEX API.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -237,8 +269,8 @@ export function ScannerApp() {
         )}
       </div>
 
-      <nav className="grid grid-cols-4 border-b border-line lg:hidden">
-        {(["watch", "chart", "rules", "signals"] as const).map((id) => (
+      <nav className="grid grid-cols-5 border-b border-line lg:hidden">
+        {(["watch", "chart", "rules", "weex", "signals"] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -379,8 +411,15 @@ export function ScannerApp() {
           </div>
         </section>
 
-        <section className={`${tab === "rules" || tab === "signals" ? "block" : "hidden"} border-l border-line lg:block`}>
-          <div className="border-b border-line p-3">
+        <section className={`${tab === "rules" || tab === "signals" || tab === "weex" ? "block" : "hidden"} border-l border-line lg:block`}>
+          <div className={`${tab === "weex" ? "block" : "hidden"} lg:block`}>
+            <WeexPanel
+              selected={selected}
+              lastPrice={selectedRow?.ticker?.lastPrice ?? null}
+              watchlist={watchlist}
+            />
+          </div>
+          <div className={`${tab === "rules" ? "block" : "hidden"} border-b border-line p-3 lg:block`}>
             <h2 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Buy setup</h2>
             <p className="mt-1 text-sm text-muted" data-setup-name="">
               {SETUP_NAME}: get in on the 21 SMA, in an uptrend above the 200, with a StochRSI reset. Conditions are AND. Extra filters stay off unless you turn them on.
@@ -398,7 +437,7 @@ export function ScannerApp() {
               Reset Crypto Lifers defaults
             </button>
           </div>
-          <div className="p-3">
+          <div className={`${tab === "signals" ? "block" : "hidden"} p-3 lg:block`}>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-[0.14em] text-muted uppercase">
                 <Bell className="size-3.5" /> Signals
@@ -409,7 +448,13 @@ export function ScannerApp() {
             </div>
             {signals.length === 0 ? (
               <p className="text-sm text-muted" data-signals-empty="">
-                No alerts yet. Leave Scan on — matches toast and land here. Nothing is sent to an exchange.
+                {execution === "alerts"
+                  ? "No alerts yet. Alerts-only — nothing is sent to WEEX."
+                  : execution === "paper"
+                    ? "No alerts yet. Matches toast here and log a paper fill. Live stays off until you arm it."
+                    : liveArmed
+                      ? "No alerts yet. Live is armed — a match will send a WEEX market buy."
+                      : "No alerts yet. Live is selected but not armed, so matches stay paper/dry-run."}
               </p>
             ) : (
               <ol className="flex max-h-[42dvh] flex-col gap-2 overflow-y-auto" data-signals-list="">

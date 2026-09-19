@@ -27,3 +27,6 @@ keystore.properties
 *.jks
 *.keystore
 !android/keystore.properties.example
+.env
+.env.*
+!.env.example
