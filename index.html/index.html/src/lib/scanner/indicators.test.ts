@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { crossedUp, lastClosedIndex, rsi, sma, stochRsi } from "./indicators.ts";
+import { atr, crossedDown, crossedUp, lastClosedIndex, rsi, sma, stochastic, stochRsi } from "./indicators.ts";
 import { LIFER_MA_COLORS, LIFER_MAS } from "./defaults.ts";
 
 test("SMA is the simple window mean", () => {
@@ -51,4 +51,33 @@ test("LIFER_5ma periods are 21 50 80 100 200 with TV colors", () => {
   assert.equal(LIFER_MA_COLORS[80], "#800080");
   assert.equal(LIFER_MA_COLORS[100], "#0000ff");
   assert.equal(LIFER_MA_COLORS[200], "#ffff00");
+});
+
+test("crossedDown detects a fast SMA falling through slow", () => {
+  const fast = [null, 4, 3, 2];
+  const slow = [null, 2.5, 2.6, 2.7];
+  assert.equal(crossedDown(fast, slow, 2), false);
+  assert.equal(crossedDown(fast, slow, 3), true);
+});
+
+test("ATR is positive after a ranged series", () => {
+  const bars = Array.from({ length: 20 }, (_, i) => ({
+    high: 10 + (i % 3),
+    low: 8 - (i % 2),
+    close: 9,
+  }));
+  const series = atr(bars, 5);
+  const last = series[series.length - 1];
+  assert.ok(last != null && last > 0, `atr ${last}`);
+});
+
+test("JD stochastic 40/4/1 is defined after enough bars", () => {
+  const bars = Array.from({ length: 50 }, (_, i) => ({
+    high: 10 + i * 0.1,
+    low: 9 + i * 0.1,
+    close: 9.5 + i * 0.1,
+  }));
+  const { k } = stochastic(bars, 40, 4, 1);
+  const last = [...k].reverse().find((v) => v != null);
+  assert.ok(last != null && last >= 0 && last <= 100, `stoch ${last}`);
 });

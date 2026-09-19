@@ -9,7 +9,8 @@ export const Route = createFileRoute("/scanner")({
       { title: "Chart scanner · Mechanics Helper" },
       {
         name: "description",
-        content: "Scan Binance USDT pairs for the Crypto Lifers buy setup. Paper by default. WEEX live only when armed.",
+        content:
+          "Scan Binance USDT pairs for Crypto Lifers 4h 21×200 cross alerts, 50/200 death-cross warnings, and the pre-trade checklist. Alerts only unless you arm WEEX separately.",
       },
     ],
   }),

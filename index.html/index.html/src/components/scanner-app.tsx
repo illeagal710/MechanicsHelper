@@ -10,13 +10,14 @@ import {
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { ScannerChart } from "@/components/scanner-chart";
+import { ScannerChecklist } from "@/components/scanner-checklist";
 import { WeexPanel } from "@/components/scanner-weex";
-import { DEFAULT_INTERVAL, DEFAULT_RULES, SCAN_MS, SETUP_NAME, SUGGESTED_SYMBOLS } from "@/lib/scanner/defaults";
+import { DEFAULT_INTERVAL, DEFAULT_RULES, mergeRules, SCAN_MS, SETUP_NAME, SUGGESTED_SYMBOLS } from "@/lib/scanner/defaults";
 import { fmtPrice } from "@/lib/scanner/indicators";
 import { isUsdtSymbol, loadKlines, loadTicker, loadTickers, normalizeSymbol } from "@/lib/scanner/market";
 import { evaluateSetup } from "@/lib/scanner/rules";
 import { useScannerStore } from "@/lib/scanner/scanner-store";
-import { INTERVALS, type Candle, type Interval, type SymbolScan } from "@/lib/scanner/types";
+import { INTERVALS, type Candle, type Interval, type ScanSignal, type SymbolScan } from "@/lib/scanner/types";
 import { executeLifersEntry } from "@/lib/scanner/weex-exec";
 import { useWeexStore } from "@/lib/scanner/weex-store";
 import { LanguageToggle } from "@/lib/i18n-context";
@@ -119,35 +120,84 @@ export function ScannerApp() {
           };
           setRows({ ...next });
           if (symbol === state.selected && candles.length) setChart(candles);
-          if (ev?.matched) {
-            const added = pushSignal({
-              id: `${symbol}-${ev.fingerprint}`,
+          if (ev) {
+            const base = {
               symbol,
               interval: state.interval,
               at: Date.now(),
               price: ev.price,
               candleOpenTime: ev.candleOpenTime,
-              fingerprint: ev.fingerprint,
-              reasons: ev.reasons,
-            });
-            if (added) {
-              toast(`${symbol} buy setup`, { description: ev.reasons.join(" · ") });
-              void executeLifersEntry({
-                symbol,
-                price: ev.price,
-                candleOpenTime: ev.candleOpenTime,
+            };
+            if (ev.matched) {
+              const added = pushSignal({
+                ...base,
+                kind: "long",
+                id: `long-${symbol}-${ev.fingerprint}`,
+                fingerprint: `long|${ev.fingerprint}`,
                 reasons: ev.reasons,
-                source: "signal",
-                watchlist: state.watchlist,
-              }).then((fill) => {
-                if (fill?.mode === "live" && (fill.status === "submitted" || fill.status === "filled")) {
-                  toast.success(`WEEX ${fill.status} ${symbol}`);
-                } else if (fill?.status === "simulated") {
-                  toast.message(`Paper fill ${symbol}`);
-                } else if (fill?.status === "rejected") {
-                  toast.error(fill.error || "Order rejected");
-                }
               });
+              if (added) {
+                toast(`${symbol} long setup`, { description: ev.reasons.join(" · ") });
+                void executeLifersEntry({
+                  symbol,
+                  price: ev.price,
+                  candleOpenTime: ev.candleOpenTime,
+                  reasons: ev.reasons,
+                  source: "signal",
+                  watchlist: state.watchlist,
+                }).then((fill) => {
+                  if (fill?.mode === "live" && (fill.status === "submitted" || fill.status === "filled")) {
+                    toast.success(`WEEX ${fill.status} ${symbol}`);
+                  } else if (fill?.status === "simulated") {
+                    toast.message(`Paper fill ${symbol}`);
+                  } else if (fill?.status === "rejected") {
+                    toast.error(fill.error || "Order rejected");
+                  }
+                });
+              }
+            }
+            const stretch = ev.conditions.find((c) => c.id === "stretchMa" && c.passed);
+            if (stretch) {
+              const added = pushSignal({
+                ...base,
+                kind: "stretch",
+                id: `stretch-${symbol}-${ev.fingerprint}`,
+                fingerprint: `stretch|${ev.fingerprint}`,
+                reasons: [`${stretch.label} (${stretch.detail})`],
+              } satisfies ScanSignal);
+              if (added) {
+                toast.warning(`${symbol} stretch / exit`, { description: stretch.detail });
+              }
+            }
+            const death = ev.conditions.find((c) => c.id === "deathCross" && c.passed);
+            if (death) {
+              const added = pushSignal({
+                ...base,
+                kind: "death",
+                id: `death-${symbol}-${ev.fingerprint}`,
+                fingerprint: `death|${ev.fingerprint}`,
+                reasons: [`${death.label} (${death.detail})`],
+              } satisfies ScanSignal);
+              if (added) {
+                toast.warning(`${symbol} death cross`, {
+                  description: "4h SMA 50 crossed below 200 — warning / exit. No order.",
+                });
+              }
+            }
+            const early = ev.conditions.find((c) => c.id === "earlyDeath" && c.passed);
+            if (early) {
+              const added = pushSignal({
+                ...base,
+                kind: "early",
+                id: `early-${symbol}-${ev.fingerprint}`,
+                fingerprint: `early|${ev.fingerprint}`,
+                reasons: [`${early.label} (${early.detail})`],
+              } satisfies ScanSignal);
+              if (added) {
+                toast.warning(`${symbol} early warning`, {
+                  description: "21 crossed below 50. Death cross = 4h 50/200. No order.",
+                });
+              }
             }
           }
         });
@@ -209,7 +259,7 @@ export function ScannerApp() {
           <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Mechanics Helper</p>
           <h1 className="text-lg font-semibold tracking-tight">Chart scanner</h1>
           <p className="text-sm text-muted" data-scanner-mode="">
-            {SETUP_NAME} ·{" "}
+              {SETUP_NAME} · 4h 21×200 cross · hunt low 4h + high 1h ·{" "}
             {killed
               ? "kill switch on — no orders"
               : execution === "live"
@@ -356,21 +406,35 @@ export function ScannerApp() {
                             {row.eval.conditions.map((c) => (
                               <span
                                 key={c.id}
-                                className={`rounded px-1 py-0.5 font-mono text-[10px] ${c.passed ? "bg-good/12 text-good" : "bg-surface text-dim"}`}
+                                className={`rounded px-1 py-0.5 font-mono text-[10px] ${
+                                  c.role === "warning"
+                                    ? c.passed
+                                      ? "bg-down/12 text-down"
+                                      : "bg-surface text-dim"
+                                    : c.passed
+                                      ? "bg-good/12 text-good"
+                                      : "bg-surface text-dim"
+                                }`}
                               >
                                 {c.id === "nearMa"
                                   ? `21 ${c.detail}`
                                   : c.id === "vsSma"
-                                    ? `200 ${c.passed ? "↑" : "↓"}`
-                                    : c.id === "stochRsi"
-                                      ? `SRSI ${c.detail}`
-                                      : c.id === "rsi"
-                                        ? `RSI ${c.detail}`
-                                        : c.id === "volumeSpike"
-                                          ? `Vol ${c.detail}`
-                                          : c.id === "emaCross"
-                                            ? "EMA"
-                                            : "24h"}
+                                    ? `21×200 ${c.detail}`
+                                    : c.id === "stretchMa"
+                                      ? `stretch ${c.detail}`
+                                    : c.id === "deathCross"
+                                      ? "death 50×200"
+                                      : c.id === "earlyDeath"
+                                        ? "21×50"
+                                        : c.id === "stochRsi"
+                                          ? `SRSI ${c.detail}`
+                                          : c.id === "rsi"
+                                            ? `RSI ${c.detail}`
+                                            : c.id === "volumeSpike"
+                                              ? `Vol ${c.detail}`
+                                              : c.id === "emaCross"
+                                                ? "EMA"
+                                                : "24h"}
                               </span>
                             ))}
                           </div>
@@ -400,14 +464,37 @@ export function ScannerApp() {
                 {selectedRow?.ticker ? `${fmtPrice(selectedRow.ticker.lastPrice)} · ${interval}` : interval}
               </p>
             </div>
-            {selectedRow?.eval?.matched ? (
-              <p className="inline-flex items-center gap-1.5 rounded-full bg-good/15 px-2.5 py-1 font-mono text-xs text-good">
-                <Activity className="size-3.5" /> Buy setup
-              </p>
-            ) : null}
+            <div className="flex flex-wrap gap-1.5">
+              {selectedRow?.eval?.matched ? (
+                <p className="inline-flex items-center gap-1.5 rounded-full bg-good/15 px-2.5 py-1 font-mono text-xs text-good">
+                  <Activity className="size-3.5" /> Long setup
+                </p>
+              ) : null}
+              {selectedRow?.eval?.conditions.find((c) => c.id === "stretchMa" && c.passed) ? (
+                <p className="inline-flex items-center gap-1.5 rounded-full bg-down/15 px-2.5 py-1 font-mono text-xs text-down">
+                  Stretch / exit
+                </p>
+              ) : null}
+              {selectedRow?.eval?.conditions.find((c) => c.id === "deathCross" && c.passed) ? (
+                <p className="inline-flex items-center gap-1.5 rounded-full bg-down/15 px-2.5 py-1 font-mono text-xs text-down">
+                  Death cross 50×200
+                </p>
+              ) : null}
+              {selectedRow?.eval?.conditions.find((c) => c.id === "earlyDeath" && c.passed) ? (
+                <p className="inline-flex items-center gap-1.5 rounded-full bg-down/15 px-2.5 py-1 font-mono text-xs text-down">
+                  Early 21×50
+                </p>
+              ) : null}
+            </div>
           </div>
           <div className="min-h-[280px] flex-1 p-2">
-            <ScannerChart candles={chart} markTime={markTime} />
+            <ScannerChart
+              candles={chart}
+              markTime={markTime}
+              stochDotted={rules.stochRsi.dotted}
+              showJdStoch={rules.jdStoch.display}
+              jdStoch={rules.jdStoch}
+            />
           </div>
         </section>
 
@@ -420,9 +507,9 @@ export function ScannerApp() {
             />
           </div>
           <div className={`${tab === "rules" ? "block" : "hidden"} border-b border-line p-3 lg:block`}>
-            <h2 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Buy setup</h2>
+            <h2 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Alert setup</h2>
             <p className="mt-1 text-sm text-muted" data-setup-name="">
-              {SETUP_NAME}: get in on the 21 SMA, in an uptrend above the 200, with a StochRSI reset. Conditions are AND. Extra filters stay off unless you turn them on.
+              {SETUP_NAME}: 4h long when SMA 21 crosses above SMA 200 (Discord 21×200 clip). Continuation: 21 already above and price on/flagging the 21 (no % band). Stretch off the 21 is an exit warning. Death cross = 4h 50 below 200; early warning = 21×50. Hunt low 4h + high 1h, time on 15m. Tick the pre-trade list. Alerts do not place orders.
             </p>
             <RuleToggles />
             <button
@@ -430,12 +517,15 @@ export function ScannerApp() {
               data-reset-rules=""
               className="mt-3 text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
               onClick={() => {
-                setRules(() => ({ ...DEFAULT_RULES }));
+                setRules(() => mergeRules(DEFAULT_RULES));
                 setIntervalTf(DEFAULT_INTERVAL);
               }}
             >
               Reset Crypto Lifers defaults
             </button>
+          </div>
+          <div className={`${tab === "rules" ? "block" : "hidden"} lg:block`}>
+            <ScannerChecklist />
           </div>
           <div className={`${tab === "signals" ? "block" : "hidden"} p-3 lg:block`}>
             <div className="mb-2 flex items-center justify-between">
@@ -472,6 +562,19 @@ export function ScannerApp() {
                         <span className="font-mono text-sm font-semibold">{s.symbol.replace("USDT", "")}</span>
                         <span className="font-mono text-[11px] text-muted">{fmtPrice(s.price)}</span>
                       </div>
+                      <p
+                        className={`mt-1 font-mono text-[10px] uppercase ${
+                          s.kind === "long" ? "text-good" : "text-down"
+                        }`}
+                      >
+                        {s.kind === "long"
+                          ? "long"
+                          : s.kind === "death"
+                            ? "death cross 50×200"
+                            : s.kind === "early"
+                              ? "early 21×50"
+                              : "stretch / exit"}
+                      </p>
                       <p className="mt-1 text-[12px] leading-snug text-muted">{s.reasons.join(" · ")}</p>
                       <p className="mt-1 font-mono text-[10px] text-dim">
                         {s.interval} · {new Date(s.at).toLocaleTimeString()}
@@ -503,29 +606,18 @@ function RuleToggles() {
           onChange={(e) => setRules({ nearMa: { ...rules.nearMa, enabled: e.target.checked } })}
         />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">On / near SMA 21</span>
-          <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-            SMA
+          <span className="block text-sm font-semibold">On / flagging SMA 21</span>
+          <span className="mt-1 text-xs text-muted">
+            Off by default. Check to also require a wick touch of SMA
             <input
               type="number"
-              className="h-8 w-14 rounded-md border border-line bg-bg px-1.5 font-mono"
+              className="mx-1 h-8 w-14 rounded-md border border-line bg-bg px-1.5 font-mono"
               value={rules.nearMa.period}
               min={5}
               max={50}
               onChange={(e) => setRules({ nearMa: { ...rules.nearMa, period: num(e.target.value, 21) } })}
             />
-            within
-            <input
-              type="number"
-              step="0.1"
-              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
-              data-near-pct=""
-              value={rules.nearMa.maxPct}
-              min={0.2}
-              max={10}
-              onChange={(e) => setRules({ nearMa: { ...rules.nearMa, maxPct: num(e.target.value, 2.5) } })}
-            />
-            %
+            (no percent band). Continuation longs already fire when 21 is above 200 and price is on the 21.
           </span>
         </span>
       </label>
@@ -534,35 +626,87 @@ function RuleToggles() {
         <input
           type="checkbox"
           className="mt-1"
+          data-vs-sma=""
           checked={rules.vsSma.enabled}
           onChange={(e) => setRules({ vsSma: { ...rules.vsSma, enabled: e.target.checked } })}
         />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Uptrend vs SMA 200</span>
-          <span className="mt-1 flex items-center gap-2 text-xs text-muted">
-            Close
-            <select
-              className="h-8 rounded-md border border-line bg-bg px-1.5"
-              value={rules.vsSma.side}
-              onChange={(e) =>
-                setRules({ vsSma: { ...rules.vsSma, side: e.target.value as "above" | "below" } })
-              }
-            >
-              <option value="above">above</option>
-              <option value="below">below</option>
-            </select>
-            SMA
-            <input
-              type="number"
-              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
-              value={rules.vsSma.period}
-              min={20}
-              max={250}
-              onChange={(e) => setRules({ vsSma: { ...rules.vsSma, period: num(e.target.value, 200) } })}
-            />
+          <span className="block text-sm font-semibold">SMA 21 crosses above SMA 200</span>
+          <span className="mt-1 text-xs text-muted">
+            4h long on the cross (Discord 2022-07-17 clip). Continuation when 21 is already above 200
+            and price is on the 21. Not the Proper Risk Management YouTube.
           </span>
         </span>
       </label>
+
+      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
+        <input
+          type="checkbox"
+          className="mt-1"
+          data-stretch-ma=""
+          checked={rules.stretchMa.enabled}
+          onChange={(e) => setRules({ stretchMa: { ...rules.stretchMa, enabled: e.target.checked } })}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Stretch off the 21 (exit warning)</span>
+          <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+            ≥
+            <input
+              type="number"
+              step="0.1"
+              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
+              value={rules.stretchMa.atrMult}
+              min={0.5}
+              max={8}
+              onChange={(e) =>
+                setRules({ stretchMa: { ...rules.stretchMa, atrMult: num(e.target.value, 1.5) } })
+              }
+            />
+            ATR from SMA {rules.stretchMa.period}, no wick touch. Alert only.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
+        <input
+          type="checkbox"
+          className="mt-1"
+          data-death-cross=""
+          checked={rules.deathCross.enabled}
+          onChange={(e) =>
+            setRules({ deathCross: { ...rules.deathCross, enabled: e.target.checked } })
+          }
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Death cross — 4h 50 × 200</span>
+          <span className="mt-1 text-xs text-muted">
+            SMA 50 (red) crosses below SMA 200 (yellow) on 4h. Actionable exit/warning. Daily print
+            is lag. Alert only — no order.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
+        <input
+          type="checkbox"
+          className="mt-1"
+          data-early-death=""
+          checked={rules.earlyDeath.enabled}
+          onChange={(e) =>
+            setRules({ earlyDeath: { ...rules.earlyDeath, enabled: e.target.checked } })
+          }
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Early warning — 21 crosses 50</span>
+          <span className="mt-1 text-xs text-muted">
+            Faster than waiting for 50/200. Warning only — no order.
+          </span>
+        </span>
+      </label>
+
+      <p className="pt-1 text-[11px] font-semibold tracking-[0.14em] text-dim uppercase">
+        Confluence (display)
+      </p>
 
       <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
         <input
@@ -573,20 +717,36 @@ function RuleToggles() {
           onChange={(e) => setRules({ stochRsi: { ...rules.stochRsi, enabled: e.target.checked } })}
         />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">StochRSI reset</span>
-          <span className="mt-1 flex items-center gap-2 text-xs text-muted">
-            %K ≤
+          <span className="block text-sm font-semibold">Require StochRSI near dotted line</span>
+          <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+            Dotted
             <input
               type="number"
               className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
-              data-stoch-max=""
-              value={rules.stochRsi.max}
+              data-stoch-dotted=""
+              value={rules.stochRsi.dotted}
               min={5}
-              max={80}
-              onChange={(e) => setRules({ stochRsi: { ...rules.stochRsi, max: num(e.target.value, 30) } })}
+              max={50}
+              onChange={(e) =>
+                setRules({ stochRsi: { ...rules.stochRsi, dotted: num(e.target.value, 20) } })
+              }
             />
-            (14,14,3,3)
+            Off by default — chart still shows StochRSI (14,14,3,3).
           </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
+        <input
+          type="checkbox"
+          className="mt-1"
+          data-jd-stoch=""
+          checked={rules.jdStoch.display}
+          onChange={(e) => setRules({ jdStoch: { ...rules.jdStoch, display: e.target.checked } })}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">JD Stochastic 40/4/1 overlay</span>
+          <span className="mt-1 text-xs text-muted">Yellow on the StochRSI pane. Confluence display only.</span>
         </span>
       </label>
 

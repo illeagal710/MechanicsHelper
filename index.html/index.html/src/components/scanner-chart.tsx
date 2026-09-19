@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LIFER_FILL, LIFER_MA_COLORS } from "@/lib/scanner/defaults";
-import { sma } from "@/lib/scanner/indicators";
+import { JD_STOCH_COLOR, LIFER_FILL, LIFER_MA_COLORS } from "@/lib/scanner/defaults";
+import { sma, stochastic, stochRsi } from "@/lib/scanner/indicators";
 import type { Candle } from "@/lib/scanner/types";
 
 type Point = Candle & {
@@ -9,6 +9,9 @@ type Point = Candle & {
   sma80: number | null;
   sma100: number | null;
   sma200: number | null;
+  stochK: number | null;
+  stochD: number | null;
+  jdK: number | null;
 };
 
 const W = 2;
@@ -16,9 +19,15 @@ const W = 2;
 export function ScannerChart({
   candles,
   markTime,
+  stochDotted = 20,
+  showJdStoch = true,
+  jdStoch = { kLength: 40, kSmooth: 4, dSmooth: 1 },
 }: {
   candles: Candle[];
   markTime?: number | null;
+  stochDotted?: number;
+  showJdStoch?: boolean;
+  jdStoch?: { kLength: number; kSmooth: number; dSmooth: number };
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 640, h: 360 });
@@ -44,6 +53,8 @@ export function ScannerChart({
     const s80 = sma(closes, 80);
     const s100 = sma(closes, 100);
     const s200 = sma(closes, 200);
+    const srsi = stochRsi(closes, 14, 14, 3, 3);
+    const jd = stochastic(candles, jdStoch.kLength, jdStoch.kSmooth, jdStoch.dSmooth);
     return candles.map((c, i) => ({
       ...c,
       sma21: s21[i],
@@ -51,8 +62,11 @@ export function ScannerChart({
       sma80: s80[i],
       sma100: s100[i],
       sma200: s200[i],
+      stochK: srsi.k[i],
+      stochD: srsi.d[i],
+      jdK: jd.k[i],
     }));
-  }, [candles]);
+  }, [candles, jdStoch.dSmooth, jdStoch.kLength, jdStoch.kSmooth]);
 
   const slice = data.slice(-120);
   if (slice.length === 0) {
@@ -64,9 +78,10 @@ export function ScannerChart({
   }
   const w = size.w;
   const h = size.h;
-  const volH = Math.max(48, Math.round(h * 0.22));
-  const pad = { l: 8, r: 8, t: 28, b: 8, mid: 10 };
-  const plotH = h - volH - pad.t - pad.b - pad.mid;
+  const oscH = Math.max(64, Math.round(h * 0.24));
+  const volH = Math.max(36, Math.round(h * 0.14));
+  const pad = { l: 8, r: 8, t: 28, b: 8, mid: 8 };
+  const plotH = h - oscH - volH - pad.t - pad.b - pad.mid * 2;
   const plotW = w - pad.l - pad.r;
   const n = slice.length || 1;
   const highs = slice.map((c) => c.high);
@@ -77,6 +92,8 @@ export function ScannerChart({
   const volMax = Math.max(...slice.map((c) => c.volume), 1);
   const slot = plotW / n;
   const y = (price: number) => pad.t + ((max - price) / span) * plotH;
+  const oscTop = pad.t + plotH + pad.mid + volH + pad.mid;
+  const yOsc = (v: number) => oscTop + ((100 - v) / 100) * oscH;
   const x = (i: number) => pad.l + slot * i + slot / 2;
   const hi = hover != null && hover >= 0 && hover < slice.length ? hover : slice.length - 1;
   const bar = slice[hi];
@@ -86,12 +103,19 @@ export function ScannerChart({
   const pts80 = slice.map((c, i) => (c.sma80 == null ? null : ([x(i), y(c.sma80)] as const)));
   const pts100 = slice.map((c, i) => (c.sma100 == null ? null : ([x(i), y(c.sma100)] as const)));
   const pts200 = slice.map((c, i) => (c.sma200 == null ? null : ([x(i), y(c.sma200)] as const)));
+  const ptsK = slice.map((c, i) => (c.stochK == null ? null : ([x(i), yOsc(c.stochK)] as const)));
+  const ptsD = slice.map((c, i) => (c.stochD == null ? null : ([x(i), yOsc(c.stochD)] as const)));
+  const ptsJd = slice.map((c, i) => (c.jdK == null ? null : ([x(i), yOsc(c.jdK)] as const)));
   const sma21Path = pathFor(pts21);
   const sma50Path = pathFor(pts50);
   const sma80Path = pathFor(pts80);
   const sma100Path = pathFor(pts100);
   const sma200Path = pathFor(pts200);
+  const kPath = pathFor(ptsK);
+  const dPath = pathFor(ptsD);
+  const jdPath = pathFor(ptsJd);
   const fillPath = fillOn ? areaBetween(pts21, pts200) : null;
+  const volTop = pad.t + plotH + pad.mid;
 
   return (
     <div ref={wrapRef} className="relative h-full min-h-[240px] w-full" data-scanner-chart="">
@@ -137,7 +161,7 @@ export function ScannerChart({
               />
               <rect
                 x={cx - slot / 2 + 1}
-                y={h - pad.b - volH + (1 - c.volume / volMax) * volH}
+                y={volTop + (1 - c.volume / volMax) * volH}
                 width={Math.max(1, slot - 2)}
                 height={Math.max(1, (c.volume / volMax) * volH)}
                 fill={color}
@@ -161,6 +185,29 @@ export function ScannerChart({
         ) : null}
         {sma200Path ? (
           <path d={sma200Path} fill="none" stroke={LIFER_MA_COLORS[200]} strokeWidth={W} data-sma200="" />
+        ) : null}
+        <line
+          x1={pad.l}
+          x2={w - pad.r}
+          y1={yOsc(stochDotted)}
+          y2={yOsc(stochDotted)}
+          stroke="var(--color-muted)"
+          strokeDasharray="3 3"
+          data-stoch-dotted=""
+        />
+        <line
+          x1={pad.l}
+          x2={w - pad.r}
+          y1={yOsc(80)}
+          y2={yOsc(80)}
+          stroke="var(--color-muted)"
+          strokeDasharray="3 3"
+          opacity={0.5}
+        />
+        {dPath ? <path d={dPath} fill="none" stroke="var(--color-muted)" strokeWidth={1.5} /> : null}
+        {kPath ? <path d={kPath} fill="none" stroke="var(--color-fg)" strokeWidth={1.5} data-stochrsi="" /> : null}
+        {showJdStoch && jdPath ? (
+          <path d={jdPath} fill="none" stroke={JD_STOCH_COLOR} strokeWidth={1.5} data-jd-stoch="" />
         ) : null}
         {bar ? (
           <line
@@ -205,12 +252,13 @@ export function ScannerChart({
               200 {fmt(bar.sma200)}
             </span>
           ) : null}
+          {bar.stochK != null ? <span className="ml-2">SRSI {fmt(bar.stochK, 1)}</span> : null}
         </div>
       ) : (
         <div className="absolute inset-0 grid place-items-center text-sm text-muted">No candles yet</div>
       )}
       <div
-        className="pointer-events-none absolute right-2 bottom-14 flex flex-wrap justify-end gap-x-2 gap-y-0.5 font-mono text-[10px]"
+        className="pointer-events-none absolute right-2 bottom-2 flex flex-wrap justify-end gap-x-2 gap-y-0.5 font-mono text-[10px]"
         data-sma-legend=""
       >
         <span style={{ color: LIFER_MA_COLORS[21] }}>21 white</span>
@@ -218,6 +266,8 @@ export function ScannerChart({
         <span style={{ color: LIFER_MA_COLORS[80] }}>80 purple</span>
         <span style={{ color: LIFER_MA_COLORS[100] }}>100 blue</span>
         <span style={{ color: LIFER_MA_COLORS[200] }}>200 yellow</span>
+        <span className="text-muted">StochRSI dotted {stochDotted}</span>
+        {showJdStoch ? <span style={{ color: JD_STOCH_COLOR }}>JD 40/4/1</span> : null}
       </div>
       <label className="absolute right-2 top-7 z-10 flex items-center gap-1.5 font-mono text-[10px] text-muted">
         <input

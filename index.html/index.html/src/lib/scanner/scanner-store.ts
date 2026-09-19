@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEFAULT_INTERVAL, DEFAULT_RULES, DEFAULT_WATCHLIST, SIGNALS_CAP } from "./defaults";
+import {
+  DEFAULT_INTERVAL,
+  DEFAULT_RULES,
+  DEFAULT_WATCHLIST,
+  mergeRules,
+  SCANNER_PERSIST_KEY,
+  SIGNALS_CAP,
+} from "./defaults";
 import type { BuyRules, Interval, ScanSignal } from "./types";
 
 export type ScannerState = {
@@ -53,11 +60,11 @@ export const useScannerStore = create<ScannerState>()(
       setScanning: (scanning) => set({ scanning }),
       setRules: (patch) =>
         set((state) => ({
-          rules: typeof patch === "function" ? patch(state.rules) : { ...state.rules, ...patch },
+          rules: mergeRules(typeof patch === "function" ? patch(state.rules) : { ...state.rules, ...patch }),
           seenFingerprints: {},
         })),
       pushSignal: (signal) => {
-        const key = `${signal.symbol}|${signal.interval}`;
+        const key = `${signal.symbol}|${signal.interval}|${signal.kind}`;
         if (get().seenFingerprints[key] === signal.fingerprint) return false;
         set((state) => ({
           seenFingerprints: { ...state.seenFingerprints, [key]: signal.fingerprint },
@@ -68,13 +75,13 @@ export const useScannerStore = create<ScannerState>()(
       clearSignals: () => set({ signals: [], seenFingerprints: {} }),
     }),
     {
-      name: "mh.crypto-scanner.v2-lifer",
+      name: SCANNER_PERSIST_KEY,
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ScannerState>;
         return {
           ...current,
           ...p,
-          rules: { ...DEFAULT_RULES, ...(p.rules ?? {}) },
+          rules: mergeRules(p.rules),
         };
       },
       partialize: (state) => ({

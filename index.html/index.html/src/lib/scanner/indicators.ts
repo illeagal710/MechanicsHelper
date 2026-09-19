@@ -117,6 +117,68 @@ export function crossedUp(
   return f0 <= s0 && f1 > s1;
 }
 
+export function crossedDown(
+  fast: (number | null)[],
+  slow: (number | null)[],
+  index: number,
+): boolean {
+  if (index < 1) return false;
+  const f0 = fast[index - 1];
+  const s0 = slow[index - 1];
+  const f1 = fast[index];
+  const s1 = slow[index];
+  if (f0 == null || s0 == null || f1 == null || s1 == null) return false;
+  return f0 >= s0 && f1 < s1;
+}
+
+/** Wilder ATR. First value at `period`. */
+export function atr(candles: { high: number; low: number; close: number }[], period = 14): (number | null)[] {
+  const out: (number | null)[] = Array.from({ length: candles.length }, () => null);
+  if (period < 1 || candles.length < period + 1) return out;
+  const tr: number[] = [];
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i]!;
+    if (i === 0) {
+      tr.push(c.high - c.low);
+      continue;
+    }
+    const prev = candles[i - 1]!.close;
+    tr.push(Math.max(c.high - c.low, Math.abs(c.high - prev), Math.abs(c.low - prev)));
+  }
+  let sum = 0;
+  for (let i = 1; i <= period; i++) sum += tr[i]!;
+  let prevAtr = sum / period;
+  out[period] = prevAtr;
+  for (let i = period + 1; i < candles.length; i++) {
+    prevAtr = (prevAtr * (period - 1) + tr[i]!) / period;
+    out[i] = prevAtr;
+  }
+  return out;
+}
+
+/** TradingView Stochastic. JD overlay uses 40 / 4 / 1. */
+export function stochastic(
+  candles: { high: number; low: number; close: number }[],
+  kLength = 14,
+  kSmooth = 1,
+  dSmooth = 3,
+): { k: (number | null)[]; d: (number | null)[] } {
+  const raw: (number | null)[] = Array.from({ length: candles.length }, () => null);
+  for (let i = 0; i < candles.length; i++) {
+    if (i + 1 < kLength) continue;
+    let hi = -Infinity;
+    let lo = Infinity;
+    for (let j = i - kLength + 1; j <= i; j++) {
+      hi = Math.max(hi, candles[j]!.high);
+      lo = Math.min(lo, candles[j]!.low);
+    }
+    raw[i] = hi === lo ? 50 : ((candles[i]!.close - lo) / (hi - lo)) * 100;
+  }
+  const k = smaSparse(raw, kSmooth);
+  const d = smaSparse(k, dSmooth);
+  return { k, d };
+}
+
 export function lastClosedIndex(length: number): number {
   if (length < 2) return Math.max(0, length - 1);
   return length - 2;
