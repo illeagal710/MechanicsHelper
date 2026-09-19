@@ -50,6 +50,58 @@ export function rsi(closes: number[], period = 14): (number | null)[] {
   return out;
 }
 
+/** Stochastic RSI %K / %D on a 0–100 scale. TradingView default 14,14,3,3. */
+export function stochRsi(
+  closes: number[],
+  rsiPeriod = 14,
+  stochPeriod = 14,
+  kSmooth = 3,
+  dSmooth = 3,
+): { k: (number | null)[]; d: (number | null)[] } {
+  const rsiSeries = rsi(closes, rsiPeriod);
+  const raw: (number | null)[] = Array.from({ length: closes.length }, () => null);
+  for (let i = 0; i < rsiSeries.length; i++) {
+    if (i + 1 < rsiPeriod + stochPeriod) continue;
+    const window: number[] = [];
+    for (let j = i - stochPeriod + 1; j <= i; j++) {
+      const v = rsiSeries[j];
+      if (v == null) {
+        window.length = 0;
+        break;
+      }
+      window.push(v);
+    }
+    if (window.length < stochPeriod) continue;
+    const min = Math.min(...window);
+    const max = Math.max(...window);
+    const current = rsiSeries[i]!;
+    raw[i] = max === min ? 50 : ((current - min) / (max - min)) * 100;
+  }
+  const k = smaSparse(raw, kSmooth);
+  const d = smaSparse(k, dSmooth);
+  return { k, d };
+}
+
+function smaSparse(values: (number | null)[], period: number): (number | null)[] {
+  const out: (number | null)[] = Array.from({ length: values.length }, () => null);
+  if (period < 1) return out;
+  for (let i = 0; i < values.length; i++) {
+    if (i + 1 < period) continue;
+    let sum = 0;
+    let ok = true;
+    for (let j = i - period + 1; j <= i; j++) {
+      const v = values[j];
+      if (v == null) {
+        ok = false;
+        break;
+      }
+      sum += v;
+    }
+    if (ok) out[i] = sum / period;
+  }
+  return out;
+}
+
 export function crossedUp(
   fast: (number | null)[],
   slow: (number | null)[],

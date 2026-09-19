@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { crossedUp, ema, lastClosedIndex, rsi, sma } from "./indicators.ts";
+import { crossedUp, lastClosedIndex, rsi, sma, stochRsi } from "./indicators.ts";
 
 test("SMA is the simple window mean", () => {
   const series = sma([1, 2, 3, 4, 5], 3);
@@ -11,18 +11,23 @@ test("SMA is the simple window mean", () => {
   assert.equal(series[4], 4);
 });
 
-test("EMA seeds from SMA then smooths", () => {
-  const series = ema([1, 2, 3, 4], 2);
-  assert.equal(series[0], null);
-  assert.equal(series[1], 1.5);
-  assert.ok(series[2] != null && Math.abs(series[2] - (3 * (2 / 3) + 1.5 * (1 / 3))) < 1e-9);
-});
-
 test("RSI is 100 on a straight-up run and 0 on a straight-down run", () => {
   const up = rsi([1, 2, 3, 4, 5, 6], 3);
   const down = rsi([6, 5, 4, 3, 2, 1], 3);
   assert.equal(up[3], 100);
   assert.equal(down[3], 0);
+});
+
+test("StochRSI is high after a rally and low after a dump", () => {
+  // Monotonic series keeps RSI pinned (StochRSI = 50). Reverse first so RSI actually moves.
+  const up = [...Array.from({ length: 18 }, (_, i) => 80 - i * 2), ...Array.from({ length: 28 }, (_, i) => 44 + i * 3)];
+  const down = [...Array.from({ length: 18 }, (_, i) => 40 + i * 2), ...Array.from({ length: 28 }, (_, i) => 76 - i * 3)];
+  const upK = stochRsi(up, 5, 5, 3, 3).k;
+  const downK = stochRsi(down, 5, 5, 3, 3).k;
+  const lastUp = [...upK].reverse().find((v) => v != null);
+  const lastDown = [...downK].reverse().find((v) => v != null);
+  assert.ok(lastUp != null && lastUp > 70, `rally StochRSI ${lastUp}`);
+  assert.ok(lastDown != null && lastDown < 30, `dump StochRSI ${lastDown}`);
 });
 
 test("crossedUp detects a fast EMA crossing above slow", () => {

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { ScannerChart } from "@/components/scanner-chart";
-import { DEFAULT_RULES, SCAN_MS, SUGGESTED_SYMBOLS } from "@/lib/scanner/defaults";
+import { DEFAULT_INTERVAL, DEFAULT_RULES, SCAN_MS, SETUP_NAME, SUGGESTED_SYMBOLS } from "@/lib/scanner/defaults";
 import { fmtPrice } from "@/lib/scanner/indicators";
 import { isUsdtSymbol, loadKlines, loadTicker, loadTickers, normalizeSymbol } from "@/lib/scanner/market";
 import { evaluateSetup } from "@/lib/scanner/rules";
@@ -178,11 +178,14 @@ export function ScannerApp() {
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Mechanics Helper</p>
           <h1 className="text-lg font-semibold tracking-tight">Chart scanner</h1>
-          <p className="text-sm text-muted">Alerts only — this app never places trades. Binance public data, no API key.</p>
+          <p className="text-sm text-muted">
+            {SETUP_NAME} buy setup · alerts only — never places trades. Binance public data, no API key.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
             aria-label="Timeframe"
+            data-interval=""
             className="h-10 rounded-[10px] border border-line bg-surface px-3 font-mono text-sm"
             value={interval}
             onChange={(e) => setIntervalTf(e.target.value as Interval)}
@@ -315,15 +318,19 @@ export function ScannerApp() {
                                 key={c.id}
                                 className={`rounded px-1 py-0.5 font-mono text-[10px] ${c.passed ? "bg-good/12 text-good" : "bg-surface text-dim"}`}
                               >
-                                {c.id === "rsi"
-                                  ? `RSI ${c.detail}`
-                                  : c.id === "volumeSpike"
-                                    ? `Vol ${c.detail}`
-                                    : c.id === "emaCross"
-                                      ? "EMA"
-                                      : c.id === "vsSma"
-                                        ? "SMA"
-                                        : "24h"}
+                                {c.id === "nearMa"
+                                  ? `21 ${c.detail}`
+                                  : c.id === "vsSma"
+                                    ? `200 ${c.passed ? "↑" : "↓"}`
+                                    : c.id === "stochRsi"
+                                      ? `SRSI ${c.detail}`
+                                      : c.id === "rsi"
+                                        ? `RSI ${c.detail}`
+                                        : c.id === "volumeSpike"
+                                          ? `Vol ${c.detail}`
+                                          : c.id === "emaCross"
+                                            ? "EMA"
+                                            : "24h"}
                               </span>
                             ))}
                           </div>
@@ -360,26 +367,27 @@ export function ScannerApp() {
             ) : null}
           </div>
           <div className="min-h-[280px] flex-1 p-2">
-            <ScannerChart
-              candles={chart}
-              fast={rules.emaCross.fast}
-              slow={rules.emaCross.slow}
-              markTime={markTime}
-            />
+            <ScannerChart candles={chart} markTime={markTime} />
           </div>
         </section>
 
         <section className={`${tab === "rules" || tab === "signals" ? "block" : "hidden"} border-l border-line lg:block`}>
           <div className="border-b border-line p-3">
             <h2 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Buy setup</h2>
-            <p className="mt-1 text-sm text-muted">Enabled conditions are AND. At least one must be on.</p>
+            <p className="mt-1 text-sm text-muted" data-setup-name="">
+              {SETUP_NAME}: get in on the 21 SMA, in an uptrend above the 200, with a StochRSI reset. Conditions are AND. Extra filters stay off unless you turn them on.
+            </p>
             <RuleToggles />
             <button
               type="button"
+              data-reset-rules=""
               className="mt-3 text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
-              onClick={() => setRules(() => ({ ...DEFAULT_RULES }))}
+              onClick={() => {
+                setRules(() => ({ ...DEFAULT_RULES }));
+                setIntervalTf(DEFAULT_INTERVAL);
+              }}
             >
-              Reset defaults
+              Reset Crypto Lifers defaults
             </button>
           </div>
           <div className="p-3">
@@ -433,6 +441,104 @@ function RuleToggles() {
 
   return (
     <div className="mt-3 flex flex-col gap-2" data-buy-rules="">
+      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
+        <input
+          type="checkbox"
+          className="mt-1"
+          data-near-ma=""
+          checked={rules.nearMa.enabled}
+          onChange={(e) => setRules({ nearMa: { ...rules.nearMa, enabled: e.target.checked } })}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">On / near SMA 21</span>
+          <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+            SMA
+            <input
+              type="number"
+              className="h-8 w-14 rounded-md border border-line bg-bg px-1.5 font-mono"
+              value={rules.nearMa.period}
+              min={5}
+              max={50}
+              onChange={(e) => setRules({ nearMa: { ...rules.nearMa, period: num(e.target.value, 21) } })}
+            />
+            within
+            <input
+              type="number"
+              step="0.1"
+              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
+              data-near-pct=""
+              value={rules.nearMa.maxPct}
+              min={0.2}
+              max={10}
+              onChange={(e) => setRules({ nearMa: { ...rules.nearMa, maxPct: num(e.target.value, 2.5) } })}
+            />
+            %
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={rules.vsSma.enabled}
+          onChange={(e) => setRules({ vsSma: { ...rules.vsSma, enabled: e.target.checked } })}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Uptrend vs SMA 200</span>
+          <span className="mt-1 flex items-center gap-2 text-xs text-muted">
+            Close
+            <select
+              className="h-8 rounded-md border border-line bg-bg px-1.5"
+              value={rules.vsSma.side}
+              onChange={(e) =>
+                setRules({ vsSma: { ...rules.vsSma, side: e.target.value as "above" | "below" } })
+              }
+            >
+              <option value="above">above</option>
+              <option value="below">below</option>
+            </select>
+            SMA
+            <input
+              type="number"
+              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
+              value={rules.vsSma.period}
+              min={20}
+              max={250}
+              onChange={(e) => setRules({ vsSma: { ...rules.vsSma, period: num(e.target.value, 200) } })}
+            />
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
+        <input
+          type="checkbox"
+          className="mt-1"
+          data-stoch-rsi=""
+          checked={rules.stochRsi.enabled}
+          onChange={(e) => setRules({ stochRsi: { ...rules.stochRsi, enabled: e.target.checked } })}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">StochRSI reset</span>
+          <span className="mt-1 flex items-center gap-2 text-xs text-muted">
+            %K ≤
+            <input
+              type="number"
+              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
+              data-stoch-max=""
+              value={rules.stochRsi.max}
+              min={5}
+              max={80}
+              onChange={(e) => setRules({ stochRsi: { ...rules.stochRsi, max: num(e.target.value, 30) } })}
+            />
+            (14,14,3,3)
+          </span>
+        </span>
+      </label>
+
+      <p className="pt-1 text-[11px] font-semibold tracking-[0.14em] text-dim uppercase">Extra filters</p>
+
       <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
         <input
           type="checkbox"
@@ -530,40 +636,6 @@ function RuleToggles() {
               onChange={(e) =>
                 setRules({ volumeSpike: { ...rules.volumeSpike, period: num(e.target.value, 20) } })
               }
-            />
-          </span>
-        </span>
-      </label>
-
-      <label className="flex items-start gap-2 rounded-[10px] border border-line bg-surface p-2.5">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={rules.vsSma.enabled}
-          onChange={(e) => setRules({ vsSma: { ...rules.vsSma, enabled: e.target.checked } })}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Price vs SMA</span>
-          <span className="mt-1 flex items-center gap-2 text-xs text-muted">
-            Close
-            <select
-              className="h-8 rounded-md border border-line bg-bg px-1.5"
-              value={rules.vsSma.side}
-              onChange={(e) =>
-                setRules({ vsSma: { ...rules.vsSma, side: e.target.value as "above" | "below" } })
-              }
-            >
-              <option value="above">above</option>
-              <option value="below">below</option>
-            </select>
-            SMA
-            <input
-              type="number"
-              className="h-8 w-14 rounded-md border border-line bg-bg px-1.5 font-mono"
-              value={rules.vsSma.period}
-              min={5}
-              max={200}
-              onChange={(e) => setRules({ vsSma: { ...rules.vsSma, period: num(e.target.value, 50) } })}
             />
           </span>
         </span>

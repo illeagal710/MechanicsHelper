@@ -68,7 +68,15 @@ export const useScannerStore = create<ScannerState>()(
       clearSignals: () => set({ signals: [], seenFingerprints: {} }),
     }),
     {
-      name: "mh.crypto-scanner.v1",
+      name: "mh.crypto-scanner.v2-lifer",
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<ScannerState>;
+        return {
+          ...current,
+          ...p,
+          rules: { ...DEFAULT_RULES, ...(p.rules ?? {}) },
+        };
+      },
       partialize: (state) => ({
         watchlist: state.watchlist,
         selected: state.selected,

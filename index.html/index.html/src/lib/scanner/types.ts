@@ -19,13 +19,29 @@ export type Ticker = {
   quoteVolume: number;
 };
 
-export type ConditionId = "rsi" | "emaCross" | "volumeSpike" | "vsSma" | "pullback";
+export type ConditionId =
+  | "nearMa"
+  | "vsSma"
+  | "stochRsi"
+  | "rsi"
+  | "emaCross"
+  | "volumeSpike"
+  | "pullback";
 
 export type BuyRules = {
+  nearMa: { enabled: boolean; period: number; maxPct: number };
+  vsSma: { enabled: boolean; period: number; side: "above" | "below" };
+  stochRsi: {
+    enabled: boolean;
+    rsiPeriod: number;
+    stochPeriod: number;
+    kSmooth: number;
+    dSmooth: number;
+    max: number;
+  };
   rsi: { enabled: boolean; period: number; max: number };
   emaCross: { enabled: boolean; fast: number; slow: number };
   volumeSpike: { enabled: boolean; period: number; multiplier: number };
-  vsSma: { enabled: boolean; period: number; side: "above" | "below" };
   pullback: { enabled: boolean; maxChangePct: number };
 };
 

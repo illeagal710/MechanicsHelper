@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ema } from "@/lib/scanner/indicators";
+import { sma } from "@/lib/scanner/indicators";
 import type { Candle } from "@/lib/scanner/types";
 
-type Point = Candle & { emaFast: number | null; emaSlow: number | null };
+type Point = Candle & { sma21: number | null; sma50: number | null; sma200: number | null };
 
 export function ScannerChart({
   candles,
-  fast = 9,
-  slow = 21,
   markTime,
 }: {
   candles: Candle[];
-  fast?: number;
-  slow?: number;
   markTime?: number | null;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -33,10 +29,11 @@ export function ScannerChart({
 
   const data: Point[] = useMemo(() => {
     const closes = candles.map((c) => c.close);
-    const fasts = ema(closes, fast);
-    const slows = ema(closes, slow);
-    return candles.map((c, i) => ({ ...c, emaFast: fasts[i], emaSlow: slows[i] }));
-  }, [candles, fast, slow]);
+    const s21 = sma(closes, 21);
+    const s50 = sma(closes, 50);
+    const s200 = sma(closes, 200);
+    return candles.map((c, i) => ({ ...c, sma21: s21[i], sma50: s50[i], sma200: s200[i] }));
+  }, [candles]);
 
   const slice = data.slice(-120);
   if (slice.length === 0) {
@@ -65,12 +62,9 @@ export function ScannerChart({
   const hi = hover != null && hover >= 0 && hover < slice.length ? hover : slice.length - 1;
   const bar = slice[hi];
 
-  const emaFastPath = pathFor(
-    slice.map((c, i) => (c.emaFast == null ? null : [x(i), y(c.emaFast)] as const)),
-  );
-  const emaSlowPath = pathFor(
-    slice.map((c, i) => (c.emaSlow == null ? null : [x(i), y(c.emaSlow)] as const)),
-  );
+  const sma21Path = pathFor(slice.map((c, i) => (c.sma21 == null ? null : ([x(i), y(c.sma21)] as const))));
+  const sma50Path = pathFor(slice.map((c, i) => (c.sma50 == null ? null : ([x(i), y(c.sma50)] as const))));
+  const sma200Path = pathFor(slice.map((c, i) => (c.sma200 == null ? null : ([x(i), y(c.sma200)] as const))));
 
   return (
     <div ref={wrapRef} className="relative h-full min-h-[240px] w-full" data-scanner-chart="">
@@ -106,14 +100,7 @@ export function ScannerChart({
                   opacity={0.12}
                 />
               ) : null}
-              <line
-                x1={cx}
-                x2={cx}
-                y1={y(c.high)}
-                y2={y(c.low)}
-                stroke={color}
-                strokeWidth={1}
-              />
+              <line x1={cx} x2={cx} y1={y(c.high)} y2={y(c.low)} stroke={color} strokeWidth={1} />
               <rect
                 x={cx - bw / 2}
                 y={bodyTop}
@@ -132,11 +119,21 @@ export function ScannerChart({
             </g>
           );
         })}
-        {emaSlowPath ? (
-          <path d={emaSlowPath} fill="none" stroke="var(--color-muted)" strokeWidth={1.25} />
+        {sma200Path ? (
+          <path
+            d={sma200Path}
+            fill="none"
+            stroke="var(--color-muted)"
+            strokeWidth={1.2}
+            strokeDasharray="4 3"
+            data-sma200=""
+          />
         ) : null}
-        {emaFastPath ? (
-          <path d={emaFastPath} fill="none" stroke="var(--color-accent)" strokeWidth={1.4} />
+        {sma50Path ? (
+          <path d={sma50Path} fill="none" stroke="#f87171" strokeWidth={1.15} data-sma50="" />
+        ) : null}
+        {sma21Path ? (
+          <path d={sma21Path} fill="none" stroke="var(--color-fg)" strokeWidth={1.6} data-sma21="" />
         ) : null}
         {bar ? (
           <line
@@ -156,12 +153,21 @@ export function ScannerChart({
           <span className="ml-2">H {fmt(bar.high)}</span>
           <span className="ml-2">L {fmt(bar.low)}</span>
           <span className="ml-2">V {fmt(bar.volume, 0)}</span>
-          {bar.emaFast != null ? <span className="ml-2 text-accent">EMA{fast} {fmt(bar.emaFast)}</span> : null}
-          {bar.emaSlow != null ? <span className="ml-2">EMA{slow} {fmt(bar.emaSlow)}</span> : null}
+          {bar.sma21 != null ? <span className="ml-2 text-fg">SMA21 {fmt(bar.sma21)}</span> : null}
+          {bar.sma50 != null ? <span className="ml-2 text-down">SMA50 {fmt(bar.sma50)}</span> : null}
+          {bar.sma200 != null ? <span className="ml-2">SMA200 {fmt(bar.sma200)}</span> : null}
         </div>
       ) : (
         <div className="absolute inset-0 grid place-items-center text-sm text-muted">No candles yet</div>
       )}
+      <div
+        className="pointer-events-none absolute right-2 bottom-14 flex gap-2 font-mono text-[10px] text-muted"
+        data-sma-legend=""
+      >
+        <span className="text-fg">SMA 21</span>
+        <span className="text-down">SMA 50</span>
+        <span>SMA 200</span>
+      </div>
     </div>
   );
 }

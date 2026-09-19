@@ -1,7 +1,8 @@
+import { KLINE_LIMIT } from "./defaults";
 import { fetchKlines, fetchTicker, fetchTickers } from "./market-api";
 import type { Candle, Interval, Ticker } from "./types";
 
-export async function loadKlines(symbol: string, interval: Interval, limit = 200): Promise<Candle[]> {
+export async function loadKlines(symbol: string, interval: Interval, limit = KLINE_LIMIT): Promise<Candle[]> {
   return fetchKlines({ data: { symbol, interval, limit } });
 }
 

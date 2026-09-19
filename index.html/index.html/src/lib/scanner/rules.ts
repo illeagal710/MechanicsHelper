@@ -1,4 +1,4 @@
-import { crossedUp, ema, lastClosedIndex, rsi, sma } from "./indicators.ts";
+import { crossedUp, ema, lastClosedIndex, rsi, sma, stochRsi } from "./indicators.ts";
 import type { BuyRules, Candle, ConditionResult, SetupEval } from "./types.ts";
 
 function fmt(value: number, digits = 1): string {
@@ -23,6 +23,58 @@ export function evaluateSetup(
   const closes = candles.map((c) => c.close);
   const volumes = candles.map((c) => c.volume);
   const conditions: ConditionResult[] = [];
+
+  if (rules.nearMa.enabled) {
+    const ma = sma(closes, rules.nearMa.period)[i];
+    const dist = ma != null && ma > 0 ? (Math.abs(candle.close - ma) / ma) * 100 : null;
+    const wickTouch =
+      ma != null &&
+      candle.low <= ma * (1 + rules.nearMa.maxPct / 100) &&
+      candle.high >= ma * (1 - rules.nearMa.maxPct / 100);
+    const passed = dist != null && dist <= rules.nearMa.maxPct && wickTouch;
+    conditions.push({
+      id: "nearMa",
+      enabled: true,
+      passed,
+      label: `On SMA ${rules.nearMa.period} (≤ ${rules.nearMa.maxPct}%)`,
+      detail: dist == null ? "warming up" : `${fmt(dist, 2)}%`,
+    });
+  }
+
+  if (rules.vsSma.enabled) {
+    const ma = sma(closes, rules.vsSma.period)[i];
+    const passed =
+      ma != null &&
+      (rules.vsSma.side === "above" ? candle.close > ma : candle.close < ma);
+    conditions.push({
+      id: "vsSma",
+      enabled: true,
+      passed,
+      label: `Close ${rules.vsSma.side} SMA ${rules.vsSma.period}`,
+      detail: ma == null ? "warming up" : fmt(candle.close / ma, 3),
+    });
+  }
+
+  if (rules.stochRsi.enabled) {
+    const { k, d } = stochRsi(
+      closes,
+      rules.stochRsi.rsiPeriod,
+      rules.stochRsi.stochPeriod,
+      rules.stochRsi.kSmooth,
+      rules.stochRsi.dSmooth,
+    );
+    const kv = k[i];
+    const reset = kv != null && kv <= rules.stochRsi.max;
+    const bounce = crossedUp(k, d, i) && (k[i - 1] == null || k[i - 1]! <= rules.stochRsi.max);
+    const passed = Boolean(reset || bounce);
+    conditions.push({
+      id: "stochRsi",
+      enabled: true,
+      passed,
+      label: `StochRSI %K ≤ ${rules.stochRsi.max}`,
+      detail: kv == null ? "warming up" : fmt(kv, 1),
+    });
+  }
 
   if (rules.rsi.enabled) {
     const series = rsi(closes, rules.rsi.period);
@@ -62,20 +114,6 @@ export function evaluateSetup(
       passed,
       label: `Vol ≥ ${rules.volumeSpike.multiplier}× SMA${rules.volumeSpike.period}`,
       detail: avg == null || avg <= 0 ? "warming up" : `${fmt(candle.volume / avg, 2)}×`,
-    });
-  }
-
-  if (rules.vsSma.enabled) {
-    const ma = sma(closes, rules.vsSma.period)[i];
-    const passed =
-      ma != null &&
-      (rules.vsSma.side === "above" ? candle.close > ma : candle.close < ma);
-    conditions.push({
-      id: "vsSma",
-      enabled: true,
-      passed,
-      label: `Close ${rules.vsSma.side} SMA ${rules.vsSma.period}`,
-      detail: ma == null ? "warming up" : fmt(candle.close / ma, 3),
     });
   }
 
