@@ -222,6 +222,17 @@ test("job length / block-after-booking copy exists in English and Spanish", () =
   assert.match(translate("es", "book.takenHint"), /duraci[oó]n|bloquea/i);
 });
 
+test("booking calendar and photo pan copy exists in English and Spanish", () => {
+  assert.match(translate("en", "book.bayFull"), /four weeks/i);
+  assert.match(translate("es", "book.bayFull"), /cuatro semanas/i);
+  assert.equal(translate("en", "book.calendarAria"), "Available days and times");
+  assert.equal(translate("es", "book.calendarAria"), "Días y horarios disponibles");
+  assert.equal(translate("en", "book.pickDay"), "Pick a day");
+  assert.equal(translate("es", "book.pickDay"), "Elige un día");
+  assert.equal(translate("en", "job.panHint"), "Drag to look around");
+  assert.equal(translate("es", "job.panHint"), "Arrastra para ver alrededor");
+});
+
 test("shop history and decline copy exists in English and Spanish", () => {
   assert.equal(translate("en", "shop.history"), "History");
   assert.equal(translate("es", "shop.history"), "Historial");

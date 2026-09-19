@@ -4,6 +4,8 @@ import {
   Bell,
   CalendarPlus,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   House,
   MapPin,
@@ -48,6 +50,7 @@ import {
   vehicleLabel,
 } from "@/lib/store";
 import { missingRequiredBookingFields, normalizeSymptoms } from "@/lib/booking";
+import { addMonths, dayKey, monthGrid, monthKey } from "@/lib/booking-calendar";
 import {
   BLOCK_AFTER_HOURS_CHOICES,
   normalizeBlockAfterHours,
@@ -145,23 +148,6 @@ function readRefFromUrl() {
   if (typeof window === "undefined") return "";
   const q = new URLSearchParams(window.location.search).get("ref") || "";
   return q.trim().toUpperCase();
-}
-
-function slots() {
-  const out: Date[] = [];
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  for (let d = 1; d <= 7; d++) {
-    for (const t of ["08:00", "09:30", "11:00", "13:00", "14:30", "16:00"]) {
-      const [h, m] = t.split(":").map(Number);
-      const dt = new Date(start);
-      dt.setDate(dt.getDate() + d);
-      dt.setHours(h, m, 0, 0);
-      if (dt.getDay() === 0) continue;
-      out.push(dt);
-    }
-  }
-  return out;
 }
 
 export function MechanicsApp() {
@@ -3203,26 +3189,127 @@ function SlotCalendar({
 }) {
   const { t } = useI18n();
   const slots = Store.weekSlotStates(providerId);
-  const groups: { key: string; label: string; items: typeof slots }[] = [];
+  const byDay = new Map<string, typeof slots>();
   for (const slot of slots) {
-    const key = `${slot.date.getFullYear()}-${slot.date.getMonth()}-${slot.date.getDate()}`;
-    const last = groups.at(-1);
-    if (last?.key === key) last.items.push(slot);
-    else {
-      groups.push({
-        key,
-        label: slot.date.toLocaleDateString(localeTag(locale), { weekday: "short", month: "short", day: "numeric" }),
-        items: [slot],
-      });
-    }
+    const key = dayKey(slot.date);
+    const list = byDay.get(key) || [];
+    list.push(slot);
+    byDay.set(key, list);
   }
+  const firstOpen = slots.find((s) => !s.taken);
+  const seed = selected ? new Date(selected) : firstOpen?.date || new Date();
+  const [view, setView] = useState({ year: seed.getFullYear(), month: seed.getMonth() });
+  const [pickedDay, setPickedDay] = useState(() => dayKey(seed));
+
+  useEffect(() => {
+    if (!selected) return;
+    const d = new Date(selected);
+    if (Number.isNaN(d.getTime())) return;
+    setPickedDay(dayKey(d));
+    setView({ year: d.getFullYear(), month: d.getMonth() });
+  }, [selected]);
+
+  const todayKey = dayKey(new Date());
+  const cells = monthGrid(view.year, view.month);
+  const rawDaySlots = byDay.get(pickedDay) || [];
+  const shownDay = rawDaySlots.length || !firstOpen ? pickedDay : dayKey(firstOpen.date);
+  const daySlots = byDay.get(shownDay) || [];
+  const minMonth = slots[0]
+    ? { year: slots[0].date.getFullYear(), month: slots[0].date.getMonth() }
+    : { year: view.year, month: view.month };
+  const last = slots.at(-1);
+  const maxMonth = last
+    ? { year: last.date.getFullYear(), month: last.date.getMonth() }
+    : { year: view.year, month: view.month };
+  const canPrev =
+    view.year > minMonth.year || (view.year === minMonth.year && view.month > minMonth.month);
+  const canNext =
+    view.year < maxMonth.year || (view.year === maxMonth.year && view.month < maxMonth.month);
+  const monthLabel = new Date(view.year, view.month, 1).toLocaleDateString(localeTag(locale), {
+    month: "long",
+    year: "numeric",
+  });
+
   return (
-    <div className="flex flex-col gap-3" data-slot-calendar="">
-      {groups.map((group) => (
-        <div key={group.key} data-slot-day={group.key}>
-          <p className="mb-1.5 text-sm font-semibold">{group.label}</p>
+    <div className="flex flex-col gap-3" data-slot-calendar="" aria-label={t("book.calendarAria")}>
+      <div className="rounded-2xl border border-line bg-surface p-3" data-cal-month={monthKey(view.year, view.month)}>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            data-cal-prev=""
+            disabled={!canPrev}
+            aria-label={t("book.prevMonth")}
+            className="grid size-10 place-items-center rounded-xl border border-line bg-bg2 disabled:opacity-40"
+            onClick={() => setView((v) => addMonths(v.year, v.month, -1))}
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <p className="text-sm font-semibold capitalize">{monthLabel}</p>
+          <button
+            type="button"
+            data-cal-next=""
+            disabled={!canNext}
+            aria-label={t("book.nextMonth")}
+            className="grid size-10 place-items-center rounded-xl border border-line bg-bg2 disabled:opacity-40"
+            onClick={() => setView((v) => addMonths(v.year, v.month, 1))}
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("book.pickDay")}</p>
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-muted">
+          {(["0", "1", "2", "3", "4", "5", "6"] as const).map((bit) => (
+            <span key={bit}>{t(`hours.d${bit}` as MessageKey)}</span>
+          ))}
+        </div>
+        <div className="mt-1 grid grid-cols-7 gap-1">
+          {cells.map((cell) => {
+            const items = byDay.get(cell.key) || [];
+            const openCount = items.filter((s) => !s.taken).length;
+            const state = items.length === 0 ? "closed" : openCount ? "open" : "full";
+            const active = shownDay === cell.key;
+            const isToday = cell.key === todayKey;
+            return (
+              <button
+                key={cell.key}
+                type="button"
+                disabled={state === "closed"}
+                data-cal-day={cell.key}
+                data-cal-state={state}
+                aria-pressed={active}
+                aria-label={`${cell.date.toLocaleDateString(localeTag(locale), { weekday: "long", month: "short", day: "numeric" })} · ${
+                  state === "open" ? t("book.dayOpen") : state === "full" ? t("book.dayFull") : t("book.dayClosed")
+                }`}
+                className={`relative flex h-10 flex-col items-center justify-center rounded-xl text-sm font-semibold ${
+                  !cell.inMonth ? "opacity-40" : ""
+                } ${
+                  state === "closed"
+                    ? "cursor-not-allowed text-dim"
+                    : active
+                      ? "border border-accent bg-accent/15 text-fg"
+                      : state === "full"
+                        ? "border border-line bg-surface2 text-dim"
+                        : "border border-line bg-bg2 text-fg"
+                }`}
+                onClick={() => setPickedDay(cell.key)}
+              >
+                <span>{cell.day}</span>
+                {isToday ? <span className="sr-only">{t("book.today")}</span> : null}
+                {state === "open" ? (
+                  <span className="absolute bottom-1 size-1 rounded-full bg-accent" aria-hidden />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div data-slot-day={shownDay}>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("book.pickTime")}</p>
+        {daySlots.length === 0 ? (
+          <p className="text-sm text-muted">{t("book.noSlotsDay")}</p>
+        ) : (
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-            {group.items.map((slot) => {
+            {daySlots.map((slot) => {
               const time = formatClock(
                 locale,
                 `${String(slot.date.getHours()).padStart(2, "0")}:${String(slot.date.getMinutes()).padStart(2, "0")}`,
@@ -3251,8 +3338,8 @@ function SlotCalendar({
               );
             })}
           </div>
-        </div>
-      ))}
+        )}
+      </div>
     </div>
   );
 }
