@@ -95,6 +95,7 @@ test("carImage and pickVehicleImage prefer a customer photo and fall back by kin
   assert.equal(generic.kind, "sedan");
   assert.ok(generic.tint);
   assert.equal(generic.tint?.hex, "#c23030");
+  assert.equal(generic.tint?.blend, "color");
 
   const custom = pickVehicleImage({
     make: "Toyota",

@@ -206,6 +206,24 @@ async function ensureShopJoinCodes() {
   }
 }
 
+/** Paint colors on demo tickets so generic silver art can show a tint. */
+async function ensureDemoVehicleHero() {
+  const sql = await getSql();
+  const patches: Array<[string, string]> = [
+    ["MH-4820", "red"],
+    ["MH-4821", "white"],
+    ["MH-4822", "blue"],
+    ["MH-4823", "green"],
+  ];
+  for (const [id, color] of patches) {
+    try {
+      await sql.query("update mh_jobs set color = $2 where id = $1 and (color is null or color = '')", [id, color]);
+    } catch {
+      /* 0013 */
+    }
+  }
+}
+
 export async function ensureSeeded() {
   const sql = await getSql();
   await freeSeedLeonFindCode();
@@ -220,6 +238,7 @@ export async function ensureSeeded() {
   const rows = await sql.query<{ n: number }>("select count(*)::int as n from mh_users");
   if ((rows[0]?.n || 0) > 0) {
     await ensureShopJoinCodes();
+    await ensureDemoVehicleHero();
     return;
   }
 
@@ -383,6 +402,7 @@ export async function ensureSeeded() {
     await insertJob(j);
   }
   await ensureShopJoinCodes();
+  await ensureDemoVehicleHero();
 }
 
 export async function loadBoard() {

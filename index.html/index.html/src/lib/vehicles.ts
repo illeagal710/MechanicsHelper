@@ -119,7 +119,7 @@ const COLOR_ALIASES: Record<string, VehicleColorId> = {
 
 export type VehicleTint = {
   hex: string;
-  blend: "multiply" | "soft-light" | "overlay";
+  blend: "multiply" | "soft-light" | "overlay" | "color";
   opacity: number;
 };
 
@@ -217,7 +217,7 @@ export function vehicleTint(raw?: string): VehicleTint | null {
   if (id === "silver") return { hex: "#d7dbe0", blend: "soft-light", opacity: 0.35 };
   if (id === "gray") return { hex: "#6b7280", blend: "multiply", opacity: 0.28 };
   if (id === "black") return { hex: "#111827", blend: "multiply", opacity: 0.42 };
-  return { hex, blend: "multiply", opacity: 0.48 };
+  return { hex, blend: "color", opacity: 0.82 };
 }
 
 export function isGenericCarArt(src?: string): boolean {
