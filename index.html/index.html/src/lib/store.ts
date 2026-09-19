@@ -28,6 +28,7 @@ import {
 } from "@/lib/customer-vehicles";
 import { TIME_12H } from "@/lib/i18n";
 import { blockHoursFromRecord, normalizeBlockAfterHours, type BlockAfterHours } from "./booking-block.ts";
+import { generateSlots, type HoursLike } from "./booking-calendar.ts";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
 
 export { resizePhoto };
@@ -431,19 +432,15 @@ export const Store = {
 
   openSlots(providerId: string | undefined) {
     const hours = this.hoursFor(providerId);
-    return slotsFromNow().filter(
-      (d) => slotInHours(d, hours) && !this.slotTaken(providerId, d.toISOString()),
-    );
+    return generateSlots(new Date(), hours).filter((d) => !this.slotTaken(providerId, d.toISOString()));
   },
 
   weekSlotStates(providerId: string | undefined) {
     const hours = this.hoursFor(providerId);
-    return slotsFromNow()
-      .filter((d) => slotInHours(d, hours))
-      .map((d) => {
-        const iso = d.toISOString();
-        return { date: d, iso, taken: this.slotTaken(providerId, iso) };
-      });
+    return generateSlots(new Date(), hours).map((d) => {
+      const iso = d.toISOString();
+      return { date: d, iso, taken: this.slotTaken(providerId, iso) };
+    });
   },
 
   findJobs(q: string, user: User | null) {
@@ -674,21 +671,8 @@ export const Store = {
   },
 };
 
-export function slotsFromNow() {
-  const out: Date[] = [];
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  for (let d = 1; d <= 7; d++) {
-    for (const t of ["08:00", "09:30", "11:00", "13:00", "14:30", "16:00"]) {
-      const [h, m] = t.split(":").map(Number);
-      const dt = new Date(start);
-      dt.setDate(dt.getDate() + d);
-      dt.setHours(h, m, 0, 0);
-      if (dt.getDay() === 0) continue;
-      out.push(dt);
-    }
-  }
-  return out;
+export function slotsFromNow(hours?: HoursLike) {
+  return generateSlots(new Date(), hours);
 }
 
 export function statusMeta(id: string) {

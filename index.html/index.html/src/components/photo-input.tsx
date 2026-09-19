@@ -11,6 +11,7 @@ import {
   resizePhoto,
   type PhotoSlot,
 } from "@/lib/photos";
+import { clampPan, clampZoom } from "@/lib/photo-zoom";
 
 export function ProfileSilhouette({
   size = "md",
@@ -62,10 +63,6 @@ export function Face({
   return <ProfileSilhouette size={size} label={t("photo.silhouetteAlt", { name: name || "?" })} />;
 }
 
-function clampZoom(n: number) {
-  return Math.min(4, Math.max(1, n));
-}
-
 export function PhotoLightbox({
   src,
   onClose,
@@ -75,7 +72,22 @@ export function PhotoLightbox({
 }) {
   const { t } = useI18n();
   const [scale, setScale] = useState(1);
-  const pinch = useRef<{ dist: number; scale: number } | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const pinch = useRef<{ dist: number; scale: number; pan: { x: number; y: number } } | null>(null);
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number; id: number } | null>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
+
+  function viewSize() {
+    const box = viewRef.current?.getBoundingClientRect();
+    return { w: box?.width || 400, h: box?.height || 400 };
+  }
+
+  function setZoom(next: number) {
+    const s = clampZoom(next);
+    const { w, h } = viewSize();
+    setScale(s);
+    setPan((p) => clampPan(p.x, p.y, s, w, h));
+  }
 
   useEffect(() => {
     if (!hasBayPhoto(src)) return;
@@ -100,12 +112,39 @@ export function PhotoLightbox({
     );
   }
 
+  function onPointerDown(e: React.PointerEvent) {
+    if (scale <= 1 || e.button === 2) return;
+    drag.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y, id: e.pointerId };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!drag.current || drag.current.id !== e.pointerId) return;
+    const { w, h } = viewSize();
+    setPan(
+      clampPan(
+        drag.current.panX + (e.clientX - drag.current.x),
+        drag.current.panY + (e.clientY - drag.current.y),
+        scale,
+        w,
+        h,
+      ),
+    );
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    if (drag.current?.id === e.pointerId) drag.current = null;
+  }
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={t("job.tapToEnlarge")}
       data-photo-lightbox=""
+      data-lightbox-scale={scale}
+      data-lightbox-x={Math.round(pan.x)}
+      data-lightbox-y={Math.round(pan.y)}
       className="fixed inset-0 z-[80] flex flex-col bg-black/94"
       onClick={onClose}
     >
@@ -120,35 +159,55 @@ export function PhotoLightbox({
           {t("job.closePhoto")}
         </button>
         <div className="flex gap-2">
+          {scale > 1 ? (
+            <button
+              type="button"
+              data-lightbox-reset=""
+              className="h-11 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-semibold text-white"
+              onClick={() => {
+                setScale(1);
+                setPan({ x: 0, y: 0 });
+              }}
+            >
+              {t("job.resetView")}
+            </button>
+          ) : null}
           <button
             type="button"
+            data-lightbox-zoom-out=""
             className="grid size-11 place-items-center rounded-xl border border-white/20 bg-white/10 text-lg font-semibold text-white"
             aria-label={t("job.zoomOut")}
-            onClick={() => setScale((s) => clampZoom(s - 0.5))}
+            onClick={() => setZoom(scale - 0.5)}
           >
             −
           </button>
           <button
             type="button"
+            data-lightbox-zoom-in=""
             className="grid size-11 place-items-center rounded-xl border border-white/20 bg-white/10 text-lg font-semibold text-white"
             aria-label={t("job.zoomIn")}
-            onClick={() => setScale((s) => clampZoom(s + 0.5))}
+            onClick={() => setZoom(scale + 0.5)}
           >
             +
           </button>
         </div>
       </div>
       <div
-        className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3"
+        ref={viewRef}
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3"
+        data-lightbox-stage=""
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => {
-          if (e.touches.length === 2) pinch.current = { dist: pinchDist(e), scale };
+          if (e.touches.length === 2) {
+            drag.current = null;
+            pinch.current = { dist: pinchDist(e), scale, pan };
+          }
         }}
         onTouchMove={(e) => {
           if (e.touches.length === 2 && pinch.current) {
             const dist = pinchDist(e);
             if (pinch.current.dist > 0) {
-              setScale(clampZoom(pinch.current.scale * (dist / pinch.current.dist)));
+              setZoom(pinch.current.scale * (dist / pinch.current.dist));
             }
           }
         }}
@@ -161,10 +220,32 @@ export function PhotoLightbox({
           alt=""
           data-lightbox-image=""
           decoding="async"
-          className="max-h-full max-w-full origin-center object-contain [image-rendering:auto]"
-          style={{ transform: `scale(${scale})`, touchAction: "none" }}
-          onDoubleClick={() => setScale((s) => (s > 1 ? 1 : 2.5))}
+          draggable={false}
+          className={`max-h-full max-w-full origin-center object-contain select-none [image-rendering:auto] ${
+            scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
+          }`}
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+            touchAction: "none",
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onDoubleClick={() => {
+            if (scale > 1) {
+              setScale(1);
+              setPan({ x: 0, y: 0 });
+            } else {
+              setZoom(2.5);
+            }
+          }}
         />
+        {scale > 1 ? (
+          <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white">
+            {t("job.panHint")}
+          </p>
+        ) : null}
       </div>
     </div>
   );
