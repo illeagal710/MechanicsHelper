@@ -565,7 +565,7 @@ export function MechanicsApp({
         </nav>
       )}
       {toast ? (
-        <div className="fixed top-16 left-1/2 z-50 w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 rounded-xl border border-accent/40 bg-surface px-3.5 py-2.5 text-sm font-semibold text-fg shadow-lg">
+        <div className="fixed bottom-28 left-1/2 z-50 w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 rounded-xl border border-accent/40 bg-surface px-3.5 py-2.5 text-sm font-semibold text-fg shadow-lg">
           {toast}
         </div>
       ) : null}
