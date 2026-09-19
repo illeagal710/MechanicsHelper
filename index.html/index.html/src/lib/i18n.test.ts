@@ -69,6 +69,24 @@ test("store errors and known notes translate without changing source text", () =
   assert.equal(translateNote("es", "Booking declined."), "Cita rechazada.");
   assert.equal(translateNote("es", "Booking declined: Bay is full."), "Cita rechazada: Bay is full.");
   assert.equal(translateDetail("es", "Mobile mechanic"), "Mecánico a domicilio");
+  assert.equal(translateStoreError("es", "That find code is already taken."), "Ese código ya está en uso.");
+  assert.equal(
+    translateStoreError("es", "The customer find code and team join code must be different."),
+    "El código para clientes y el código de equipo deben ser distintos.",
+  );
+  assert.equal(
+    translateStoreError("es", "That's the customer find code. Ask the owner for the team join code."),
+    "Ese es el código para clientes. Pide al dueño el código de equipo.",
+  );
+});
+
+test("share and account copy keep find code and team join separate", () => {
+  for (const locale of ["en", "es"] as const) {
+    assert.doesNotMatch(translate(locale, "share.rotateShop"), /same code|mismo código/i);
+    assert.doesNotMatch(translate(locale, "account.customersUseCode"), /same code|mismo código/i);
+    assert.match(translate(locale, "account.findCodeHint"), /not the team|no es el código de equipo/i);
+    assert.match(translate(locale, "share.teamJoinHint"), /customers never|los clientes nunca/i);
+  }
 });
 
 test("status labels stay distinct between shop and customer", () => {

@@ -36,7 +36,7 @@ export function canRotateFindCode(user: ShopRoleUser | null | undefined): boolea
   return canShareCustomerQr(user);
 }
 
-/** Same 4-letter code customers and staff use. Never show it to technicians. */
+/** Team-join / employee invite — owner only. Never the same value as the customer find code. */
 export function canSeeTeamJoinCode(user: ShopRoleUser | null | undefined): boolean {
   return isShopOwner(user);
 }

@@ -100,7 +100,7 @@ export function QrShare({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div className="rounded-xl border border-line bg-surface p-4" data-share-find-code="">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("qr.findCode")}</p>
       <h2 className="mt-1 text-lg font-semibold">{title}</h2>
       <p className="mt-1 text-sm text-muted">{t("qr.hint")}</p>

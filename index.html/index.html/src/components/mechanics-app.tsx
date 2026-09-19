@@ -89,6 +89,7 @@ import {
 } from "@/lib/notifications";
 import {
   canRotateFindCode,
+  canSeeTeamJoinCode,
   canShareCustomerQr,
   isAssignedToUser,
   isShopTechnician,
@@ -441,6 +442,20 @@ export function MechanicsApp() {
                 bump();
               }}
             />
+            {canRotateFindCode(user) ? (
+              <ClaimFindCode
+                user={user}
+                onClaimed={(code) => {
+                  setUser(Store.getSession());
+                  flash(t("toast.newCode", { code }));
+                  bump();
+                }}
+                onErr={flash}
+              />
+            ) : null}
+            {canSeeTeamJoinCode(user) ? (
+              <TeamJoinCard code={Store.teamJoinCodeFor(user)} />
+            ) : null}
           </div>
         )}
         {view === "account" && user && (
@@ -540,6 +555,84 @@ function Top({
       </button>
       <h2 className="min-w-0 flex-1 text-lg font-semibold">{title}</h2>
       {action ?? null}
+    </div>
+  );
+}
+
+function ClaimFindCode({
+  user,
+  onClaimed,
+  onErr,
+}: {
+  user: User;
+  onClaimed: (code: string) => void;
+  onErr: (s: string) => void;
+}) {
+  const { locale, t } = useI18n();
+  const [desired, setDesired] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [formErr, setFormErr] = useState("");
+  return (
+    <form
+      className="mt-3 rounded-xl border border-line bg-surface p-4"
+      data-claim-code=""
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        setBusy(true);
+        setFormErr("");
+        const res = await Store.claimCustomerCode(user, desired);
+        setBusy(false);
+        if (!res.ok) {
+          const msg = translateStoreError(locale, res.error);
+          setFormErr(msg);
+          return onErr(msg);
+        }
+        setDesired("");
+        onClaimed(res.code);
+      }}
+    >
+      <Field label={t("share.pickCode")}>
+        <input
+          className={inputClass}
+          value={desired}
+          onChange={(e) => {
+            setDesired(e.target.value.toUpperCase());
+            setFormErr("");
+          }}
+          placeholder={t("share.pickCodePh")}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          data-claim-code-input=""
+        />
+      </Field>
+      <button
+        type="submit"
+        disabled={busy || !desired.trim()}
+        className="mt-3 h-11 w-full rounded-xl bg-accent font-semibold text-ink disabled:opacity-60"
+        data-claim-code-submit=""
+      >
+        {t("share.useCode")}
+      </button>
+      {formErr ? (
+        <p className="mt-2 text-sm font-semibold text-red-600" data-claim-code-error="">
+          {formErr}
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-dim">{t("share.pickCodeHint")}</p>
+      )}
+    </form>
+  );
+}
+
+function TeamJoinCard({ code }: { code: string }) {
+  const { t } = useI18n();
+  return (
+    <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-team-join-code="">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("share.teamJoin")}</p>
+      <p className="mt-2 font-mono text-3xl font-semibold tracking-[0.18em] text-ink">{code || "—"}</p>
+      <p className="mt-2 text-sm text-muted">{t("share.teamJoinHint")}</p>
     </div>
   );
 }
@@ -1129,6 +1222,7 @@ function Register({
           shopJoin: join,
           shopName: String(fd.get("shopName") || ""),
           shopCode: String(fd.get("shopCode") || ""),
+          findCode: String(fd.get("findCode") || ""),
           businessName: String(fd.get("biz") || ""),
           serviceMode: (String(fd.get("mode") || "both") as User["serviceMode"]),
         });
@@ -1173,13 +1267,22 @@ function Register({
             </button>
           </div>
           {join === "create" ? (
-            <Field label={t("register.shopName")}>
-              <input name="shopName" className={inputClass} placeholder={t("register.shopNamePh")} />
-            </Field>
+            <>
+              <Field label={t("register.shopName")}>
+                <input name="shopName" className={inputClass} placeholder={t("register.shopNamePh")} />
+              </Field>
+              <Field label={t("register.findCode")}>
+                <input name="findCode" className={inputClass} placeholder={t("register.findCodePh")} autoCapitalize="characters" />
+              </Field>
+              <p className="-mt-1 text-xs text-dim">{t("register.findCodeHint")}</p>
+            </>
           ) : (
-            <Field label={t("register.shopCode")}>
-              <input name="shopCode" className={inputClass} placeholder={t("register.shopCodePh")} />
-            </Field>
+            <>
+              <Field label={t("register.shopCode")}>
+                <input name="shopCode" className={inputClass} placeholder={t("register.shopCodePh")} autoCapitalize="characters" />
+              </Field>
+              <p className="-mt-1 text-xs text-dim">{t("register.shopCodeHint")}</p>
+            </>
           )}
         </>
       )}
@@ -1195,6 +1298,10 @@ function Register({
               <option value="both">{t("register.modeBoth")}</option>
             </select>
           </Field>
+          <Field label={t("register.findCode")}>
+            <input name="findCode" className={inputClass} placeholder={t("register.findCodePh")} autoCapitalize="characters" />
+          </Field>
+          <p className="-mt-1 text-xs text-dim">{t("register.findCodeHint")}</p>
         </>
       )}
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
@@ -2846,8 +2953,13 @@ function Account({
               {t("account.saveShop")}
             </button>
           ) : null}
+          <div className="mt-3 rounded-xl border border-line bg-bg2 p-3" data-account-find-code="">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.findCode")}</p>
+            <div className="mt-1 font-mono text-2xl tracking-[0.2em] text-accent">{shop.code}</div>
+            <p className="mt-1 text-xs text-dim">{t("account.findCodeHint")}</p>
+          </div>
           <p className="mt-3 text-sm text-muted">{t("account.teamCode")}</p>
-          <div className="my-2 font-mono text-2xl tracking-[0.2em]">{shop.code}</div>
+          <div className="my-2 font-mono text-2xl tracking-[0.2em]" data-account-team-join="">{shop.joinCode || "—"}</div>
           <p className="text-sm text-muted">{t("account.team", { names: shop.techs.join(", ") })}</p>
           {canEditShop && (
             <div className="mt-3 flex gap-2">
@@ -3011,7 +3123,11 @@ function Account({
           <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
             {t("account.saveProfile")}
           </button>
-          <p className="mt-2 text-xs text-dim">{t("account.qrOnShare")}</p>
+          <div className="mt-3 rounded-xl border border-line bg-bg2 p-3" data-account-find-code="">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.findCode")}</p>
+            <div className="mt-1 font-mono text-2xl tracking-[0.2em] text-accent">{user.code || "—"}</div>
+            <p className="mt-1 text-xs text-dim">{t("account.qrOnShare")}</p>
+          </div>
         </form>
       )}
       <PolicyFooterLinks className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm font-semibold text-muted" />
