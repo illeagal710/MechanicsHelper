@@ -440,6 +440,7 @@ const en = {
   "welcome.privacy": "Privacy",
   "welcome.terms": "Terms",
   "welcome.support": "Support",
+  "welcome.scanner": "Chart scanner",
 
   "home.bookSub": "Pick the car and a time — your shop already has the ticket.",
   "home.trackSub": "See status, parts, and ready for pickup.",
@@ -1121,6 +1122,7 @@ const es: Record<MessageKey, string> = {
   "welcome.privacy": "Privacidad",
   "welcome.terms": "Términos",
   "welcome.support": "Soporte",
+  "welcome.scanner": "Escáner de gráficos",
 
   "home.bookSub": "Elige el auto y un horario — tu taller ya tiene el ticket.",
   "home.trackSub": "Ve el estado, las piezas y cuándo está listo.",

@@ -22,6 +22,9 @@ export function PolicyFooterLinks({
       <Link to="/support" className="underline-offset-2 hover:text-fg hover:underline">
         {t("welcome.support")}
       </Link>
+      <Link to="/scanner" className="underline-offset-2 hover:text-fg hover:underline">
+        {t("welcome.scanner")}
+      </Link>
     </nav>
   );
 }
