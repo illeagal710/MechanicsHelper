@@ -213,10 +213,12 @@ function ConfirmBar({
   message,
   onConfirm,
   onStay,
+  confirmLabel,
 }: {
   message: string;
   onConfirm: () => void;
   onStay: () => void;
+  confirmLabel?: string;
 }) {
   const { t } = useI18n();
   return (
@@ -237,7 +239,7 @@ function ConfirmBar({
           className="h-11 rounded-xl bg-accent font-semibold text-ink"
           onClick={onConfirm}
         >
-          {t("job.confirmContinue")}
+          {confirmLabel || t("job.confirmContinue")}
         </button>
       </div>
     </div>
@@ -2302,6 +2304,7 @@ function JobDetail({
               {pendingCancel ? (
                 <ConfirmBar
                   message={t("job.cancelConfirm")}
+                  confirmLabel={t("job.cancel")}
                   onStay={() => setPendingCancel(false)}
                   onConfirm={async () => {
                     if (busyAction) return;
@@ -2452,9 +2455,7 @@ function JobDetail({
                       {formatEstimateAmount(estimate.amount)}
                       {estimate.note ? ` · ${estimate.note}` : ""} — {t("job.estimateWaiting")}
                     </p>
-                  ) : (
-                    <p className="mt-1 text-sm text-muted">{t("job.estimateHint")}</p>
-                  )}
+                  ) : null}
                   {estOpen ? (
                     <form
                       className="mt-3"
@@ -2473,6 +2474,7 @@ function JobDetail({
                         bump();
                       }}
                     >
+                      <p className="mb-2 text-sm text-muted">{t("job.estimateHint")}</p>
                       <Field label={t("job.estimateAmount")}>
                         <input
                           className={inputClass}
@@ -2585,9 +2587,7 @@ function JobDetail({
                       })}
                       {job.parts.note ? ` · ${job.parts.note}` : ""}
                     </p>
-                  ) : (
-                    <p className="mt-1 text-sm text-muted">{t("job.partsHint")}</p>
-                  )}
+                  ) : null}
                   {partsOpen ? (
                     <form
                       className="mt-3"
@@ -2604,6 +2604,7 @@ function JobDetail({
                         bump();
                       }}
                     >
+                      {job.parts?.ordered ? null : <p className="mb-2 text-sm text-muted">{t("job.partsHint")}</p>}
                       <Field label={t("job.partsEta")}>
                         <input
                           className={inputClass}
