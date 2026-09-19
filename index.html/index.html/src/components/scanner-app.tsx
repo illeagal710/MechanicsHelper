@@ -258,6 +258,8 @@ export function ScannerApp() {
     }
     document.addEventListener("keydown", onKey);
     document.documentElement.classList.add("scanner-setup-open");
+    const body = document.querySelector(".scanner-setup-body");
+    if (body instanceof HTMLElement) body.scrollTop = 0;
     return () => {
       document.removeEventListener("keydown", onKey);
       document.documentElement.classList.remove("scanner-setup-open");
@@ -270,25 +272,38 @@ export function ScannerApp() {
       className="mx-auto flex min-h-dvh max-w-[1400px] flex-col bg-bg text-fg shadow-[0_0_0_1px_var(--color-line)]"
     >
       <Toaster richColors position="top-center" />
-      <header className="relative flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 pr-16">
-        <div className="min-w-0 flex-1">
-          <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Mechanics Helper</p>
-          <h1 className="text-lg font-semibold tracking-tight">Chart scanner</h1>
-          <p className="text-sm text-muted" data-scanner-mode="">
+      <header className="border-b border-line px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Mechanics Helper</p>
+            <h1 className="text-lg font-semibold tracking-tight">Chart scanner</h1>
+            <p className="text-sm text-muted" data-scanner-mode="">
               {SETUP_NAME} · 4h 21×200 cross · hunt low 4h + high 1h · time 15m ·{" "}
-            {killed
-              ? "kill switch on — no orders"
-              : execution === "live"
-                ? liveArmed
-                  ? "LIVE armed — WEEX market buys on matches"
-                  : "Live selected, not armed (paper/dry-run)"
-                : execution === "paper"
-                  ? "paper / dry-run — no live orders"
-                  : "alerts only — no orders"}
-            . Charts via Binance. Orders via official WEEX API.
-          </p>
+              {killed
+                ? "kill switch on — no orders"
+                : execution === "live"
+                  ? liveArmed
+                    ? "LIVE armed — WEEX market buys on matches"
+                    : "Live selected, not armed (paper/dry-run)"
+                  : execution === "paper"
+                    ? "paper / dry-run — no live orders"
+                    : "alerts only — no orders"}
+              . Charts via Binance. Orders via official WEEX API.
+            </p>
+          </div>
+          <button
+            type="button"
+            data-setup-toggle=""
+            className="tap grid size-10 shrink-0 place-items-center rounded-[10px] border border-line bg-surface"
+            aria-label="Open setup"
+            aria-expanded={setupOpen}
+            aria-controls="scanner-setup-panel"
+            onClick={() => setSetupOpen(true)}
+          >
+            <Menu className="size-5" aria-hidden="true" />
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <select
             aria-label="Timeframe"
             data-interval=""
@@ -320,17 +335,6 @@ export function ScannerApp() {
             Back to shop
           </Link>
         </div>
-        <button
-          type="button"
-          data-setup-toggle=""
-          className="tap absolute top-3 right-4 grid size-10 place-items-center rounded-[10px] border border-line bg-surface"
-          aria-label="Open setup"
-          aria-expanded={setupOpen}
-          aria-controls="scanner-setup-panel"
-          onClick={() => setSetupOpen(true)}
-        >
-          <Menu className="size-5" aria-hidden="true" />
-        </button>
       </header>
 
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-sm">
