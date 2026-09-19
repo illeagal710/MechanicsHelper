@@ -54,6 +54,7 @@ test("pipeline statuses do not include declined; declined and done are terminal"
   assert.equal(occupiesSlot("scheduled"), true);
   assert.equal(occupiesSlot("done"), false);
   assert.equal(occupiesSlot("declined"), false);
+  assert.equal(occupiesSlot("cancelled"), false);
 });
 
 test("shop board hides done and declined from Open; History lists them", () => {
@@ -104,6 +105,16 @@ test("slotTaken ignores done and declined so the time slot is free again", () =>
     slotTakenAmong([job({ id: "MH-LIVE", status: "scheduled", slot })], "other", slot),
     false,
   );
+});
+
+test("slotTaken with a 3-hour block hides later starts on the same bay", () => {
+  const start = "2026-09-21T15:00:00.000Z";
+  const later = "2026-09-21T16:30:00.000Z";
+  const end = "2026-09-21T18:00:00.000Z";
+  const live = [job({ id: "MH-LIVE", status: "scheduled", slot: start })];
+  assert.equal(slotTakenAmong(live, "s-main", later, 3), true);
+  assert.equal(slotTakenAmong(live, "s-main", end, 3), false);
+  assert.equal(slotTakenAmong(live, "s-main", later, 0), false);
 });
 
 test("only incoming/scheduled bookings can be declined", () => {

@@ -27,6 +27,7 @@ import {
   type VehicleFields,
 } from "@/lib/customer-vehicles";
 import { TIME_12H } from "@/lib/i18n";
+import { blockHoursFromRecord, normalizeBlockAfterHours, type BlockAfterHours } from "./booking-block.ts";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
 
 export type Role = "customer" | "shop" | "independent";
@@ -55,6 +56,8 @@ export type User = {
   hoursDays?: string;
   hoursOpen?: string;
   hoursClose?: string;
+  /** Owner job length. Shop techs inherit the shop value. Default 3. */
+  blockAfterHours?: BlockAfterHours;
   specialties?: string[];
   credentials?: string[];
   serviceArea?: string;
@@ -77,6 +80,7 @@ export type Shop = {
   hoursDays?: string;
   hoursOpen?: string;
   hoursClose?: string;
+  blockAfterHours?: BlockAfterHours;
   specialties?: string[];
   credentials?: string[];
   serviceArea?: string;
@@ -126,6 +130,7 @@ export type Provider = {
   hoursOpen?: string;
   hoursClose?: string;
   hoursLabel?: string;
+  blockAfterHours?: BlockAfterHours;
   specialties?: string[];
   credentials?: string[];
   serviceArea?: string;
@@ -234,6 +239,7 @@ function providersFrom(data: DB): Provider[] {
       hoursOpen: s.hoursOpen || "08:00",
       hoursClose: s.hoursClose || "16:00",
       hoursLabel: hoursLabel(s),
+      blockAfterHours: normalizeBlockAfterHours(s.blockAfterHours),
     }, s),
   );
   const indy = data.users
@@ -258,6 +264,7 @@ function providersFrom(data: DB): Provider[] {
         hoursOpen: u.hoursOpen || "08:00",
         hoursClose: u.hoursClose || "16:00",
         hoursLabel: hoursLabel(u),
+        blockAfterHours: normalizeBlockAfterHours(u.blockAfterHours),
       }, u),
     );
   return [...shops, ...indy];
@@ -405,7 +412,7 @@ export const Store = {
   },
 
   slotTaken(providerId: string | undefined, slotIso: string) {
-    return slotTakenAmong(cache.jobs, providerId, slotIso);
+    return slotTakenAmong(cache.jobs, providerId, slotIso, this.blockHoursFor(providerId));
   },
 
   hoursFor(providerId: string | undefined) {
@@ -416,11 +423,25 @@ export const Store = {
     return indy;
   },
 
+  blockHoursFor(providerId: string | undefined) {
+    return blockHoursFromRecord(this.hoursFor(providerId));
+  },
+
   openSlots(providerId: string | undefined) {
     const hours = this.hoursFor(providerId);
     return slotsFromNow().filter(
       (d) => slotInHours(d, hours) && !this.slotTaken(providerId, d.toISOString()),
     );
+  },
+
+  weekSlotStates(providerId: string | undefined) {
+    const hours = this.hoursFor(providerId);
+    return slotsFromNow()
+      .filter((d) => slotInHours(d, hours))
+      .map((d) => {
+        const iso = d.toISOString();
+        return { date: d, iso, taken: this.slotTaken(providerId, iso) };
+      });
   },
 
   findJobs(q: string, user: User | null) {
@@ -529,6 +550,7 @@ export const Store = {
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: BlockAfterHours;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;
@@ -564,6 +586,7 @@ export const Store = {
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: BlockAfterHours;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;

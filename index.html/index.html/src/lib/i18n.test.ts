@@ -200,9 +200,26 @@ test("shop technician portal copy exists in English and Spanish", () => {
   assert.match(translate("en", "shop.techWorkHint"), /assigned/i);
   assert.match(translate("es", "shop.techWorkHint"), /asignad/i);
   assert.match(translate("en", "account.techShopHint"), /owner/i);
+  assert.match(translate("en", "account.techShopHint"), /job length/i);
   assert.match(translate("es", "account.techShopHint"), /dueño/i);
+  assert.match(translate("es", "account.techShopHint"), /duraci[oó]n/i);
   assert.match(translate("en", "account.deleteBodyTech"), /does not delete the shop/i);
   assert.match(translate("es", "account.deleteBodyTech"), /no elimina el taller/i);
+});
+
+test("job length / block-after-booking copy exists in English and Spanish", () => {
+  assert.equal(translate("en", "account.jobLength"), "Job length / block after booking");
+  assert.equal(translate("es", "account.jobLength"), "Duración del trabajo / bloquear después de reservar");
+  assert.match(translate("en", "account.jobLengthHint"), /3 hours|default/i);
+  assert.match(translate("es", "account.jobLengthHint"), /3 horas/i);
+  assert.equal(translate("en", "account.blockOff"), "Off (same start only)");
+  assert.equal(translate("es", "account.blockOff"), "Apagado (solo la misma hora)");
+  assert.equal(translate("en", "account.block3h"), "3 hours");
+  assert.equal(translate("es", "account.block3h"), "3 horas");
+  assert.equal(translate("en", "book.blocked"), "Blocked");
+  assert.equal(translate("es", "book.blocked"), "Bloqueado");
+  assert.match(translate("en", "book.takenHint"), /job length|block/i);
+  assert.match(translate("es", "book.takenHint"), /duraci[oó]n|bloquea/i);
 });
 
 test("shop history and decline copy exists in English and Spanish", () => {
