@@ -27,12 +27,6 @@ export function isNativeApp(): boolean {
   return nativeCapacitor() !== null;
 }
 
-/**
- * Whether notifications are actually active: the saved preference AND a usable
- * OS permission. On the web that means the browser permission is granted; in the
- * native app the permission is not synchronously readable here, so the saved
- * preference is trusted.
- */
 export function notificationsActive(alertsOn: boolean | undefined): boolean {
   if (!alertsOn) return false;
   if (isNativeApp()) return true;

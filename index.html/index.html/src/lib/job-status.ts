@@ -1,3 +1,5 @@
+import { slotInBlockWindow } from "./booking-block.ts";
+
 /** Repair pipeline statuses. `declined` is terminal and not on this list. */
 export const PIPELINE_STATUSES = [
   "scheduled",
@@ -63,7 +65,7 @@ export function isTerminalStatus(status: string): boolean {
 }
 
 export function occupiesSlot(status: string): boolean {
-  return !isTerminalStatus(status);
+  return !isTerminalStatus(status) && status !== "cancelled";
 }
 
 export function canDeclineStatus(status: string): boolean {
@@ -115,24 +117,27 @@ export function applyCancel<T extends JobLike>(job: T, at = Date.now()): CancelR
 export const RESCHEDULE_NOTE = "Appointment rescheduled by the customer.";
 
 export function jobOccupiesSlot(
-  job: Pick<JobLike, "providerId" | "status" | "slot">,
+  job: Pick<JobLike, "id" | "providerId" | "status" | "slot">,
   providerId: string | undefined,
   slotIso: string,
+  blockHours = 0,
+  exceptJobId?: string,
 ): boolean {
   if (!providerId || job.providerId !== providerId) return false;
+  if (exceptJobId && job.id === exceptJobId) return false;
   if (!occupiesSlot(job.status)) return false;
-  const t = new Date(slotIso).getTime();
-  if (!Number.isFinite(t)) return false;
-  return new Date(job.slot).getTime() === t;
+  return slotInBlockWindow(job.slot, slotIso, blockHours);
 }
 
 export function slotTakenAmong(
-  jobs: Pick<JobLike, "providerId" | "status" | "slot">[],
+  jobs: Pick<JobLike, "id" | "providerId" | "status" | "slot">[],
   providerId: string | undefined,
   slotIso: string,
+  blockHours = 0,
+  exceptJobId?: string,
 ): boolean {
   if (!providerId) return false;
-  return jobs.some((j) => jobOccupiesSlot(j, providerId, slotIso));
+  return jobs.some((j) => jobOccupiesSlot(j, providerId, slotIso, blockHours, exceptJobId));
 }
 
 export function activeJobs<T extends Pick<JobLike, "status" | "slot">>(jobs: T[]): T[] {

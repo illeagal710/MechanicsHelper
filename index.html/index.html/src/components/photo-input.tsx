@@ -1,8 +1,18 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Camera, ImageIcon, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, hasBayPhoto, isMobilePhotoDevice, type PhotoSlot } from "@/lib/photos";
-import { resizePhoto } from "@/lib/store";
+import {
+  BAY_PHOTO_SLOT,
+  PHOTO_CAMERA_VIDEO,
+  PHOTO_JPEG_QUALITY,
+  PROFILE_PHOTO_SLOT,
+  VEHICLE_PHOTO_SLOT,
+  hasBayPhoto,
+  isMobilePhotoDevice,
+  resizePhoto,
+  type PhotoSlot,
+} from "@/lib/photos";
+import { clampPan, clampZoom } from "@/lib/photo-zoom";
 
 export function ProfileSilhouette({
   size = "md",
@@ -11,7 +21,7 @@ export function ProfileSilhouette({
   size?: "sm" | "md" | "lg";
   label: string;
 }) {
-  const box = size === "lg" ? "size-16" : size === "sm" ? "size-10" : "size-14";
+  const box = size === "lg" ? "size-20" : size === "sm" ? "size-12" : "size-16";
   return (
     <div
       className={`${box} grid shrink-0 place-items-center overflow-hidden rounded-2xl border border-line bg-surface2 text-muted`}
@@ -39,15 +49,19 @@ export function Face({
   size?: "sm" | "md" | "lg";
 }) {
   const { t } = useI18n();
-  const box = size === "lg" ? "size-16" : size === "sm" ? "size-10" : "size-14";
+  const box = size === "lg" ? "size-20" : size === "sm" ? "size-12" : "size-16";
   if (src) {
-    return <img src={src} alt="" className={`${box} shrink-0 rounded-2xl border border-line object-cover`} />;
+    return (
+      <img
+        src={src}
+        alt=""
+        data-user-photo=""
+        decoding="async"
+        className={`${box} shrink-0 rounded-2xl border border-line object-cover [image-rendering:auto]`}
+      />
+    );
   }
   return <ProfileSilhouette size={size} label={t("photo.silhouetteAlt", { name: name || "?" })} />;
-}
-
-function clampZoom(n: number) {
-  return Math.min(4, Math.max(1, n));
 }
 
 export function PhotoLightbox({
@@ -59,7 +73,22 @@ export function PhotoLightbox({
 }) {
   const { t } = useI18n();
   const [scale, setScale] = useState(1);
-  const pinch = useRef<{ dist: number; scale: number } | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const pinch = useRef<{ dist: number; scale: number; pan: { x: number; y: number } } | null>(null);
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number; id: number } | null>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
+
+  function viewSize() {
+    const box = viewRef.current?.getBoundingClientRect();
+    return { w: box?.width || 400, h: box?.height || 400 };
+  }
+
+  function setZoom(next: number) {
+    const s = clampZoom(next);
+    const { w, h } = viewSize();
+    setScale(s);
+    setPan((p) => clampPan(p.x, p.y, s, w, h));
+  }
 
   useEffect(() => {
     if (!hasBayPhoto(src)) return;
@@ -84,12 +113,39 @@ export function PhotoLightbox({
     );
   }
 
+  function onPointerDown(e: React.PointerEvent) {
+    if (scale <= 1 || e.button === 2) return;
+    drag.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y, id: e.pointerId };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!drag.current || drag.current.id !== e.pointerId) return;
+    const { w, h } = viewSize();
+    setPan(
+      clampPan(
+        drag.current.panX + (e.clientX - drag.current.x),
+        drag.current.panY + (e.clientY - drag.current.y),
+        scale,
+        w,
+        h,
+      ),
+    );
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    if (drag.current?.id === e.pointerId) drag.current = null;
+  }
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={t("job.tapToEnlarge")}
       data-photo-lightbox=""
+      data-lightbox-scale={scale}
+      data-lightbox-x={Math.round(pan.x)}
+      data-lightbox-y={Math.round(pan.y)}
       className="fixed inset-0 z-[80] flex flex-col bg-black/94"
       onClick={onClose}
     >
@@ -104,35 +160,55 @@ export function PhotoLightbox({
           {t("job.closePhoto")}
         </button>
         <div className="flex gap-2">
+          {scale > 1 ? (
+            <button
+              type="button"
+              data-lightbox-reset=""
+              className="h-11 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-semibold text-white"
+              onClick={() => {
+                setScale(1);
+                setPan({ x: 0, y: 0 });
+              }}
+            >
+              {t("job.resetView")}
+            </button>
+          ) : null}
           <button
             type="button"
+            data-lightbox-zoom-out=""
             className="grid size-11 place-items-center rounded-xl border border-white/20 bg-white/10 text-lg font-semibold text-white"
             aria-label={t("job.zoomOut")}
-            onClick={() => setScale((s) => clampZoom(s - 0.5))}
+            onClick={() => setZoom(scale - 0.5)}
           >
             −
           </button>
           <button
             type="button"
+            data-lightbox-zoom-in=""
             className="grid size-11 place-items-center rounded-xl border border-white/20 bg-white/10 text-lg font-semibold text-white"
             aria-label={t("job.zoomIn")}
-            onClick={() => setScale((s) => clampZoom(s + 0.5))}
+            onClick={() => setZoom(scale + 0.5)}
           >
             +
           </button>
         </div>
       </div>
       <div
-        className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3"
+        ref={viewRef}
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3"
+        data-lightbox-stage=""
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => {
-          if (e.touches.length === 2) pinch.current = { dist: pinchDist(e), scale };
+          if (e.touches.length === 2) {
+            drag.current = null;
+            pinch.current = { dist: pinchDist(e), scale, pan };
+          }
         }}
         onTouchMove={(e) => {
           if (e.touches.length === 2 && pinch.current) {
             const dist = pinchDist(e);
             if (pinch.current.dist > 0) {
-              setScale(clampZoom(pinch.current.scale * (dist / pinch.current.dist)));
+              setZoom(pinch.current.scale * (dist / pinch.current.dist));
             }
           }
         }}
@@ -144,10 +220,33 @@ export function PhotoLightbox({
           src={src}
           alt=""
           data-lightbox-image=""
-          className="max-h-full max-w-full origin-center object-contain"
-          style={{ transform: `scale(${scale})`, touchAction: "none" }}
-          onDoubleClick={() => setScale((s) => (s > 1 ? 1 : 2.5))}
+          decoding="async"
+          draggable={false}
+          className={`max-h-full max-w-full origin-center object-contain select-none [image-rendering:auto] ${
+            scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
+          }`}
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+            touchAction: "none",
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onDoubleClick={() => {
+            if (scale > 1) {
+              setScale(1);
+              setPan({ x: 0, y: 0 });
+            } else {
+              setZoom(2.5);
+            }
+          }}
         />
+        {scale > 1 ? (
+          <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white">
+            {t("job.panHint")}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -182,7 +281,9 @@ export function BayPreview({ src }: { src?: string }) {
         <img
           src={photo}
           alt=""
-          className="mx-auto max-h-72 min-h-44 w-full object-contain md:max-h-[28rem]"
+          data-user-photo=""
+          decoding="async"
+          className="mx-auto max-h-80 min-h-48 w-full object-contain [image-rendering:auto] md:max-h-[32rem]"
         />
       </button>
       {open ? <PhotoLightbox src={photo} onClose={() => setOpen(false)} /> : null}
@@ -250,7 +351,7 @@ export function PhotoPicker({
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: PHOTO_CAMERA_VIDEO,
         audio: false,
       });
       streamRef.current = stream;
@@ -290,12 +391,14 @@ export function PhotoPicker({
         await handleFile(new File([blob], "camera.jpg", { type: "image/jpeg" }));
       },
       "image/jpeg",
-      0.82,
+      PHOTO_JPEG_QUALITY,
     );
   }
 
   const isProfile = slot === PROFILE_PHOTO_SLOT;
+  const isVehicle = slot === VEHICLE_PHOTO_SLOT;
   const bayFilled = !isProfile && hasBayPhoto(value);
+  const addLabel = isVehicle ? t("photo.addVehicle") : t("photo.addBay");
 
   return (
     <div data-photo-slot={slot} className="flex flex-col gap-3" data-bay-empty={isProfile ? undefined : bayFilled ? "false" : "true"}>
@@ -319,7 +422,7 @@ export function PhotoPicker({
           onClick={() => chooseRef.current?.click()}
         >
           <ImageIcon className="size-4 shrink-0" />
-          {isProfile || bayFilled ? t("photo.choose") : t("photo.addBay")}
+          {isProfile || bayFilled ? t("photo.choose") : addLabel}
         </button>
         <button
           type="button"

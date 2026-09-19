@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { trimOptions } from "./trims.ts";
-import { OTHER_VALUE, VEHICLE_DATA, resolveListedOrOther } from "./vehicles.ts";
+import {
+  OTHER_VALUE,
+  VEHICLE_DATA,
+  carImage,
+  isCustomerVehiclePhoto,
+  pickVehicleImage,
+  resolveListedOrOther,
+  vehicleKind,
+  vehicleTint,
+} from "./vehicles.ts";
 
 test("Mercedes C320 and C230 Kompressor are selectable as models", () => {
   const models = VEHICLE_DATA["Mercedes-Benz"];
@@ -42,4 +51,66 @@ test("Other make/model/trim free-text keeps the stored year/make/model/trim shap
   assert.equal(resolveListedOrOther("Other", "CRX"), "CRX");
   assert.ok(trimOptions("Honda", "Civic").includes(OTHER_VALUE));
   assert.ok(trimOptions("Other", "Other").includes(OTHER_VALUE));
+});
+
+test("vehicleKind maps body types and unknown falls back to sedan", () => {
+  assert.equal(vehicleKind({ make: "Toyota", model: "Camry" }), "sedan");
+  assert.equal(vehicleKind({ make: "Honda", model: "Civic" }), "sedan");
+  assert.equal(vehicleKind({ make: "Honda", model: "Civic Hatchback" }), "hatchback");
+  assert.equal(vehicleKind({ make: "Volkswagen", model: "Golf" }), "hatchback");
+  assert.equal(vehicleKind({ make: "Honda", model: "Fit" }), "hatchback");
+  assert.equal(vehicleKind({ make: "Toyota", model: "Prius" }), "hatchback");
+  assert.equal(vehicleKind({ make: "Honda", model: "Civic Coupe" }), "coupe");
+  assert.equal(vehicleKind({ make: "Honda", model: "Accord Coupe" }), "coupe");
+  assert.equal(vehicleKind({ make: "Audi", model: "A5" }), "coupe");
+  assert.equal(vehicleKind({ make: "BMW", model: "2 Series Gran Coupe" }), "sedan");
+  assert.equal(vehicleKind({ make: "Honda", model: "CR-V" }), "suv");
+  assert.equal(vehicleKind({ make: "Subaru", model: "Outback" }), "suv");
+  assert.equal(vehicleKind({ make: "Jeep", model: "Wrangler" }), "suv");
+  assert.equal(vehicleKind({ make: "Ford", model: "F-150" }), "truck");
+  assert.equal(vehicleKind({ make: "Toyota", model: "Tacoma" }), "truck");
+  assert.equal(vehicleKind({ make: "Honda", model: "Odyssey" }), "van");
+  assert.equal(vehicleKind({ make: "Chrysler", model: "Pacifica" }), "van");
+  assert.equal(vehicleKind({ make: "Ford", model: "Mustang" }), "sports");
+  assert.equal(vehicleKind({ make: "Honda", model: "Civic Si" }), "sports");
+  assert.equal(vehicleKind({ make: "Honda", model: "Civic Type R" }), "sports");
+  assert.equal(vehicleKind({ make: "Chevrolet", model: "Camaro" }), "sports");
+  assert.equal(vehicleKind({ make: "Mystery", model: "Unknown" }), "sedan");
+  assert.equal(vehicleKind({}), "sedan");
+});
+
+test("carImage and pickVehicleImage prefer a customer photo and fall back by kind", () => {
+  assert.equal(carImage({ make: "Toyota", model: "Camry" }), "/img/car-sedan.jpg");
+  assert.equal(carImage({ make: "Honda", model: "Civic Hatchback" }), "/img/car-hatchback.jpg");
+  assert.equal(carImage({ make: "Honda", model: "Civic Coupe" }), "/img/car-coupe.jpg");
+  assert.equal(carImage({ make: "Honda", model: "CR-V" }), "/img/car-suv.jpg");
+  assert.equal(carImage({ make: "Ford", model: "F-150" }), "/img/car-truck.jpg");
+  assert.equal(carImage({ make: "Honda", model: "Odyssey" }), "/img/car-van.jpg");
+  assert.equal(carImage({ make: "Ford", model: "Mustang" }), "/img/car-sports.jpg");
+  assert.equal(carImage({ make: "??", model: "" }), "/img/car-sedan.jpg");
+
+  const generic = pickVehicleImage({ make: "Toyota", model: "Camry", color: "red" });
+  assert.equal(generic.fromCustomer, false);
+  assert.equal(generic.src, "/img/car-sedan.jpg");
+  assert.equal(generic.kind, "sedan");
+  assert.ok(generic.tint);
+  assert.equal(generic.tint?.hex, "#c23030");
+  assert.equal(generic.tint?.blend, "color");
+
+  const custom = pickVehicleImage({
+    make: "Toyota",
+    model: "Camry",
+    vehiclePhoto: "data:image/jpeg;base64,abc",
+    color: "red",
+  });
+  assert.equal(custom.fromCustomer, true);
+  assert.equal(custom.src, "data:image/jpeg;base64,abc");
+  assert.equal(custom.tint, null);
+
+  assert.equal(isCustomerVehiclePhoto("/img/car-sedan.jpg"), false);
+  assert.equal(isCustomerVehiclePhoto("data:image/jpeg;base64,abc"), true);
+  const white = vehicleTint("white");
+  const red = vehicleTint("red");
+  assert.ok(white && red);
+  assert.notEqual(white.hex, red.hex);
 });

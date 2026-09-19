@@ -25,6 +25,32 @@ test("landing welcome body uses Leon QR/referral copy in English and Spanish", (
   assert.doesNotMatch(translate("es", "welcome.body"), /comparten un código/);
 });
 
+test("welcome find-code field says Shop or Mechanic code, not demo codes", () => {
+  assert.equal(translate("en", "welcome.haveCode"), "Shop or Mechanic code");
+  assert.equal(translate("en", "welcome.codePlaceholder"), "Shop or Mechanic code");
+  assert.equal(translate("es", "welcome.haveCode"), "Código de taller o mecánico");
+  assert.equal(translate("es", "welcome.codePlaceholder"), "Código de taller o mecánico");
+  for (const locale of ["en", "es"] as const) {
+    const blob = `${translate(locale, "welcome.haveCode")} ${translate(locale, "welcome.codePlaceholder")}`;
+    assert.doesNotMatch(blob, /demo/i);
+    assert.doesNotMatch(blob, /RIV4/);
+    assert.doesNotMatch(blob, /LEON/);
+  }
+});
+
+test("EN and ES treat LEON as a claimable example, not a reserved taken code", () => {
+  assert.match(translate("en", "register.findCodePh"), /LEON/);
+  assert.match(translate("es", "register.findCodePh"), /LEON/);
+  assert.match(translate("en", "register.findCodeHint"), /Unique/i);
+  assert.match(translate("es", "register.findCodeHint"), /nadie|único/i);
+  assert.equal(translate("en", "err.findCodeTaken"), "That find code is already taken.");
+  assert.equal(translate("es", "err.findCodeTaken"), "Ese código ya está en uso.");
+  assert.doesNotMatch(translate("en", "welcome.demoCodes"), /LEON/);
+  assert.doesNotMatch(translate("es", "welcome.demoCodes"), /LEON/);
+  assert.match(translate("en", "welcome.demoCodes"), /RIV4/);
+  assert.match(translate("es", "welcome.demoCodes"), /RIV4/);
+});
+
 test("English and Spanish dictionaries share the same keys", () => {
   const enKeys = Object.keys(messages.en).sort();
   const esKeys = Object.keys(messages.es).sort();
@@ -58,6 +84,23 @@ test("store errors and known notes translate without changing source text", () =
     translateStoreError("es", "It's too close to the appointment to cancel or reschedule in the app. Call the shop."),
     "Es demasiado cerca de la cita para cancelar o reprogramar en la app. Llama al taller.",
   );
+  assert.equal(
+    translateStoreError("es", "The customer find code and team join code must be different."),
+    "El código para clientes y el código de equipo deben ser distintos.",
+  );
+  assert.equal(
+    translateStoreError("es", "That's the customer find code. Ask the owner for the team join code."),
+    "Ese es el código para clientes. Pide al dueño el código de equipo.",
+  );
+});
+
+test("share and account copy keep find code and team join separate", () => {
+  for (const locale of ["en", "es"] as const) {
+    assert.doesNotMatch(translate(locale, "share.rotateShop"), /same code|mismo código/i);
+    assert.doesNotMatch(translate(locale, "account.customersUseCode"), /same code|mismo código/i);
+    assert.match(translate(locale, "account.findCodeHint"), /not the team|no es el código de equipo/i);
+    assert.match(translate(locale, "share.teamJoinHint"), /customers never|los clientes nunca/i);
+  }
 });
 
 test("status labels stay distinct between shop and customer", () => {
@@ -158,9 +201,37 @@ test("shop technician portal copy exists in English and Spanish", () => {
   assert.match(translate("en", "shop.techWorkHint"), /assigned/i);
   assert.match(translate("es", "shop.techWorkHint"), /asignad/i);
   assert.match(translate("en", "account.techShopHint"), /owner/i);
+  assert.match(translate("en", "account.techShopHint"), /job length/i);
   assert.match(translate("es", "account.techShopHint"), /dueño/i);
+  assert.match(translate("es", "account.techShopHint"), /duraci[oó]n/i);
   assert.match(translate("en", "account.deleteBodyTech"), /does not delete the shop/i);
   assert.match(translate("es", "account.deleteBodyTech"), /no elimina el taller/i);
+});
+
+test("job length / block-after-booking copy exists in English and Spanish", () => {
+  assert.equal(translate("en", "account.jobLength"), "Job length / block after booking");
+  assert.equal(translate("es", "account.jobLength"), "Duración del trabajo / bloquear después de reservar");
+  assert.match(translate("en", "account.jobLengthHint"), /3 hours|default/i);
+  assert.match(translate("es", "account.jobLengthHint"), /3 horas/i);
+  assert.equal(translate("en", "account.blockOff"), "Off (same start only)");
+  assert.equal(translate("es", "account.blockOff"), "Apagado (solo la misma hora)");
+  assert.equal(translate("en", "account.block3h"), "3 hours");
+  assert.equal(translate("es", "account.block3h"), "3 horas");
+  assert.equal(translate("en", "book.blocked"), "Blocked");
+  assert.equal(translate("es", "book.blocked"), "Bloqueado");
+  assert.match(translate("en", "book.takenHint"), /job length|block/i);
+  assert.match(translate("es", "book.takenHint"), /duraci[oó]n|bloquea/i);
+});
+
+test("booking calendar and photo pan copy exists in English and Spanish", () => {
+  assert.match(translate("en", "book.bayFull"), /four weeks/i);
+  assert.match(translate("es", "book.bayFull"), /cuatro semanas/i);
+  assert.equal(translate("en", "book.calendarAria"), "Available days and times");
+  assert.equal(translate("es", "book.calendarAria"), "Días y horarios disponibles");
+  assert.equal(translate("en", "book.pickDay"), "Pick a day");
+  assert.equal(translate("es", "book.pickDay"), "Elige un día");
+  assert.equal(translate("en", "job.panHint"), "Drag to look around");
+  assert.equal(translate("es", "job.panHint"), "Arrastra para ver alrededor");
 });
 
 test("shop history and decline copy exists in English and Spanish", () => {
@@ -215,6 +286,18 @@ test("booking symptoms are marked optional in English and Spanish", () => {
   assert.match(translate("es", "book.symptomsHint"), /opcional/i);
   assert.equal(translate("en", "book.noSymptoms"), "No description");
   assert.equal(translate("es", "book.noSymptoms"), "Sin descripción");
+});
+
+test("vehicle photo hint exists in English and Spanish", () => {
+  assert.equal(translate("en", "vehicle.photoHint"), "Add photo for a better match");
+  assert.match(translate("es", "vehicle.photoHint"), /foto/i);
+  assert.equal(translate("en", "kind.hatchback"), "hatchback");
+  assert.equal(translate("en", "kind.coupe"), "coupe");
+  assert.equal(translate("es", "kind.coupe"), "cupé");
+  assert.equal(translate("en", "color.red"), "Red");
+  assert.equal(translate("es", "color.red"), "Rojo");
+  assert.match(translate("en", "privacy.photos.body"), /not a public directory/i);
+  assert.match(translate("es", "privacy.photos.body"), /directorio/i);
 });
 
 test("profile vs bay photo labels exist in English and Spanish", () => {

@@ -5,6 +5,7 @@ import { signSession } from "@/lib/session-token";
 import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
 import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
+import { blockHoursFromRecord, normalizeBlockAfterHours } from "@/lib/booking-block";
 import {
   CANCEL_TOO_LATE,
   RESCHEDULE_CLOSED,
@@ -13,10 +14,18 @@ import {
   applyDecline,
   canCustomerCancel,
   canManageAppointment,
+  isJobStatus,
   slotTakenAmong,
 } from "@/lib/job-status";
 import { customerOwnsJob } from "@/lib/booking-provider";
-import { claimFindCode, FIND_CODE_TAKEN, generateFindCode } from "@/lib/find-code";
+import {
+  DEMO_SHOP_FIND_CODE,
+  FIND_CODE_TAKEN,
+  USED_FIND_AS_JOIN,
+  allocateShopCodes,
+  claimFindCode,
+  generateUnusedCode,
+} from "@/lib/find-code";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode, isShopTechnician } from "@/lib/shop-role";
@@ -46,16 +55,16 @@ import {
   partsNoteText,
   serializeJobOps,
 } from "@/lib/job-ops";
-import { isJobStatus } from "@/lib/job-status";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
   "Family-run shop since 1998. Brakes, engines, and same-day diagnostics. We text you before we turn a wrench.";
 const LEON_BIO =
   "I come to your driveway. Scan tools, common parts, and straight talk. Nights and weekends if the car is down.";
+/** Demo independent find code. LEON is left free for a real shop to claim. */
+const DEMO_INDY_FIND_CODE = "INDY1";
 
 export const BIO_MAX = 320;
-
 
 function slotDays(days: number, hhmm: string) {
   const d = new Date();
@@ -100,6 +109,7 @@ function rowUser(r: Record<string, unknown>): User {
     hoursDays: String(r.hours_days || "123456"),
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
+    blockAfterHours: normalizeBlockAfterHours(r.block_after_hours),
     ...publicProfileFromRecord(r),
   };
 }
@@ -109,6 +119,7 @@ function rowShop(r: Record<string, unknown>): Shop {
     id: String(r.id),
     name: String(r.name),
     code: String(r.code),
+    joinCode: r.join_code ? String(r.join_code) : "",
     ownerId: String(r.owner_id),
     techs: parseJson<string[]>(r.techs_json, []),
     bio: String(r.bio || ""),
@@ -118,6 +129,7 @@ function rowShop(r: Record<string, unknown>): Shop {
     hoursDays: String(r.hours_days || "123456"),
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
+    blockAfterHours: normalizeBlockAfterHours(r.block_after_hours),
     ...publicProfileFromRecord(r),
   };
 }
@@ -146,52 +158,124 @@ function rowJob(r: Record<string, unknown>): Job {
     notifySms: r.notify_sms !== false && r.notify_sms !== "f" && r.notify_sms !== 0,
     photo: String(r.photo || ""),
     jobPhoto: String(r.photo || ""),
+    vehiclePhoto: String(r.vehicle_photo || ""),
+    color: String(r.color || ""),
     ...applyOpsToJob({}, ops),
   };
 }
 
 async function usedCodes() {
   const sql = await getSql();
-  const shops = await sql.query<{ code: string }>("select code from mh_shops");
+  const shops = await sql.query<{ code: string; join_code: string | null }>(
+    "select code, join_code from mh_shops",
+  );
   const users = await sql.query<{ code: string | null }>("select code from mh_users where code is not null");
   const used = new Set<string>();
-  for (const s of shops) used.add(s.code);
+  for (const s of shops) {
+    if (s.code) used.add(s.code);
+    if (s.join_code) used.add(s.join_code);
+  }
   for (const u of users) if (u.code) used.add(u.code);
   return used;
 }
 
 export async function uniqueCode() {
   const used = await usedCodes();
-  let c = generateFindCode();
-  while (used.has(c)) c = generateFindCode();
-  return c;
+  return generateUnusedCode(used);
 }
 
-async function allocateCode(preferred: string | undefined, used: Set<string>, current?: string) {
+async function allocatePreferredCode(preferred: string | undefined, used: Set<string>, current?: string, blocked?: string) {
   const raw = String(preferred || "").trim();
   if (!raw) {
-    let c = generateFindCode();
-    while (used.has(c) || (current && c === current)) c = generateFindCode();
-    return { ok: true as const, code: c };
+    return { ok: true as const, code: generateUnusedCode(used, current || "", blocked || "") };
   }
-  return claimFindCode(raw, used, current);
+  return claimFindCode(raw, used, current, blocked);
+}
+
+/**
+ * Seed independent used to own LEON. Reassign that demo row so a real shop
+ * can claim LEON. Never touches a non-seed account that already has LEON.
+ */
+async function freeSeedLeonFindCode() {
+  const sql = await getSql();
+  const holders = await sql.query<{ id: string; kind: string }>(
+    `select id, 'user' as kind from mh_users
+       where code = 'LEON' and (id = 'u-indy' or email = 'indy@example.com')
+     union all
+     select id, 'shop' as kind from mh_shops
+       where code = 'LEON' and owner_id = 'u-indy'`,
+  );
+  if (!holders.length) return;
+  const used = await usedCodes();
+  used.delete("LEON");
+  let next = DEMO_INDY_FIND_CODE;
+  if (used.has(next)) next = generateUnusedCode(used);
+  for (const row of holders) {
+    if (row.kind === "user") {
+      await sql.query("update mh_users set code = $2 where id = $1", [row.id, next]);
+    } else {
+      await sql.query("update mh_shops set code = $2 where id = $1", [row.id, next]);
+    }
+  }
+}
+
+/** Existing shops that still share one code get a distinct team-join value. */
+async function ensureShopJoinCodes() {
+  const sql = await getSql();
+  const shops = await sql.query<{ id: string; code: string; join_code: string | null }>(
+    "select id, code, join_code from mh_shops",
+  );
+  const used = await usedCodes();
+  for (const shop of shops) {
+    const join = String(shop.join_code || "");
+    if (join && join !== shop.code) continue;
+    if (join) used.delete(join);
+    const next = generateUnusedCode(used, shop.code);
+    used.add(next);
+    await sql.query("update mh_shops set join_code = $2 where id = $1", [shop.id, next]);
+  }
+}
+
+/** Paint colors on demo tickets so generic silver art can show a tint. */
+async function ensureDemoVehicleHero() {
+  const sql = await getSql();
+  const patches: Array<[string, string]> = [
+    ["MH-4820", "red"],
+    ["MH-4821", "white"],
+    ["MH-4822", "blue"],
+    ["MH-4823", "green"],
+  ];
+  for (const [id, color] of patches) {
+    try {
+      await sql.query("update mh_jobs set color = $2 where id = $1 and (color is null or color = '')", [id, color]);
+    } catch {
+      /* 0013 */
+    }
+  }
 }
 
 export async function ensureSeeded() {
-  const sql = await getSql();  const live = Boolean(process.env.DATABASE_URL?.trim()) && process.env.SEED_DEMO !== "1";
+  const sql = await getSql();
+  await freeSeedLeonFindCode();
+  const live = Boolean(process.env.DATABASE_URL?.trim()) && process.env.SEED_DEMO !== "1";
   if (live) {
     await sql.query("delete from mh_jobs where id in ('MH-4821','MH-4822','MH-4823','MH-4824','MH-1094') or provider_id in ('s-main','u-indy') or user_id in ('u-maya','u-shop','u-alex','u-indy')");
     await sql.query("delete from mh_users where id in ('u-maya','u-shop','u-alex','u-indy') or email in ('maya@example.com','shop@example.com','alex@example.com','indy@example.com')");
-    await sql.query("delete from mh_shops where id = 's-main' or code = 'RIV4'");
+    await sql.query("delete from mh_shops where id = 's-main' or code = $1", [DEMO_SHOP_FIND_CODE]);
+    await ensureShopJoinCodes();
     return;
   }
   const rows = await sql.query<{ n: number }>("select count(*)::int as n from mh_users");
-  if ((rows[0]?.n || 0) > 0) return;
+  if ((rows[0]?.n || 0) > 0) {
+    await ensureShopJoinCodes();
+    await ensureDemoVehicleHero();
+    return;
+  }
 
   const now = Date.now();
   await sql.query(
-    `insert into mh_shops (id, name, code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6)`,
-    ["s-main", "Riverside Auto", "RIV4", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
+    `insert into mh_shops (id, name, code, join_code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6,$7)`,
+    ["s-main", "Riverside Auto", DEMO_SHOP_FIND_CODE, "RIVTEAM", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
   );
   await sql.query(
     `update mh_shops set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5 where id = $1`,
@@ -212,7 +296,7 @@ export async function ensureSeeded() {
     ["u-maya", "Maya Chen", "maya@example.com", "5550148821", "customer", hashPassword("demo123"), null, null, null, null, null, null, ""],
     ["u-shop", "Shop Desk", "shop@example.com", "5550100000", "shop", hashPassword("demo123"), "s-main", "Riverside Auto", "owner", null, null, null, ""],
     ["u-alex", "Alex Ruiz", "alex@example.com", "5550100001", "shop", hashPassword("demo123"), "s-main", "Riverside Auto", "tech", null, null, null, ""],
-    ["u-indy", "Leon Miles", "indy@example.com", "5550166000", "independent", hashPassword("demo123"), null, null, null, "Leon Mobile Repair", "mobile", "LEON", LEON_BIO],
+    ["u-indy", "Leon Miles", "indy@example.com", "5550166000", "independent", hashPassword("demo123"), null, null, null, "Leon Mobile Repair", "mobile", DEMO_INDY_FIND_CODE, LEON_BIO],
   ];
   for (const u of users) {
     await sql.query(
@@ -246,6 +330,7 @@ export async function ensureSeeded() {
       year: "2019",
       make: "Honda",
       model: "CR-V",
+      color: "white",
       symptoms: "Grinding noise when braking, especially downhill.",
       slot: slotDays(1, "09:00"),
       status: "repair",
@@ -271,6 +356,7 @@ export async function ensureSeeded() {
       year: "2016",
       make: "Ford",
       model: "F-150",
+      color: "blue",
       symptoms: "Check engine light. Rough idle after warmup.",
       slot: slotDays(0, "11:30"),
       status: "diagnosing",
@@ -292,6 +378,7 @@ export async function ensureSeeded() {
       year: "2022",
       make: "Toyota",
       model: "Camry",
+      color: "red",
       symptoms: "Oil change and 30k service.",
       slot: slotDays(0, "08:00"),
       status: "ready",
@@ -334,6 +421,7 @@ export async function ensureSeeded() {
       year: "2021",
       make: "Subaru",
       model: "Outback",
+      color: "green",
       symptoms: "A/C blows warm on the highway.",
       slot: slotDays(2, "13:00"),
       status: "scheduled",
@@ -361,6 +449,8 @@ export async function ensureSeeded() {
   for (const j of jobs) {
     await insertJob(j);
   }
+  await ensureShopJoinCodes();
+  await ensureDemoVehicleHero();
 }
 
 export async function loadBoard() {
@@ -573,9 +663,13 @@ export async function register(fields: {
   if (role === "shop") {
     if (fields.shopJoin === "join") {
       const code = String(fields.shopCode || "").trim().toUpperCase();
-      const shops = await sql.query<Record<string, unknown>>("select * from mh_shops where code = $1", [code]);
-      const shop = shops[0] ? rowShop(shops[0]) : null;
-      if (!shop) return { ok: false as const, error: "No shop with that code." };
+      const byJoin = await sql.query<Record<string, unknown>>("select * from mh_shops where join_code = $1", [code]);
+      const shop = byJoin[0] ? rowShop(byJoin[0]) : null;
+      if (!shop) {
+        const byFind = await sql.query<Record<string, unknown>>("select * from mh_shops where code = $1", [code]);
+        if (byFind[0]) return { ok: false as const, error: USED_FIND_AS_JOIN };
+        return { ok: false as const, error: "No shop with that code." };
+      }
       user.shopId = shop.id;
       user.shopName = shop.name;
       user.shopRole = "tech";
@@ -584,19 +678,20 @@ export async function register(fields: {
     } else {
       const shopName = String(fields.shopName || "").trim() || user.name + "'s Shop";
       const used = await usedCodes();
-      const allocated = await allocateCode(fields.findCode, used);
+      const allocated = allocateShopCodes(fields.findCode, used);
       if (!allocated.ok) return allocated;
       const shop: Shop = {
         id: "s-" + Math.random().toString(36).slice(2, 7),
         name: shopName,
-        code: allocated.code,
+        code: allocated.findCode,
+        joinCode: allocated.joinCode,
         ownerId: user.id,
         techs: [user.name],
         bio: "",
       };
       await sql.query(
-        `insert into mh_shops (id, name, code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6)`,
-        [shop.id, shop.name, shop.code, shop.ownerId, JSON.stringify(shop.techs), shop.bio],
+        `insert into mh_shops (id, name, code, join_code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6,$7)`,
+        [shop.id, shop.name, shop.code, shop.joinCode, shop.ownerId, JSON.stringify(shop.techs), shop.bio],
       );
       user.shopId = shop.id;
       user.shopName = shop.name;
@@ -607,7 +702,7 @@ export async function register(fields: {
     user.businessName = String(fields.businessName || "").trim() || user.name;
     user.serviceMode = fields.serviceMode || "both";
     const used = await usedCodes();
-    const allocated = await allocateCode(fields.findCode, used);
+    const allocated = await allocatePreferredCode(fields.findCode, used);
     if (!allocated.ok) return allocated;
     user.code = allocated.code;
     user.bio = "";
@@ -639,13 +734,20 @@ export async function rotateCustomerCode(userId: string) {
   const board = await loadBoard();
   const user = board.users.find((u) => u.id === userId);
   if (!user || !canRotateFindCode(user)) return "";
-  const next = await uniqueCode();
+  const used = await usedCodes();
   const sql = await getSql();
   if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
+    const shop = board.shops.find((s) => s.id === user.shopId);
+    const current = shop?.code || "";
+    if (current) used.delete(current);
+    const next = generateUnusedCode(used, shop?.joinCode || "");
     await sql.query("update mh_shops set code = $2 where id = $1", [user.shopId, next]);
     return next;
   }
   if (user.role === "independent") {
+    const current = user.code || "";
+    if (current) used.delete(current);
+    const next = generateUnusedCode(used);
     await sql.query("update mh_users set code = $2 where id = $1", [user.id, next]);
     return next;
   }
@@ -660,13 +762,16 @@ export async function claimCustomerCode(userId: string, desired: string) {
   }
   const used = await usedCodes();
   let current = "";
+  let blocked = "";
   if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
-    current = board.shops.find((s) => s.id === user.shopId)?.code || "";
+    const shop = board.shops.find((s) => s.id === user.shopId);
+    current = shop?.code || "";
+    blocked = shop?.joinCode || "";
   } else if (user.role === "independent") {
     current = user.code || "";
   }
   if (current) used.delete(current);
-  const allocated = await allocateCode(desired, used, current);
+  const allocated = await allocatePreferredCode(desired, used, current, blocked);
   if (!allocated.ok) return allocated;
   if (allocated.code === current) return { ok: true as const, code: current };
   const sql = await getSql();
@@ -699,6 +804,7 @@ export async function updateShopProfile(
     hoursDays?: string;
     hoursOpen?: string;
     hoursClose?: string;
+    blockAfterHours?: number;
     specialties?: string[];
     credentials?: string[];
     serviceArea?: string;
@@ -749,6 +855,16 @@ export async function updateShopProfile(
       patch.hoursClose ?? shop.hoursClose ?? "16:00",
     ]);
   }
+  if (patch.blockAfterHours !== undefined) {
+    try {
+      await sql.query("update mh_shops set block_after_hours = $2 where id = $1", [
+        shop.id,
+        normalizeBlockAfterHours(patch.blockAfterHours),
+      ]);
+    } catch {
+      /* column arrives after 0012 */
+    }
+  }
   if (
     patch.specialties !== undefined ||
     patch.credentials !== undefined ||
@@ -787,6 +903,7 @@ export async function updateIndependentProfile(
     hoursDays?: string;
     hoursOpen?: string;
     hoursClose?: string;
+    blockAfterHours?: number;
     specialties?: string[];
     credentials?: string[];
     serviceArea?: string;
@@ -816,6 +933,9 @@ export async function updateIndependentProfile(
   const hoursDays = patch.hoursDays ?? user.hoursDays ?? "123456";
   const hoursOpen = patch.hoursOpen ?? user.hoursOpen ?? "08:00";
   const hoursClose = patch.hoursClose ?? user.hoursClose ?? "16:00";
+  const blockAfterHours = normalizeBlockAfterHours(
+    patch.blockAfterHours !== undefined ? patch.blockAfterHours : user.blockAfterHours,
+  );
   const next = sanitizePublicProfile({
     specialties: patch.specialties ?? user.specialties,
     credentials: patch.credentials ?? user.credentials,
@@ -843,6 +963,11 @@ export async function updateIndependentProfile(
       next.address,
     ],
   );
+  try {
+    await sql.query("update mh_users set block_after_hours = $2 where id = $1", [user.id, blockAfterHours]);
+  } catch {
+    /* column arrives after 0012 */
+  }
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
   if (!fresh) return { ok: false as const, error: "Account not found." };
   const { pass: _p, ...rest } = fresh;
@@ -922,7 +1047,16 @@ async function insertJob(job: Job) {
       serializeJobOps(jobOpsOf(job)),
     ]);
   } catch {
-    /* column arrives after 0011 */
+    /* column arrives after 0014 */
+  }
+  try {
+    await sql.query("update mh_jobs set vehicle_photo = $2, color = $3 where id = $1", [
+      job.id,
+      job.vehiclePhoto || "",
+      job.color || "",
+    ]);
+  } catch {
+    /* columns arrive after 0013 */
   }
   return applyOpsToJob(job, jobOpsOf(job));
 }
@@ -931,7 +1065,9 @@ export async function addJob(job: Job) {
   await ensureSeeded();
   job = { ...job, symptoms: normalizeSymptoms(job.symptoms) };
   const board = await loadBoard();
-  const taken = slotTakenAmong(board.jobs, job.providerId, job.slot);
+  const provider =
+    board.shops.find((s) => s.id === job.providerId) || board.users.find((u) => u.id === job.providerId);
+  const taken = slotTakenAmong(board.jobs, job.providerId, job.slot, blockHoursFromRecord(provider));
   if (taken) {
     return { ok: false as const, error: "That time is already booked. Pick another slot." };
   }
@@ -948,6 +1084,8 @@ export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: s
   if (safe.status) job.status = safe.status;
   if (safe.assignedTo !== undefined) job.assignedTo = safe.assignedTo;
   if (safe.jobPhoto !== undefined) Object.assign(job, withJobPhoto(job, safe.jobPhoto));
+  if (safe.vehiclePhoto !== undefined) job.vehiclePhoto = safe.vehiclePhoto;
+  if (safe.color !== undefined) job.color = safe.color;
   // Do not rewrite notes_json here — addNote is the only writer for ticket notes.
   const sql = await getSql();
   await sql.query(
@@ -961,6 +1099,17 @@ export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: s
       await sql.query("update mh_jobs set photo = $2 where id = $1", [job.id, safe.jobPhoto]);
     } catch {
       /* 0007 */
+    }
+  }
+  if (safe.vehiclePhoto !== undefined || safe.color !== undefined) {
+    try {
+      await sql.query("update mh_jobs set vehicle_photo = $2, color = $3 where id = $1", [
+        job.id,
+        job.vehiclePhoto || "",
+        job.color || "",
+      ]);
+    } catch {
+      /* 0013 */
     }
   }
   if (safe.status && safe.status !== previous) {
@@ -1106,7 +1255,7 @@ async function persistOps(job: Job) {
       serializeJobOps(jobOpsOf(job)),
     ]);
   } catch {
-    /* column arrives after 0011 */
+    /* column arrives after 0014 */
   }
 }
 

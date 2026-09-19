@@ -36,7 +36,7 @@ export function canRotateFindCode(user: ShopRoleUser | null | undefined): boolea
   return canShareCustomerQr(user);
 }
 
-/** Same 4-letter code customers and staff use. Never show it to technicians. */
+/** Team-join / employee invite — owner only. Never the same value as the customer find code. */
 export function canSeeTeamJoinCode(user: ShopRoleUser | null | undefined): boolean {
   return isShopOwner(user);
 }
@@ -83,4 +83,9 @@ export function rankShopJobsForViewer<T extends AssignableJob>(jobs: T[], user: 
 
 export function techPortalLabel(shopName: string, fallback = "Shop"): string {
   return `Technician · ${shopName.trim() || fallback}`;
+}
+
+/** Owner, technician, and independent — same ~980px Jobs shell from PR #23. Customers stay phone-narrow. */
+export function usesWideProviderShell(user: ShopRoleUser | null | undefined): boolean {
+  return user?.role === "shop" || user?.role === "independent";
 }

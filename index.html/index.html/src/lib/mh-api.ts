@@ -68,6 +68,7 @@ export const mhUpdateShop = createServerFn({ method: "POST" })
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: number;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;
@@ -98,6 +99,7 @@ export const mhUpdateIndy = createServerFn({ method: "POST" })
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: number;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;
@@ -141,7 +143,7 @@ export const mhAddJob = createServerFn({ method: "POST" })
   });
 
 export const mhUpdateJob = createServerFn({ method: "POST" })
-  .validator((d: { id: string; patch: Partial<Job> & { jobPhoto?: string } }) => d)
+  .validator((d: { id: string; patch: Partial<Job> & { jobPhoto?: string; vehiclePhoto?: string } }) => d)
   .handler(async ({ data }) => {
     const db = await import("./mh-db.server");
     return db.updateJob(data.id, data.patch);

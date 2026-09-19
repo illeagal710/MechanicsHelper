@@ -13,6 +13,7 @@ import {
   rankShopJobsForViewer,
   shopPortalKind,
   techPortalLabel,
+  usesWideProviderShell,
 } from "./shop-role.ts";
 
 const owner = { role: "shop" as const, shopRole: "owner" as const, shopId: "s-main", shopName: "Riverside Auto", name: "Shop Desk" };
@@ -30,6 +31,7 @@ test("shop owner keeps Share, team join code, and shop Account edits", () => {
   assert.equal(canEditShopProfile(owner), true);
   assert.equal(canManageShopTeam(owner), true);
   assert.equal(canDeleteShop(owner), true);
+  assert.equal(usesWideProviderShell(owner), true);
 });
 
 test("shop technician does not see team-join QR, Share, or shop Account controls", () => {
@@ -43,6 +45,7 @@ test("shop technician does not see team-join QR, Share, or shop Account controls
   assert.equal(canManageShopTeam(tech), false);
   assert.equal(canDeleteShop(tech), false);
   assert.equal(techPortalLabel(tech.shopName), "Technician · Riverside Auto");
+  assert.equal(usesWideProviderShell(tech), true);
 });
 
 test("independent keeps Share; customer has no shop portal", () => {
@@ -53,6 +56,16 @@ test("independent keeps Share; customer has no shop portal", () => {
   assert.equal(shopPortalKind(indy), "independent");
   assert.equal(canShareCustomerQr(customer), false);
   assert.equal(shopPortalKind(customer), "customer");
+  assert.equal(usesWideProviderShell(indy), true);
+  assert.equal(usesWideProviderShell(customer), false);
+  assert.equal(usesWideProviderShell(null), false);
+});
+
+test("shop technician uses the same wide provider shell as owner and independent", () => {
+  assert.equal(usesWideProviderShell(owner), true);
+  assert.equal(usesWideProviderShell(tech), true);
+  assert.equal(usesWideProviderShell(indy), true);
+  assert.equal(usesWideProviderShell(customer), false);
 });
 
 test("tech jobs board lists assigned tickets first and keeps the rest in place", () => {

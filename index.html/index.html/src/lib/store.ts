@@ -28,7 +28,7 @@ import {
   mhSaveParts,
   mhFlagJob,
 } from "@/lib/mh-api";
-import { jobPhotoOf, profilePhotoOf, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
+import { jobPhotoOf, profilePhotoOf, resizePhoto, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, type PublicProfileFields } from "@/lib/shop-profile";
 import {
   addSavedVehicle,
@@ -37,6 +37,8 @@ import {
   type VehicleFields,
 } from "@/lib/customer-vehicles";
 import { TIME_12H } from "@/lib/i18n";
+import { blockHoursFromRecord, normalizeBlockAfterHours, type BlockAfterHours } from "./booking-block.ts";
+import { generateSlots, type HoursLike } from "./booking-calendar.ts";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
 import type { JobEstimate, JobParts } from "./job-ops.ts";
 
@@ -47,6 +49,8 @@ export function soloMechanicDetail(
   if (mode === "mobile") return "Mobile mechanic";
   return "Mobile or drop-off";
 }
+
+export { resizePhoto };
 
 export type Role = "customer" | "shop" | "independent";
 
@@ -74,6 +78,8 @@ export type User = {
   hoursDays?: string;
   hoursOpen?: string;
   hoursClose?: string;
+  /** Owner job length. Shop techs inherit the shop value. Default 3. */
+  blockAfterHours?: BlockAfterHours;
   specialties?: string[];
   credentials?: string[];
   serviceArea?: string;
@@ -85,6 +91,8 @@ export type Shop = {
   id: string;
   name: string;
   code: string;
+  /** Employee invite — never the same value as `code` (customer find). */
+  joinCode?: string;
   ownerId: string;
   techs: string[];
   bio?: string;
@@ -94,6 +102,7 @@ export type Shop = {
   hoursDays?: string;
   hoursOpen?: string;
   hoursClose?: string;
+  blockAfterHours?: BlockAfterHours;
   specialties?: string[];
   credentials?: string[];
   serviceArea?: string;
@@ -134,6 +143,9 @@ export type Job = {
   /** Previous pipeline status so the shop can undo the last tap. */
   statusBefore?: string;
   flaggedForOwner?: boolean;
+  /** Customer photo of the car on this ticket. Never the bay slot or profile. */
+  vehiclePhoto?: string;
+  color?: string;
 };
 
 export type Provider = {
@@ -150,6 +162,7 @@ export type Provider = {
   hoursOpen?: string;
   hoursClose?: string;
   hoursLabel?: string;
+  blockAfterHours?: BlockAfterHours;
   specialties?: string[];
   credentials?: string[];
   serviceArea?: string;
@@ -260,6 +273,7 @@ function providersFrom(data: DB): Provider[] {
       hoursOpen: s.hoursOpen || "08:00",
       hoursClose: s.hoursClose || "16:00",
       hoursLabel: hoursLabel(s),
+      blockAfterHours: normalizeBlockAfterHours(s.blockAfterHours),
     }, s),
   );
   const indy = data.users
@@ -284,6 +298,7 @@ function providersFrom(data: DB): Provider[] {
         hoursOpen: u.hoursOpen || "08:00",
         hoursClose: u.hoursClose || "16:00",
         hoursLabel: hoursLabel(u),
+        blockAfterHours: normalizeBlockAfterHours(u.blockAfterHours),
       }, u),
     );
   return [...shops, ...indy];
@@ -418,6 +433,11 @@ export const Store = {
     return "";
   },
 
+  teamJoinCodeFor(user: User | null): string {
+    if (!user || user.role !== "shop" || !user.shopId) return "";
+    return this.shopRecord(user.shopId)?.joinCode || "";
+  },
+
   shopRecord(shopId: string) {
     return cache.shops.find((s) => s.id === shopId) || null;
   },
@@ -443,7 +463,7 @@ export const Store = {
   },
 
   slotTaken(providerId: string | undefined, slotIso: string) {
-    return slotTakenAmong(cache.jobs, providerId, slotIso);
+    return slotTakenAmong(cache.jobs, providerId, slotIso, this.blockHoursFor(providerId));
   },
 
   hoursFor(providerId: string | undefined) {
@@ -454,11 +474,21 @@ export const Store = {
     return indy;
   },
 
+  blockHoursFor(providerId: string | undefined) {
+    return blockHoursFromRecord(this.hoursFor(providerId));
+  },
+
   openSlots(providerId: string | undefined) {
     const hours = this.hoursFor(providerId);
-    return slotsFromNow().filter(
-      (d) => slotInHours(d, hours) && !this.slotTaken(providerId, d.toISOString()),
-    );
+    return generateSlots(new Date(), hours).filter((d) => !this.slotTaken(providerId, d.toISOString()));
+  },
+
+  weekSlotStates(providerId: string | undefined) {
+    const hours = this.hoursFor(providerId);
+    return generateSlots(new Date(), hours).map((d) => {
+      const iso = d.toISOString();
+      return { date: d, iso, taken: this.slotTaken(providerId, iso) };
+    });
   },
 
   findJobs(q: string, user: User | null) {
@@ -573,6 +603,7 @@ export const Store = {
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: BlockAfterHours;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;
@@ -609,6 +640,7 @@ export const Store = {
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: BlockAfterHours;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;
@@ -680,6 +712,10 @@ export const Store = {
 
   async saveJobPhoto(id: string, jobPhoto: string) {
     return this.updateJob(id, withJobPhoto({ jobPhoto: "", photo: "" }, jobPhoto));
+  },
+
+  async saveVehiclePhoto(id: string, vehiclePhoto: string) {
+    return this.updateJob(id, { vehiclePhoto });
   },
 
   async addNote(id: string, text: string, by = "shop") {
@@ -757,61 +793,8 @@ export const Store = {
   },
 };
 
-export function slotsFromNow() {
-  const out: Date[] = [];
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  for (let d = 1; d <= 7; d++) {
-    for (const t of ["08:00", "09:30", "11:00", "13:00", "14:30", "16:00"]) {
-      const [h, m] = t.split(":").map(Number);
-      const dt = new Date(start);
-      dt.setDate(dt.getDate() + d);
-      dt.setHours(h, m, 0, 0);
-      if (dt.getDay() === 0) continue;
-      out.push(dt);
-    }
-  }
-  return out;
-}
-
-export function resizePhoto(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) {
-      reject(new Error("Choose a photo or logo image."));
-      return;
-    }
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const max = 480;
-      let w = img.width;
-      let h = img.height;
-      if (w > h && w > max) {
-        h = Math.round((h * max) / w);
-        w = max;
-      } else if (h > max) {
-        w = Math.round((w * max) / h);
-        h = max;
-      }
-      const c = document.createElement("canvas");
-      c.width = Math.max(1, w);
-      c.height = Math.max(1, h);
-      const ctx = c.getContext("2d");
-      if (!ctx) {
-        URL.revokeObjectURL(url);
-        reject(new Error("Could not read that image."));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL("image/jpeg", 0.82));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read that image."));
-    };
-    img.src = url;
-  });
+export function slotsFromNow(hours?: HoursLike) {
+  return generateSlots(new Date(), hours);
 }
 
 export function statusMeta(id: string) {

@@ -62,17 +62,186 @@ export const YEARS: string[] = [];
   for (let y = now; y >= 1990; y--) YEARS.push(String(y));
 })();
 
-export function vehicleKind(j: { make?: string; model?: string }) {
-  const blob = `${j.make || ""} ${j.model || ""}`.toLowerCase();
-  if (/f-150|f-250|f-350|f150|silverado|sierra|ram |tacoma|tundra|t100|ranger|frontier|gladiator|ridgeline|canyon|colorado|maverick|titan|santa cruz|avalanche|cybertruck|r1t|1500|2500|3500|c\/k|mark lt|baja|sonoma|dakota|s-10|pickup/.test(blob)) return "truck";
-  if (/odyssey|pacifica|sienna|carnival|sedona|town & country|voyager|caravan|quest|entorage|uplander|venture|freestar|windstar|transit|promaster|express|savana|metris|sprinter|routan|mazda5|id. buzz|aerostar|previa/.test(blob)) return "van";
-  if (/mustang|camaro|challenger|corvette|supra|370z|350z|300zx|gt-r|gtr|911|718|boxster|cayman|miata|mx-5|brz|gr86|86|s2000|nsx|viper|stinger|rc |z4|tt\b|r8|f-type|gr corolla|civic si|civic type r|elantra n|charger|crx/.test(blob)) return "sports";
-  if (/suv|crossover|rav4|cr-v|crv|hr-v|hrv|pilot|passport|prologue|highlander|4runner|sequoia|land cruiser|fj cruiser|venza|c-hr|corolla cross|tahoe|suburban|yukon|expedition|explorer|escape|edge|bronco|equinox|traverse|blazer|trailblazer|trax|acadia|terrain|envoy|wrangler|cherokee|compass|renegade|wagoneer|durango|journey|nitro|telluride|sorento|sportage|seltos|soul|niro|tucson|santa fe|palisade|kona|venue|veracruz|outback|forester|ascent|crosstrek|tribeca|solterra|cx-3|cx-30|cx-5|cx-50|cx-7|cx-9|cx-90|mdx|rdx|zdx|rx|gx|nx|ux|tx|lx|rz|x1|x2|x3|x4|x5|x6|x7|xm|ix\b|glc|gle|gls|gla|glb|glk|g-class|gl-class|m-class|ml320|ml350|r-class|eqb|q3|q4|q5|q7|q8|e-tron|tiguan|atlas|taos|touareg|id.4|xc40|xc60|xc70|xc90|c40|model y|model x|enclave|envision|encore|envista|xt4|xt5|xt6|escalade|srx|lyriq|aviator|nautilus|corsair|navigator|mkc|mkx|mkt|gv60|gv70|gv80|stelvio|tonale|macan|cayenne|discovery|defender|freelander|range rover|lr2|lr3|lr4|qx50|qx55|qx60|qx70|qx80|fx35|fx45|fx50|ex35|jx35|outlander|eclipse cross|endeavor|montero| Countryman|countryman|paceman|f-pace|e-pace|i-pace|r1s|hummer|ariya/.test(blob)) return "suv";
+export const VEHICLE_KINDS = ["sedan", "hatchback", "coupe", "suv", "truck", "van", "sports"] as const;
+export type VehicleKind = (typeof VEHICLE_KINDS)[number];
+
+export const VEHICLE_COLOR_IDS = [
+  "white",
+  "black",
+  "silver",
+  "gray",
+  "red",
+  "blue",
+  "green",
+  "yellow",
+  "orange",
+  "brown",
+  "beige",
+  "gold",
+  "maroon",
+] as const;
+export type VehicleColorId = (typeof VEHICLE_COLOR_IDS)[number];
+
+const COLOR_HEX: Record<VehicleColorId, string> = {
+  white: "#f3f4f6",
+  black: "#1f2937",
+  silver: "#c5c9cf",
+  gray: "#6b7280",
+  red: "#c23030",
+  blue: "#2563eb",
+  green: "#2f7a46",
+  yellow: "#ca8a04",
+  orange: "#c2410c",
+  brown: "#7c4a2a",
+  beige: "#d4c4a8",
+  gold: "#b8963e",
+  maroon: "#7f1d1d",
+};
+
+const COLOR_ALIASES: Record<string, VehicleColorId> = {
+  grey: "gray",
+  charcoal: "gray",
+  pearl: "white",
+  ivory: "white",
+  cream: "beige",
+  tan: "beige",
+  burgundy: "maroon",
+  wine: "maroon",
+  navy: "blue",
+  "navy blue": "blue",
+  "dark blue": "blue",
+  "light blue": "blue",
+  "dark green": "green",
+  "dark red": "maroon",
+  "off white": "white",
+  "off-white": "white",
+};
+
+export type VehicleTint = {
+  hex: string;
+  blend: "multiply" | "soft-light" | "overlay" | "color";
+  opacity: number;
+};
+
+export type VehicleImagePick = {
+  src: string;
+  kind: VehicleKind;
+  fromCustomer: boolean;
+  tint: VehicleTint | null;
+};
+
+function vehicleBlob(j: { make?: string; model?: string }) {
+  return `${j.make || ""} ${j.model || ""}`.toLowerCase();
+}
+
+export function vehicleKind(j: { make?: string; model?: string }): VehicleKind {
+  const blob = vehicleBlob(j);
+  if (
+    /f-150|f-250|f-350|f150|silverado|sierra|ram |tacoma|tundra|t100|ranger|frontier|gladiator|ridgeline|canyon|colorado|maverick|titan|santa cruz|avalanche|cybertruck|r1t|1500|2500|3500|c\/k|mark lt|baja|sonoma|dakota|s-10|pickup/.test(
+      blob,
+    )
+  ) {
+    return "truck";
+  }
+  if (
+    /odyssey|pacifica|sienna|carnival|sedona|town & country|voyager|caravan|quest|entorage|uplander|venture|freestar|windstar|transit|promaster|express|savana|metris|sprinter|routan|mazda5|id. buzz|aerostar|previa/.test(
+      blob,
+    )
+  ) {
+    return "van";
+  }
+  if (
+    /mustang|camaro|challenger|corvette|supra|370z|350z|300zx|gt-r|gtr|911|718|boxster|cayman|miata|mx-5|brz|gr86|86|s2000|nsx|viper|stinger|rc |z4|tt\b|r8|f-type|gr corolla|civic si|civic type r|elantra n|charger|crx/.test(
+      blob,
+    )
+  ) {
+    return "sports";
+  }
+  if (
+    /suv|crossover|rav4|cr-v|crv|hr-v|hrv|pilot|passport|prologue|highlander|4runner|sequoia|land cruiser|fj cruiser|venza|c-hr|corolla cross|tahoe|suburban|yukon|expedition|explorer|escape|edge|bronco|equinox|traverse|blazer|trailblazer|trax|acadia|terrain|envoy|wrangler|cherokee|compass|renegade|wagoneer|durango|journey|nitro|telluride|sorento|sportage|seltos|soul|niro|tucson|santa fe|palisade|kona|venue|veracruz|outback|forester|ascent|crosstrek|tribeca|solterra|cx-3|cx-30|cx-5|cx-50|cx-7|cx-9|cx-90|mdx|rdx|zdx|rx|gx|nx|ux|tx|lx|rz|x1|x2|x3|x4|x5|x6|x7|xm|ix\b|glc|gle|gls|gla|glb|glk|g-class|gl-class|m-class|ml320|ml350|r-class|eqb|q3|q4|q5|q7|q8|e-tron|tiguan|atlas|taos|touareg|id.4|xc40|xc60|xc70|xc90|c40|model y|model x|enclave|envision|encore|envista|xt4|xt5|xt6|escalade|srx|lyriq|aviator|nautilus|corsair|navigator|mkc|mkx|mkt|gv60|gv70|gv80|stelvio|tonale|macan|cayenne|discovery|defender|freelander|range rover|lr2|lr3|lr4|qx50|qx55|qx60|qx70|qx80|fx35|fx45|fx50|ex35|jx35|outlander|eclipse cross|endeavor|montero|countryman|paceman|f-pace|e-pace|i-pace|r1s|hummer|ariya|ioniq 5|ioniq 6|ioniq 9/.test(
+      blob,
+    )
+  ) {
+    return "suv";
+  }
+  if (
+    /hatch|sportback|sportwagen|golf\b|fit\b|yaris|spark\b|sonic\b|fiesta|mazda2|rio5|forte5|elantra gt|impreza\b|prius|ioniq(?! [569])|leaf\b|bolt ev|cooper\b|hardtop|clubman|beetle|matrix|vibe|cube\b|swift\b|c30\b|i3\b|versa note|protege5|veloster|focus st|focus rs/.test(
+      blob,
+    )
+  ) {
+    return "hatchback";
+  }
+  if (/\bgran coupe\b/.test(blob)) return "sedan";
+  if (
+    /\bcoupe\b/.test(blob) ||
+    /solara|tiburon|eclipse(?! cross)|prelude|monte carlo|thunderbird|cougar|clk\b|cls\b|cl-class|q60|sc\b|tc\b|2 series(?! gran)|4 series(?! gran)|6 series|8 series|a5(?! sportback)|genesis coupe/.test(
+      blob,
+    )
+  ) {
+    return "coupe";
+  }
   return "sedan";
 }
 
 export function carImage(j: { make?: string; model?: string }) {
   return "/img/car-" + vehicleKind(j) + ".jpg";
+}
+
+export function parseVehicleColor(raw?: string): VehicleColorId | "" {
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\b(metallic|pearl|matte|paint)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!s) return "";
+  if ((VEHICLE_COLOR_IDS as readonly string[]).includes(s)) return s as VehicleColorId;
+  return COLOR_ALIASES[s] || "";
+}
+
+export function vehicleColorHex(raw?: string): string {
+  const id = parseVehicleColor(raw);
+  if (id) return COLOR_HEX[id];
+  const hex = String(raw || "").trim();
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) {
+    return hex.length === 4 ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}` : hex;
+  }
+  return "";
+}
+
+export function vehicleTint(raw?: string): VehicleTint | null {
+  const id = parseVehicleColor(raw);
+  const hex = vehicleColorHex(raw);
+  if (!hex) return null;
+  if (id === "white") return { hex: "#ffffff", blend: "soft-light", opacity: 0.72 };
+  if (id === "silver") return { hex: "#d7dbe0", blend: "soft-light", opacity: 0.35 };
+  if (id === "gray") return { hex: "#6b7280", blend: "multiply", opacity: 0.28 };
+  if (id === "black") return { hex: "#111827", blend: "multiply", opacity: 0.42 };
+  return { hex, blend: "color", opacity: 0.82 };
+}
+
+export function isGenericCarArt(src?: string): boolean {
+  return /^\/img\/car-[a-z]+\.jpg(\?.*)?$/i.test(String(src || "").trim());
+}
+
+export function isCustomerVehiclePhoto(src?: string): boolean {
+  const s = String(src || "").trim();
+  return s.length > 0 && !isGenericCarArt(s);
+}
+
+/** Customer/ticket photo first; anonymous body-type art is fallback only. */
+export function pickVehicleImage(j: {
+  make?: string;
+  model?: string;
+  vehiclePhoto?: string;
+  color?: string;
+}): VehicleImagePick {
+  const kind = vehicleKind(j);
+  const custom = String(j.vehiclePhoto || "").trim();
+  if (isCustomerVehiclePhoto(custom)) {
+    return { src: custom, kind, fromCustomer: true, tint: null };
+  }
+  return { src: carImage(j), kind, fromCustomer: false, tint: vehicleTint(j.color) };
 }
 
 export const SYMPTOM_CHIPS = [
