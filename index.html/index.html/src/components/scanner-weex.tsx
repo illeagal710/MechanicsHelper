@@ -2,18 +2,25 @@ import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { weexAccount, weexDepositNetworks } from "@/lib/scanner/weex-api";
 import { clearLocalCreds, loadLocalCreds, maskKey, saveLocalCreds } from "@/lib/scanner/weex-creds";
-import { armLive, executeLifersEntry, tripKillSwitch } from "@/lib/scanner/weex-exec";
+import { armLive, executeLifersEntry, simulatePaperStopOut, tripKillSwitch } from "@/lib/scanner/weex-exec";
 import { useWeexStore } from "@/lib/scanner/weex-store";
 import { fmtPrice } from "@/lib/scanner/indicators";
+import { formatPaperPlan, PAPER_RISK_PCT, planPaperLong, REWARD_RATIO } from "@/lib/scanner/paper-risk";
 import { WEEX_API_KEYS_URL, WEEX_DEPOSIT_URL, type ExecutionMode, type WeexAccountView, type WeexNetwork } from "@/lib/scanner/weex-trade";
 
 export function WeexPanel({
   selected,
   lastPrice,
+  sma200,
+  lastSetupSma200,
+  candleOpenTime,
   watchlist,
 }: {
   selected: string;
   lastPrice: number | null;
+  sma200: number | null;
+  lastSetupSma200: number | null;
+  candleOpenTime: number | null;
   watchlist: string[];
 }) {
   const execution = useWeexStore((s) => s.execution);
@@ -25,6 +32,7 @@ export function WeexPanel({
   const minQuote = useWeexStore((s) => s.minQuote);
   const paperUsdt = useWeexStore((s) => s.paperUsdt);
   const fills = useWeexStore((s) => s.fills);
+  const openPapers = useWeexStore((s) => s.openPapers);
   const setExecution = useWeexStore((s) => s.setExecution);
   const setKilled = useWeexStore((s) => s.setKilled);
   const setConnected = useWeexStore((s) => s.setConnected);
@@ -134,13 +142,21 @@ export function WeexPanel({
     const fill = await executeLifersEntry({
       symbol: selected,
       price: lastPrice,
-      candleOpenTime: Date.now(),
+      candleOpenTime: candleOpenTime ?? Date.now(),
       reasons: ["Manual paper fill"],
       source: "manual-paper",
       watchlist,
+      sma200,
+      lastSetupSma200,
     });
-    if (fill?.status === "simulated") toast.success(`Paper fill ${selected} ${fmtPrice(fill.quote)} USDT`);
+    if (fill?.status === "simulated") toast.success(`Paper fill ${selected}`, { description: fill.reason });
     else toast.message(fill?.error || fill?.status || "No fill");
+  }
+
+  function onSimStop(id?: string) {
+    const fill = simulatePaperStopOut(id);
+    if (fill) toast.warning(`Paper stop-out ${fill.symbol.replace("USDT", "")}`, { description: fill.reason });
+    else toast.message("No open paper long to stop out");
   }
 
   const modes: ExecutionMode[] = ["alerts", "paper", "live"];
@@ -283,40 +299,17 @@ export function WeexPanel({
       </div>
 
       <div className="mt-3">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-dim uppercase">Position size</p>
-        <label className="mt-1 flex items-center gap-2 text-xs text-muted">
-          {sizePct}% of USDT
-          <input
-            type="number"
-            className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
-            min={1}
-            max={100}
-            value={sizePct}
-            onChange={(e) => setSizing({ sizePct: Number(e.target.value) || 5 })}
-          />
-        </label>
-        <label className="mt-1 flex items-center gap-2 text-xs text-muted">
-          max
-          <input
-            type="number"
-            className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
-            min={5}
-            value={maxQuote}
-            onChange={(e) => setSizing({ maxQuote: Number(e.target.value) || 50 })}
-          />
-          min
-          <input
-            type="number"
-            className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
-            min={1}
-            value={minQuote}
-            onChange={(e) => setSizing({ minQuote: Number(e.target.value) || 10 })}
-          />
-          USDT
-        </label>
-        {!connected ? (
-          <p className="mt-1 text-[11px] text-dim">Paper sizes against {fmtPrice(paperUsdt)} virtual USDT until you connect.</p>
-        ) : null}
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-dim uppercase">Paper risk (1% · 3:1)</p>
+        <p className="mt-1 text-xs text-muted" data-paper-risk="">
+          Risk {PAPER_RISK_PCT}% of the paper account ({fmtPrice(paperUsdt)} × 0.01 = {fmtPrice(paperUsdt * 0.01)} USDT).
+          Position size = dollar risk ÷ stop-loss percent. Stop under SMA 200 (or last setup’s 200). Target {REWARD_RATIO}:1.
+          Paper simulation only — never sent to WEEX.
+        </p>
+        {lastPrice ? (
+          <PlannedSize lastPrice={lastPrice} sma200={sma200} lastSetupSma200={lastSetupSma200} paperUsdt={paperUsdt} />
+        ) : (
+          <p className="mt-1 text-[11px] text-dim">Wait for a last price to preview size / stop / target.</p>
+        )}
         <button
           type="button"
           data-weex-paper-fill=""
@@ -325,7 +318,53 @@ export function WeexPanel({
         >
           Paper-fill {selected.replace("USDT", "")}
         </button>
+        {openPapers.length > 0 ? (
+          <button
+            type="button"
+            data-weex-sim-stop=""
+            className="tap mt-2 h-9 w-full rounded-[10px] border border-line bg-surface text-xs font-semibold text-down"
+            onClick={() => onSimStop()}
+          >
+            Simulate stop-out {openPapers[0]!.symbol.replace("USDT", "")}
+          </button>
+        ) : null}
       </div>
+
+      {execution === "live" ? (
+        <div className="mt-3">
+          <p className="text-[11px] font-semibold tracking-[0.14em] text-dim uppercase">Live size (unchanged)</p>
+          <label className="mt-1 flex items-center gap-2 text-xs text-muted">
+            {sizePct}% of USDT
+            <input
+              type="number"
+              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
+              min={1}
+              max={100}
+              value={sizePct}
+              onChange={(e) => setSizing({ sizePct: Number(e.target.value) || 5 })}
+            />
+          </label>
+          <label className="mt-1 flex items-center gap-2 text-xs text-muted">
+            max
+            <input
+              type="number"
+              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
+              min={5}
+              value={maxQuote}
+              onChange={(e) => setSizing({ maxQuote: Number(e.target.value) || 50 })}
+            />
+            min
+            <input
+              type="number"
+              className="h-8 w-16 rounded-md border border-line bg-bg px-1.5 font-mono"
+              min={1}
+              value={minQuote}
+              onChange={(e) => setSizing({ minQuote: Number(e.target.value) || 10 })}
+            />
+            USDT
+          </label>
+        </div>
+      ) : null}
 
       <div className="mt-3">
         <div className="flex items-center justify-between">
@@ -336,23 +375,64 @@ export function WeexPanel({
         </div>
         {fills.length === 0 ? (
           <p className="mt-1 text-xs text-muted" data-weex-fills-empty="">
-            No fills yet. Paper logs simulations. Live logs WEEX order ids after Arm.
+            No fills yet. Paper logs simulated fills and stop-outs. Live logs WEEX order ids after Arm.
           </p>
         ) : (
           <ol className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto" data-weex-fills="">
             {fills.map((f) => (
-              <li key={f.id} className="rounded-md border border-line bg-surface px-2 py-1">
+              <li key={f.id} className="rounded-md border border-line bg-surface px-2 py-1" data-fill-status={f.status}>
                 <p className="font-mono text-[11px]">
                   {f.symbol.replace("USDT", "")} {f.mode} · {f.status}
+                  {f.side === "SELL" ? " SELL" : ""}
                 </p>
                 <p className="font-mono text-[10px] text-muted">
                   {f.quantity ? `${f.quantity} @ ${fmtPrice(f.price)}` : f.error || f.reason}
                 </p>
+                {f.stop != null && f.target != null && f.status === "simulated" ? (
+                  <p className="font-mono text-[10px] text-muted">
+                    stop {fmtPrice(f.stop)} · target {fmtPrice(f.target)} (3:1)
+                    {f.quote ? ` · ${fmtPrice(f.quote)} USDT` : ""}
+                  </p>
+                ) : null}
+                {f.status === "stopped-out" && f.pnl != null ? (
+                  <p className="font-mono text-[10px] text-down">P&L {f.pnl.toFixed(2)} USDT</p>
+                ) : null}
               </li>
             ))}
           </ol>
         )}
       </div>
     </div>
+  );
+}
+
+function PlannedSize({
+  lastPrice,
+  sma200,
+  lastSetupSma200,
+  paperUsdt,
+}: {
+  lastPrice: number;
+  sma200: number | null;
+  lastSetupSma200: number | null;
+  paperUsdt: number;
+}) {
+  const plan = planPaperLong({
+    equity: paperUsdt,
+    entry: lastPrice,
+    sma200,
+    lastSetupSma200,
+  });
+  if (!plan.ok) {
+    return (
+      <p className="mt-1 font-mono text-[11px] text-dim" data-paper-plan-preview="">
+        {plan.reason}
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 font-mono text-[11px] text-fg" data-paper-plan-preview="">
+      {formatPaperPlan(plan)}
+    </p>
   );
 }

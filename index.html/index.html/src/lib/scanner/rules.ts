@@ -216,12 +216,14 @@ export function evaluateSetup(
   const reasons = buy.filter((c) => c.passed).map((c) => `${c.label} (${c.detail})`);
   const warnings = warnHits.map((c) => `${c.label} (${c.detail})`);
   const fingerprint = `${candle.openTime}|${rulesFingerprint(rules)}`;
+  const sma200 = sma(closes, 200)[i] ?? null;
 
   return {
     matched,
     warning: warnHits.length > 0,
     price: candle.close,
     candleOpenTime: candle.openTime,
+    sma200,
     conditions,
     reasons,
     warnings,

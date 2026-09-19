@@ -18,6 +18,7 @@ export type ScannerState = {
   rules: BuyRules;
   signals: ScanSignal[];
   seenFingerprints: Record<string, string>;
+  lastSetupSma200: Record<string, number>;
   setWatchlist: (symbols: string[]) => void;
   addSymbol: (symbol: string) => boolean;
   removeSymbol: (symbol: string) => void;
@@ -39,6 +40,7 @@ export const useScannerStore = create<ScannerState>()(
       rules: DEFAULT_RULES,
       signals: [],
       seenFingerprints: {},
+      lastSetupSma200: {},
       setWatchlist: (symbols) =>
         set({
           watchlist: symbols,
@@ -66,10 +68,17 @@ export const useScannerStore = create<ScannerState>()(
       pushSignal: (signal) => {
         const key = `${signal.symbol}|${signal.interval}|${signal.kind}`;
         if (get().seenFingerprints[key] === signal.fingerprint) return false;
-        set((state) => ({
-          seenFingerprints: { ...state.seenFingerprints, [key]: signal.fingerprint },
-          signals: [signal, ...state.signals].slice(0, SIGNALS_CAP),
-        }));
+        set((state) => {
+          const lastSetupSma200 =
+            signal.kind === "long" && signal.plan?.sma200
+              ? { ...state.lastSetupSma200, [signal.symbol]: signal.plan.sma200 }
+              : state.lastSetupSma200;
+          return {
+            seenFingerprints: { ...state.seenFingerprints, [key]: signal.fingerprint },
+            signals: [signal, ...state.signals].slice(0, SIGNALS_CAP),
+            lastSetupSma200,
+          };
+        });
         return true;
       },
       clearSignals: () => set({ signals: [], seenFingerprints: {} }),
@@ -82,6 +91,7 @@ export const useScannerStore = create<ScannerState>()(
           ...current,
           ...p,
           rules: mergeRules(p.rules),
+          lastSetupSma200: p.lastSetupSma200 ?? {},
         };
       },
       partialize: (state) => ({
@@ -92,6 +102,7 @@ export const useScannerStore = create<ScannerState>()(
         rules: state.rules,
         signals: state.signals.slice(0, 40),
         seenFingerprints: state.seenFingerprints,
+        lastSetupSma200: state.lastSetupSma200,
       }),
     },
   ),

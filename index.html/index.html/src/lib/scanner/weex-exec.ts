@@ -1,5 +1,12 @@
 import { weexAccount, weexCancelWatchlist, weexLiveBuy, weexSymbolInfo } from "./weex-api";
 import { loadLocalCreds } from "./weex-creds";
+import {
+  formatPaperPlan,
+  paperStopHit,
+  planPaperLong,
+  stopOutPnl,
+  type PaperPosition,
+} from "./paper-risk";
 import { useWeexStore } from "./weex-store";
 import { clientOrderId, resolveTradeAction, sizeBuy, type FillRecord } from "./weex-trade";
 
@@ -10,6 +17,8 @@ export type EntryInput = {
   reasons: string[];
   source: "signal" | "manual-paper";
   watchlist: string[];
+  sma200?: number | null;
+  lastSetupSma200?: number | null;
 };
 
 function credsPayload() {
@@ -72,13 +81,81 @@ export async function executeLifersEntry(input: EntryInput): Promise<FillRecord 
   } catch {
     /* paper can still size with defaults */
   }
-  if (state.connected && loadLocalCreds()) {
+  if (action === "live" && state.connected && loadLocalCreds()) {
     try {
       const acct = await weexAccount({ data: credsPayload() });
       if (acct.usdtFree > 0) freeUsdt = acct.usdtFree;
     } catch {
       /* keep paper virtual */
     }
+  }
+
+  if (action === "paper") {
+    if (state.openPapers.some((p) => p.symbol === input.symbol)) {
+      const fill: FillRecord = {
+        ...base,
+        mode: "paper",
+        quantity: 0,
+        quote: 0,
+        status: "blocked",
+        orderId: null,
+        error: `Paper long already open in ${input.symbol}`,
+      };
+      if (input.source === "manual-paper") state.pushFill(fill);
+      return input.source === "manual-paper" ? fill : null;
+    }
+    const plan = planPaperLong({
+      equity: state.paperUsdt,
+      entry: input.price,
+      sma200: input.sma200,
+      lastSetupSma200: input.lastSetupSma200,
+      minTradeAmount,
+      stepSize,
+    });
+    if (!plan.ok) {
+      const fill: FillRecord = {
+        ...base,
+        mode: "paper",
+        quantity: 0,
+        quote: 0,
+        status: "rejected",
+        orderId: null,
+        error: plan.reason,
+      };
+      state.pushFill(fill);
+      return fill;
+    }
+    const fill: FillRecord = {
+      ...base,
+      mode: "paper",
+      quantity: plan.quantity,
+      quote: plan.quote,
+      status: "simulated",
+      orderId: null,
+      error: null,
+      stop: plan.stop,
+      target: plan.target,
+      sma200: plan.sma200,
+      dollarRisk: plan.dollarRisk,
+      reason: `${base.reason} · ${formatPaperPlan(plan)}`,
+    };
+    const position: PaperPosition = {
+      id: fill.id,
+      symbol: input.symbol,
+      openedAt: fill.at,
+      candleOpenTime: input.candleOpenTime,
+      entry: input.price,
+      quantity: plan.quantity,
+      quote: plan.quote,
+      stop: plan.stop,
+      target: plan.target,
+      sma200: plan.sma200,
+      dollarRisk: plan.dollarRisk,
+      clientOrderId: cid,
+    };
+    state.pushFill(fill);
+    state.openPaper(position);
+    return fill;
   }
 
   const sized = sizeBuy({
@@ -98,20 +175,6 @@ export async function executeLifersEntry(input: EntryInput): Promise<FillRecord 
       status: "rejected",
       orderId: null,
       error: sized.reason,
-    };
-    state.pushFill(fill);
-    return fill;
-  }
-
-  if (action === "paper") {
-    const fill: FillRecord = {
-      ...base,
-      mode: "paper",
-      quantity: sized.quantity,
-      quote: sized.quote,
-      status: "simulated",
-      orderId: null,
-      error: null,
     };
     state.pushFill(fill);
     return fill;
@@ -151,6 +214,59 @@ export async function executeLifersEntry(input: EntryInput): Promise<FillRecord 
     state.pushFill(fill);
     return fill;
   }
+}
+
+export function recordPaperStopOut(position: PaperPosition): FillRecord {
+  const pnl = stopOutPnl(position);
+  const equityAfter = useWeexStore.getState().paperUsdt + pnl;
+  const fill: FillRecord = {
+    id: `${position.id}-stop`,
+    at: Date.now(),
+    mode: "paper",
+    symbol: position.symbol,
+    side: "SELL",
+    quantity: position.quantity,
+    price: position.stop,
+    quote: position.quantity * position.stop,
+    status: "stopped-out",
+    orderId: null,
+    clientOrderId: position.clientOrderId,
+    reason: `Simulated stop-out under SMA 200 @ ${position.stop} · P&L ${pnl.toFixed(2)} USDT`,
+    error: null,
+    stop: position.stop,
+    target: position.target,
+    sma200: position.sma200,
+    dollarRisk: position.dollarRisk,
+    pnl,
+  };
+  useWeexStore.getState().closePaper(position.id, fill, equityAfter);
+  return fill;
+}
+
+/** Paper-only: log a simulated stop-out for an open long. Never hits WEEX. */
+export function simulatePaperStopOut(positionId?: string): FillRecord | null {
+  const state = useWeexStore.getState();
+  const position = positionId
+    ? state.openPapers.find((p) => p.id === positionId)
+    : state.openPapers[0];
+  if (!position) return null;
+  return recordPaperStopOut(position);
+}
+
+export function checkPaperStopOuts(
+  symbol: string,
+  candles: { openTime: number; low: number }[],
+): FillRecord[] {
+  const state = useWeexStore.getState();
+  const hits = state.openPapers.filter((p) => p.symbol === symbol);
+  const out: FillRecord[] = [];
+  for (const position of hits) {
+    const through = candles.some((c) =>
+      paperStopHit(c.low, position.stop, c.openTime, position.candleOpenTime),
+    );
+    if (through) out.push(recordPaperStopOut(position));
+  }
+  return out;
 }
 
 export async function tripKillSwitch(watchlist: string[]): Promise<{ cancelled: number; errors: string[] }> {

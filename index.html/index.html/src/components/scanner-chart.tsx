@@ -22,12 +22,16 @@ export function ScannerChart({
   stochDotted = 20,
   showJdStoch = true,
   jdStoch = { kLength: 40, kSmooth: 4, dSmooth: 1 },
+  stop = null,
+  target = null,
 }: {
   candles: Candle[];
   markTime?: number | null;
   stochDotted?: number;
   showJdStoch?: boolean;
   jdStoch?: { kLength: number; kSmooth: number; dSmooth: number };
+  stop?: number | null;
+  target?: number | null;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 640, h: 360 });
@@ -86,8 +90,8 @@ export function ScannerChart({
   const n = slice.length || 1;
   const highs = slice.map((c) => c.high);
   const lows = slice.map((c) => c.low);
-  const min = Math.min(...lows);
-  const max = Math.max(...highs);
+  const min = Math.min(...lows, stop ?? Infinity);
+  const max = Math.max(...highs, target ?? -Infinity);
   const span = max - min || 1;
   const volMax = Math.max(...slice.map((c) => c.volume), 1);
   const slot = plotW / n;
@@ -185,6 +189,30 @@ export function ScannerChart({
         ) : null}
         {sma200Path ? (
           <path d={sma200Path} fill="none" stroke={LIFER_MA_COLORS[200]} strokeWidth={W} data-sma200="" />
+        ) : null}
+        {stop != null && Number.isFinite(stop) ? (
+          <line
+            x1={pad.l}
+            x2={w - pad.r}
+            y1={y(stop)}
+            y2={y(stop)}
+            stroke="var(--color-down)"
+            strokeDasharray="4 3"
+            strokeWidth={1.25}
+            data-risk-stop=""
+          />
+        ) : null}
+        {target != null && Number.isFinite(target) ? (
+          <line
+            x1={pad.l}
+            x2={w - pad.r}
+            y1={y(target)}
+            y2={y(target)}
+            stroke="var(--color-good)"
+            strokeDasharray="4 3"
+            strokeWidth={1.25}
+            data-risk-target=""
+          />
         ) : null}
         <line
           x1={pad.l}

@@ -53,3 +53,10 @@ test("client order ids stay short and alphanumeric", () => {
   assert.ok(id.length <= 32);
   assert.match(id, /^[A-Za-z0-9]+$/);
 });
+
+test("live sizeBuy is still percent of free USDT, not 1% risk math", () => {
+  const hit = sizeBuy({ ...sized, freeUsdt: 10_000, pct: 5, maxQuote: 50 });
+  assert.equal(hit.ok, true);
+  if (!hit.ok) return;
+  assert.equal(hit.quote, 50);
+});

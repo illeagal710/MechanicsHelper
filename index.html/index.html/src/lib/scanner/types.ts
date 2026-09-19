@@ -70,11 +70,24 @@ export type ConditionResult = {
   detail: string;
 };
 
+export type PaperPlanView = {
+  quote: number;
+  quantity: number;
+  stop: number;
+  target: number;
+  stopPct: number;
+  dollarRisk: number;
+  sma200: number;
+  sma200Source: "current" | "last-setup";
+  label: string;
+};
+
 export type SetupEval = {
   matched: boolean;
   warning: boolean;
   price: number;
   candleOpenTime: number;
+  sma200: number | null;
   conditions: ConditionResult[];
   reasons: string[];
   warnings: string[];
@@ -91,6 +104,8 @@ export type ScanSignal = {
   candleOpenTime: number;
   fingerprint: string;
   reasons: string[];
+  plan?: PaperPlanView;
+  planError?: string;
 };
 
 export type SymbolScan = {

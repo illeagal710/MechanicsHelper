@@ -20,7 +20,8 @@ import { isUsdtSymbol, loadKlines, loadTicker, loadTickers, normalizeSymbol } fr
 import { evaluateSetup } from "@/lib/scanner/rules";
 import { useScannerStore } from "@/lib/scanner/scanner-store";
 import { INTERVALS, type Candle, type Interval, type ScanSignal, type SymbolScan } from "@/lib/scanner/types";
-import { executeLifersEntry } from "@/lib/scanner/weex-exec";
+import { formatPaperPlan, lastSma200, planPaperLong, toPlanView } from "@/lib/scanner/paper-risk";
+import { checkPaperStopOuts, executeLifersEntry } from "@/lib/scanner/weex-exec";
 import { useWeexStore } from "@/lib/scanner/weex-store";
 import { LanguageToggle } from "@/lib/i18n-context";
 import { ThemeToggle } from "@/lib/theme-context";
@@ -52,6 +53,8 @@ export function ScannerApp() {
   const execution = useWeexStore((s) => s.execution);
   const liveArmed = useWeexStore((s) => s.liveArmed);
   const killed = useWeexStore((s) => s.killed);
+  const openPapers = useWeexStore((s) => s.openPapers);
+  const lastSetupSma200 = useScannerStore((s) => s.lastSetupSma200);
   const inFlight = useRef(false);
   const rulesRef = useRef(rules);
   rulesRef.current = rules;
@@ -123,6 +126,12 @@ export function ScannerApp() {
           };
           setRows({ ...next });
           if (symbol === state.selected && candles.length) setChart(candles);
+          if (candles.length) {
+            const stops = checkPaperStopOuts(symbol, candles);
+            for (const stop of stops) {
+              toast.warning(`Paper stop-out ${symbol}`, { description: stop.reason });
+            }
+          }
           if (ev) {
             const base = {
               symbol,
@@ -132,15 +141,25 @@ export function ScannerApp() {
               candleOpenTime: ev.candleOpenTime,
             };
             if (ev.matched) {
+              const lastSetup = useScannerStore.getState().lastSetupSma200[symbol];
+              const risk = planPaperLong({
+                equity: useWeexStore.getState().paperUsdt,
+                entry: ev.price,
+                sma200: ev.sma200,
+                lastSetupSma200: lastSetup,
+              });
               const added = pushSignal({
                 ...base,
                 kind: "long",
                 id: `long-${symbol}-${ev.fingerprint}`,
                 fingerprint: `long|${ev.fingerprint}`,
                 reasons: ev.reasons,
+                ...(risk.ok ? { plan: toPlanView(risk) } : { planError: risk.reason }),
               });
               if (added) {
-                toast(`${symbol} long setup`, { description: ev.reasons.join(" · ") });
+                toast(`${symbol} long setup`, {
+                  description: risk.ok ? formatPaperPlan(risk) : ev.reasons.join(" · "),
+                });
                 void executeLifersEntry({
                   symbol,
                   price: ev.price,
@@ -148,11 +167,13 @@ export function ScannerApp() {
                   reasons: ev.reasons,
                   source: "signal",
                   watchlist: state.watchlist,
+                  sma200: ev.sma200,
+                  lastSetupSma200: lastSetup,
                 }).then((fill) => {
                   if (fill?.mode === "live" && (fill.status === "submitted" || fill.status === "filled")) {
                     toast.success(`WEEX ${fill.status} ${symbol}`);
                   } else if (fill?.status === "simulated") {
-                    toast.message(`Paper fill ${symbol}`);
+                    toast.message(`Paper fill ${symbol}`, { description: fill.reason });
                   } else if (fill?.status === "rejected") {
                     toast.error(fill.error || "Order rejected");
                   }
@@ -225,6 +246,16 @@ export function ScannerApp() {
 
   const selectedRow = rows[selected];
   const markTime = signals.find((s) => s.symbol === selected)?.candleOpenTime ?? null;
+  const chartSma200 = lastSma200(chart.map((c) => c.close));
+  const selectedSma200 = selectedRow?.eval?.sma200 ?? chartSma200;
+  const selectedPlan =
+    signals.find((s) => s.symbol === selected && s.kind === "long" && s.plan)?.plan ??
+    openPapers.find((p) => p.symbol === selected) ??
+    null;
+  const chartLevels =
+    selectedPlan && "stop" in selectedPlan
+      ? { stop: selectedPlan.stop, target: selectedPlan.target }
+      : null;
 
   async function onAdd(e: FormEvent) {
     e.preventDefault();
@@ -286,7 +317,7 @@ export function ScannerApp() {
                     ? "LIVE armed — WEEX market buys on matches"
                     : "Live selected, not armed (paper/dry-run)"
                   : execution === "paper"
-                    ? "paper / dry-run — no live orders"
+                    ? "paper 1% risk · stop under SMA 200 · 3:1 target — no live orders"
                     : "alerts only — no orders"}
               . Charts via Binance. Orders via official WEEX API.
             </p>
@@ -501,6 +532,11 @@ export function ScannerApp() {
                   <Activity className="size-3.5" /> Long setup
                 </p>
               ) : null}
+              {signals.find((s) => s.symbol === selected && s.kind === "long" && s.plan) ? (
+                <p className="inline-flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 font-mono text-[10px] text-muted" data-chart-plan="">
+                  {signals.find((s) => s.symbol === selected && s.kind === "long" && s.plan)?.plan?.label}
+                </p>
+              ) : null}
               {selectedRow?.eval?.conditions.find((c) => c.id === "stretchMa" && c.passed) ? (
                 <p className="inline-flex items-center gap-1.5 rounded-full bg-down/15 px-2.5 py-1 font-mono text-xs text-down">
                   Stretch / exit
@@ -525,6 +561,8 @@ export function ScannerApp() {
               stochDotted={rules.stochRsi.dotted}
               showJdStoch={rules.jdStoch.display}
               jdStoch={rules.jdStoch}
+              stop={chartLevels?.stop ?? null}
+              target={chartLevels?.target ?? null}
             />
           </div>
         </section>
@@ -544,7 +582,7 @@ export function ScannerApp() {
                 {execution === "alerts"
                   ? "No alerts yet. Alerts-only — nothing is sent to WEEX."
                   : execution === "paper"
-                    ? "No alerts yet. Matches toast here and log a paper fill. Live stays off until you arm it."
+                    ? "No alerts yet. Matches toast here with 1% size / stop under 200 / 3:1, then log a paper fill. Live stays off until you arm it."
                     : liveArmed
                       ? "No alerts yet. Live is armed — a match will send a WEEX market buy."
                       : "No alerts yet. Live is selected but not armed, so matches stay paper/dry-run."}
@@ -579,6 +617,16 @@ export function ScannerApp() {
                               : "stretch / exit"}
                       </p>
                       <p className="mt-1 text-[12px] leading-snug text-muted">{s.reasons.join(" · ")}</p>
+                      {s.kind === "long" && s.plan ? (
+                        <p className="mt-1 font-mono text-[11px] leading-snug text-good" data-signal-plan="">
+                          {s.plan.label}
+                        </p>
+                      ) : null}
+                      {s.kind === "long" && s.planError ? (
+                        <p className="mt-1 font-mono text-[11px] leading-snug text-down" data-signal-plan-error="">
+                          {s.planError}
+                        </p>
+                      ) : null}
                       <p className="mt-1 font-mono text-[10px] text-dim">
                         {s.interval} · {new Date(s.at).toLocaleTimeString()}
                       </p>
@@ -647,6 +695,9 @@ export function ScannerApp() {
           <WeexPanel
             selected={selected}
             lastPrice={selectedRow?.ticker?.lastPrice ?? null}
+            sma200={selectedSma200}
+            lastSetupSma200={lastSetupSma200[selected] ?? null}
+            candleOpenTime={selectedRow?.eval?.candleOpenTime ?? null}
             watchlist={watchlist}
           />
         </div>

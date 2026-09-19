@@ -48,15 +48,20 @@ export type FillRecord = {
   at: number;
   mode: "paper" | "live";
   symbol: string;
-  side: "BUY";
+  side: "BUY" | "SELL";
   quantity: number;
   price: number;
   quote: number;
-  status: "simulated" | "submitted" | "filled" | "rejected" | "cancelled" | "blocked";
+  status: "simulated" | "submitted" | "filled" | "rejected" | "cancelled" | "blocked" | "stopped-out";
   orderId: string | null;
   clientOrderId: string;
   reason: string;
   error: string | null;
+  stop?: number | null;
+  target?: number | null;
+  sma200?: number | null;
+  dollarRisk?: number | null;
+  pnl?: number | null;
 };
 
 export const DEFAULT_SIZE_PCT = 5;

@@ -281,3 +281,10 @@ test("early warning fires when 21 crosses 50, without a long match", () => {
   assert.equal(hit.warning, true);
   assert.equal(hit.conditions.find((c) => c.id === "earlyDeath")?.passed, true);
 });
+
+test("evaluateSetup exposes SMA 200 for paper stop placement", () => {
+  const closes = Array.from({ length: 220 }, () => 100);
+  const hit = evaluateSetup(series(closes), offExtras(), 0);
+  assert.ok(hit);
+  assert.equal(hit.sma200, 100);
+});
