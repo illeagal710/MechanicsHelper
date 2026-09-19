@@ -538,7 +538,7 @@ function BrandWordmark({ className }: { className?: string }) {
       src="/img/logo-wordmark.png"
       alt={t("app.name")}
       data-brand-wordmark=""
-      className={className ?? "h-16 w-auto max-w-[220px] object-contain object-left"}
+      className={className ?? "h-16 w-auto max-w-[220px] object-contain object-left [image-rendering:auto]"}
     />
   );
 }
@@ -1581,7 +1581,7 @@ function Book({
                     <span className="block font-semibold">{vehicleLabel(v)}</span>
                     <span className="text-sm text-muted">{t("book.useVehicle")}</span>
                   </span>
-                  <img src={carImage(v)} alt="" className="h-10 w-[3.6rem] shrink-0 rounded-lg object-cover" />
+                  <img src={carImage(v)} alt="" decoding="async" className="h-10 w-[3.6rem] shrink-0 rounded-lg object-cover [image-rendering:auto]" />
                 </button>
               );
             })}
@@ -1636,7 +1636,7 @@ function Confirm({ job, onTrack, onHome }: { job: Job; onTrack: () => void; onHo
         <p className="mt-1 text-sm text-muted">{t("confirm.goingTo", { name: job.providerName })}</p>
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border border-line bg-surface">
-        <img src={carImage(job)} alt="" className="h-36 w-full object-cover" />
+        <img src={carImage(job)} alt="" decoding="async" className="h-40 w-full object-cover [image-rendering:auto]" />
         <div className="p-4">
           <h3 className="font-semibold">{vehicleLabel(job)}</h3>
           <p className="text-sm text-muted">{fmtWhen(job.slot, localeTag(locale))}</p>
@@ -1700,7 +1700,8 @@ function JobCard({
         <img
           src={ticketVehiclePhotoOf(job)}
           alt=""
-          className={`shrink-0 rounded-xl object-cover ${shop ? "h-16 w-[4.75rem] md:h-[4.5rem] md:w-24" : "h-14 w-[4.25rem]"}`}
+          decoding="async"
+          className={`shrink-0 rounded-xl object-cover [image-rendering:auto] ${shop ? "h-[4.5rem] w-[5.25rem] md:h-20 md:w-28" : "h-16 w-[4.75rem]"}`}
           data-ticket-photo={VEHICLE_PHOTO_SLOT}
         />
         <div className="min-w-0 flex-1">
@@ -1927,7 +1928,8 @@ function JobDetail({
             <img
               src={ticketVehiclePhotoOf(job)}
               alt=""
-              className={`w-full object-cover ${shop ? "h-36 md:h-48" : "h-36"}`}
+              decoding="async"
+              className={`w-full object-cover [image-rendering:auto] ${shop ? "h-44 md:h-56" : "h-44"}`}
               data-ticket-photo={VEHICLE_PHOTO_SLOT}
             />
             <div className="p-4">
@@ -2218,7 +2220,8 @@ function VehiclePicker({
           <img
             src={carImage({ make, model })}
             alt=""
-            className="h-11 w-[4.5rem] rounded-lg object-cover"
+            decoding="async"
+            className="h-11 w-[4.5rem] rounded-lg object-cover [image-rendering:auto]"
           />
         ) : null}
       </div>
@@ -2727,7 +2730,7 @@ function Account({
                   key={vehicleKey(v)}
                   className="flex items-center gap-3 rounded-xl border border-line bg-bg2 p-3"
                 >
-                  <img src={carImage(v)} alt="" className="h-12 w-[4.25rem] shrink-0 rounded-lg object-cover" />
+                  <img src={carImage(v)} alt="" decoding="async" className="h-12 w-[4.25rem] shrink-0 rounded-lg object-cover [image-rendering:auto]" />
                   <div className="min-w-0">
                     <p className="font-semibold">{vehicleLabel(v)}</p>
                     <p className="text-sm text-muted">{kindText(locale, vehicleKind(v))}</p>

@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   BAY_PHOTO_SLOT,
+  PHOTO_JPEG_QUALITY,
+  PHOTO_MAX_EDGE,
   PROFILE_PHOTO_SLOT,
   VEHICLE_PHOTO_SLOT,
+  fitPhotoSize,
   jobPhotoOf,
   hasBayPhoto,
   profilePhotoOf,
@@ -166,6 +169,15 @@ test("ticketVehiclePhotoOf ignores jobPhoto even if it looks like a car picture"
   assert.equal(jobPhotoOf(spoofed), "/img/car-sedan.jpg");
   assert.equal(ticketVehiclePhotoOf(spoofed), carImage(job));
   assert.equal(ticketPhotoSlots(spoofed).vehicle, carImage(job));
+});
+
+test("fitPhotoSize keeps photos sharp: 1280 edge, no upscale", () => {
+  assert.equal(PHOTO_MAX_EDGE, 1280);
+  assert.ok(PHOTO_JPEG_QUALITY >= 0.9);
+  assert.deepEqual(fitPhotoSize(480, 640, 480), { width: 360, height: 480 });
+  assert.deepEqual(fitPhotoSize(4000, 3000), { width: 1280, height: 960 });
+  assert.deepEqual(fitPhotoSize(800, 600), { width: 800, height: 600 });
+  assert.deepEqual(fitPhotoSize(1280, 720), { width: 1280, height: 720 });
 });
 
 test("hasBayPhoto is false for empty placeholders so the UI can stay compact", () => {

@@ -18,7 +18,7 @@ import {
   mhSavePush,
   mhUpdateShop,
 } from "@/lib/mh-api";
-import { jobPhotoOf, profilePhotoOf, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
+import { jobPhotoOf, profilePhotoOf, resizePhoto, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, type PublicProfileFields } from "@/lib/shop-profile";
 import {
   addSavedVehicle,
@@ -29,6 +29,8 @@ import {
 import { TIME_12H } from "@/lib/i18n";
 import { blockHoursFromRecord, normalizeBlockAfterHours, type BlockAfterHours } from "./booking-block.ts";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
+
+export { resizePhoto };
 
 export type Role = "customer" | "shop" | "independent";
 
@@ -687,46 +689,6 @@ export function slotsFromNow() {
     }
   }
   return out;
-}
-
-export function resizePhoto(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) {
-      reject(new Error("Choose a photo or logo image."));
-      return;
-    }
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const max = 480;
-      let w = img.width;
-      let h = img.height;
-      if (w > h && w > max) {
-        h = Math.round((h * max) / w);
-        w = max;
-      } else if (h > max) {
-        w = Math.round((w * max) / h);
-        h = max;
-      }
-      const c = document.createElement("canvas");
-      c.width = Math.max(1, w);
-      c.height = Math.max(1, h);
-      const ctx = c.getContext("2d");
-      if (!ctx) {
-        URL.revokeObjectURL(url);
-        reject(new Error("Could not read that image."));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL("image/jpeg", 0.82));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read that image."));
-    };
-    img.src = url;
-  });
 }
 
 export function statusMeta(id: string) {

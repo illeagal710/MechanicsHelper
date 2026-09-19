@@ -119,3 +119,77 @@ export function isMobilePhotoDevice(): boolean {
   if (nav.userAgentData?.mobile) return true;
   return navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform || "");
 }
+
+/** Longest edge after encode. Old 480px JPEGs looked soft on profiles, tickets, and lightbox. */
+export const PHOTO_MAX_EDGE = 1280;
+export const PHOTO_JPEG_QUALITY = 0.92;
+
+export const PHOTO_CAMERA_VIDEO = {
+  facingMode: { ideal: "environment" as const },
+  width: { ideal: 1920 },
+  height: { ideal: 1440 },
+};
+
+export function fitPhotoSize(
+  width: number,
+  height: number,
+  max = PHOTO_MAX_EDGE,
+): { width: number; height: number } {
+  const srcW = Math.max(1, Math.round(Number(width) || 1));
+  const srcH = Math.max(1, Math.round(Number(height) || 1));
+  const longest = Math.max(srcW, srcH);
+  if (longest <= max) return { width: srcW, height: srcH };
+  const scale = max / longest;
+  return {
+    width: Math.max(1, Math.round(srcW * scale)),
+    height: Math.max(1, Math.round(srcH * scale)),
+  };
+}
+
+function loadImageElement(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read that image."));
+    };
+    img.src = url;
+  });
+}
+
+async function sourceFromFile(file: File): Promise<CanvasImageSource & { width: number; height: number }> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      /* fall through to <img> */
+    }
+  }
+  return loadImageElement(file);
+}
+
+/** Downscale phone photos with high-quality interpolation and a sharper JPEG. */
+export async function resizePhoto(file: File): Promise<string> {
+  if (!file?.type || !file.type.startsWith("image/")) {
+    throw new Error("Choose a photo or logo image.");
+  }
+  const source = await sourceFromFile(file);
+  const { width, height } = fitPhotoSize(source.width, source.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not read that image.");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, 0, 0, width, height);
+  if ("close" in source && typeof source.close === "function") {
+    source.close();
+  }
+  return canvas.toDataURL("image/jpeg", PHOTO_JPEG_QUALITY);
+}
