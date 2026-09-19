@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  DEMO_SHOP_FIND_CODE,
   FIND_CODE_INVALID,
   FIND_CODE_TAKEN,
   FIND_EQUALS_JOIN,
+  RESERVED_FIND_CODES,
   allocateShopCodes,
   claimFindCode,
   findDiffersFromJoin,
@@ -30,9 +32,20 @@ test("parseFindCode accepts 4–8 letters or numbers", () => {
   if (!tooShort.ok) assert.equal(tooShort.error, FIND_CODE_INVALID);
 });
 
-test("claimFindCode rejects a code someone else already has", () => {
+test("RIV4 stays reserved; LEON is claimable when unused", () => {
+  assert.ok(RESERVED_FIND_CODES.has(DEMO_SHOP_FIND_CODE));
+  assert.equal(RESERVED_FIND_CODES.has("LEON"), false);
+  const unused = new Set<string>();
+  assert.deepEqual(claimFindCode("riv4", unused), { ok: false, error: FIND_CODE_TAKEN });
+  assert.deepEqual(claimFindCode("riv4", unused, "RIV4"), { ok: true, code: "RIV4" });
+  assert.deepEqual(claimFindCode("leon", unused), { ok: true, code: "LEON" });
+  assert.deepEqual(claimFindCode("LEON", unused), { ok: true, code: "LEON" });
+});
+
+test("claimFindCode rejects a true duplicate, including LEON when another shop has it", () => {
   const used = new Set(["RIV4", "LEON"]);
   assert.deepEqual(claimFindCode("riv4", used), { ok: false, error: FIND_CODE_TAKEN });
+  assert.deepEqual(claimFindCode("leon", used), { ok: false, error: FIND_CODE_TAKEN });
   assert.deepEqual(claimFindCode("MIKE", used), { ok: true, code: "MIKE" });
   assert.deepEqual(claimFindCode("leon", used, "LEON"), { ok: true, code: "LEON" });
 });
@@ -51,13 +64,15 @@ test("find and team-join codes must be two different values", () => {
 });
 
 test("allocateShopCodes never returns the same find and team-join code", () => {
-  const used = new Set(["RIV4", "LEON"]);
+  const used = new Set(["RIV4"]);
   const auto = allocateShopCodes(undefined, used);
   assert.equal(auto.ok, true);
   if (auto.ok) {
     assert.equal(findDiffersFromJoin(auto.findCode, auto.joinCode), true);
     assert.equal(used.has(auto.findCode), false);
     assert.equal(used.has(auto.joinCode), false);
+    assert.notEqual(auto.findCode, "RIV4");
+    assert.notEqual(auto.joinCode, "RIV4");
   }
   const custom = allocateShopCodes("GARAGE1", used);
   assert.equal(custom.ok, true);
@@ -65,7 +80,11 @@ test("allocateShopCodes never returns the same find and team-join code", () => {
     assert.equal(custom.findCode, "GARAGE1");
     assert.equal(findDiffersFromJoin(custom.findCode, custom.joinCode), true);
   }
+  const leon = allocateShopCodes("LEON", used);
+  assert.equal(leon.ok, true);
+  if (leon.ok) assert.equal(leon.findCode, "LEON");
   assert.deepEqual(allocateShopCodes("RIV4", used), { ok: false, error: FIND_CODE_TAKEN });
+  assert.deepEqual(allocateShopCodes("LEON", new Set(["LEON"])), { ok: false, error: FIND_CODE_TAKEN });
 });
 
 test("generateFindCode is 4 unambiguous characters", () => {
@@ -75,8 +94,9 @@ test("generateFindCode is 4 unambiguous characters", () => {
 });
 
 test("generateUnusedCode skips reserved find and join values", () => {
-  const used = new Set(["RIV4", "LEON"]);
+  const used = new Set(["GARAGE1"]);
   const next = generateUnusedCode(used, "RIVTEAM");
   assert.equal(used.has(next), false);
   assert.notEqual(next, "RIVTEAM");
+  assert.notEqual(next, DEMO_SHOP_FIND_CODE);
 });

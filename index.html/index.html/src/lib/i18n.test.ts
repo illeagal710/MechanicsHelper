@@ -42,6 +42,19 @@ test("welcome find-code field says Shop or Mechanic code, not demo codes", () =>
   }
 });
 
+test("EN and ES treat LEON as a claimable example, not a reserved taken code", () => {
+  assert.match(translate("en", "register.findCodePh"), /LEON/);
+  assert.match(translate("es", "register.findCodePh"), /LEON/);
+  assert.match(translate("en", "register.findCodeHint"), /Unique/i);
+  assert.match(translate("es", "register.findCodeHint"), /nadie|único/i);
+  assert.equal(translate("en", "err.findCodeTaken"), "That find code is already taken.");
+  assert.equal(translate("es", "err.findCodeTaken"), "Ese código ya está en uso.");
+  assert.doesNotMatch(translate("en", "welcome.demoCodes"), /LEON/);
+  assert.doesNotMatch(translate("es", "welcome.demoCodes"), /LEON/);
+  assert.match(translate("en", "welcome.demoCodes"), /RIV4/);
+  assert.match(translate("es", "welcome.demoCodes"), /RIV4/);
+});
+
 test("English and Spanish dictionaries share the same keys", () => {
   const enKeys = Object.keys(messages.en).sort();
   const esKeys = Object.keys(messages.es).sort();
