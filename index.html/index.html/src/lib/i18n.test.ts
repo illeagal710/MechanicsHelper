@@ -305,6 +305,13 @@ test("profile vs bay photo labels exist in English and Spanish", () => {
   assert.equal(translate("en", "photo.take"), "Take photo");
   assert.equal(translate("es", "photo.choose"), "Elegir foto");
   assert.equal(translate("es", "photo.take"), "Tomar foto");
+  assert.equal(translate("en", "photo.editAria"), "Change profile photo");
+  assert.equal(translate("en", "photo.editPublicHint"), "Customers see this on your page.");
+  assert.equal(translate("en", "photo.editAccountHint"), "This is your account photo.");
+  assert.match(translate("es", "photo.editPublicHint"), /página/);
+  assert.match(translate("es", "photo.editAccountHint"), /cuenta/);
+  assert.doesNotMatch(translate("en", "photo.editPublicHint"), /optional/i);
+  assert.doesNotMatch(translate("en", "photo.editAccountHint"), /optional/i);
   assert.match(translate("es", "photo.profileEmpty"), /silueta/i);
   assert.match(translate("es", "job.photoHint"), /ampliar/);
   assert.match(translate("en", "job.photoHint"), /tap to enlarge/i);

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Camera, ImageIcon, X } from "lucide-react";
+import { Camera, ImageIcon, Pencil, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import {
   BAY_PHOTO_SLOT,
@@ -291,26 +291,16 @@ export function BayPreview({ src }: { src?: string }) {
   );
 }
 
-export function PhotoPicker({
+function usePhotoCapture({
   slot,
-  value,
-  name,
+  disabled,
   onPick,
   onErr,
-  disabled,
-  label,
-  hint,
-  compact,
 }: {
   slot: PhotoSlot;
-  value?: string;
-  name: string;
+  disabled?: boolean;
   onPick: (dataUrl: string) => void | Promise<void>;
   onErr: (message: string) => void;
-  disabled?: boolean;
-  label: string;
-  hint: string;
-  compact?: boolean;
 }) {
   const { t } = useI18n();
   const chooseId = useId();
@@ -321,8 +311,6 @@ export function PhotoPicker({
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [dropping, setDropping] = useState(false);
-  const desktop = !isMobilePhotoDevice();
 
   async function handleFile(file: File | undefined) {
     if (!file || disabled) return;
@@ -343,10 +331,13 @@ export function PhotoPicker({
     setCameraOpen(false);
   }
 
-  useEffect(() => () => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-  }, []);
+  useEffect(
+    () => () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    },
+    [],
+  );
 
   async function openDesktopCamera() {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -399,75 +390,8 @@ export function PhotoPicker({
     );
   }
 
-  const isProfile = slot === PROFILE_PHOTO_SLOT;
-  const isVehicle = slot === VEHICLE_PHOTO_SLOT;
-  const bayFilled = !isProfile && hasBayPhoto(value);
-  const addLabel = isVehicle ? t("photo.addVehicle") : t("photo.addBay");
-
-  return (
-    <div
-      data-photo-slot={slot}
-      data-photo-compact={compact ? "true" : undefined}
-      className={`flex flex-col gap-3 rounded-xl ${dropping ? "ring-2 ring-accent" : ""}`}
-      data-bay-empty={isProfile ? undefined : bayFilled ? "false" : "true"}
-      onDragEnter={(e) => {
-        if (disabled) return;
-        e.preventDefault();
-        setDropping(true);
-      }}
-      onDragOver={(e) => {
-        if (disabled) return;
-        e.preventDefault();
-        setDropping(true);
-      }}
-      onDragLeave={() => setDropping(false)}
-      onDrop={async (e) => {
-        e.preventDefault();
-        setDropping(false);
-        const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
-        await handleFile(file);
-      }}
-    >
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
-        {compact && bayFilled ? null : <p className="mt-1 text-sm text-muted">{hint}</p>}
-        {desktop && !(compact && bayFilled) ? (
-          <p className="mt-1 text-sm text-dim" data-drop-hint="">
-            {t("photo.dropHint")}
-          </p>
-        ) : null}
-      </div>
-      {isProfile ? (
-        <div className="flex items-center gap-3">
-          <Face src={value} name={name} size="lg" />
-          <p className="text-sm text-muted">{value ? t("photo.profileSet") : t("photo.profileEmpty")}</p>
-        </div>
-      ) : bayFilled ? (
-        <BayPreview src={value} />
-      ) : null}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          disabled={disabled || busy}
-          className="tap flex h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
-          onClick={() => chooseRef.current?.click()}
-        >
-          <ImageIcon className="size-4 shrink-0" />
-          {isProfile || bayFilled ? t("photo.choose") : addLabel}
-        </button>
-        <button
-          type="button"
-          disabled={disabled || busy}
-          className="tap flex h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
-          onClick={() => {
-            if (isMobilePhotoDevice()) takeRef.current?.click();
-            else void openDesktopCamera();
-          }}
-        >
-          <Camera className="size-4 shrink-0" />
-          {t("photo.take")}
-        </button>
-      </div>
+  const fileInputs = (
+    <>
       <input
         id={chooseId}
         ref={chooseRef}
@@ -501,22 +425,232 @@ export function PhotoPicker({
           await handleFile(file);
         }}
       />
-      {cameraOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-end bg-black/70 p-4 sm:place-items-center">
-          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-bg">
-            <p className="px-4 pt-3 text-sm font-semibold">{t("photo.cameraTitle")}</p>
-            <video ref={videoRef} playsInline muted autoPlay className="mt-2 h-56 w-full bg-black object-cover" />
-            <div className="grid grid-cols-2 gap-2 p-3">
-              <button type="button" className="h-11 rounded-xl border border-line font-semibold" onClick={stopCamera}>
-                {t("photo.cameraCancel")}
+    </>
+  );
+
+  const cameraModal = cameraOpen ? (
+    <div className="fixed inset-0 z-[60] grid place-items-end bg-black/70 p-4 sm:place-items-center">
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-bg">
+        <p className="px-4 pt-3 text-sm font-semibold">{t("photo.cameraTitle")}</p>
+        <video ref={videoRef} playsInline muted autoPlay className="mt-2 h-56 w-full bg-black object-cover" />
+        <div className="grid grid-cols-2 gap-2 p-3">
+          <button type="button" className="h-11 rounded-xl border border-line font-semibold" onClick={stopCamera}>
+            {t("photo.cameraCancel")}
+          </button>
+          <button type="button" className="h-11 rounded-xl bg-accent font-semibold text-ink" onClick={snapDesktop}>
+            {t("photo.cameraSnap")}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return {
+    busy,
+    cameraOpen,
+    openChoose: () => chooseRef.current?.click(),
+    openTake: () => {
+      if (isMobilePhotoDevice()) takeRef.current?.click();
+      else void openDesktopCamera();
+    },
+    acceptFile: handleFile,
+    fileInputs,
+    cameraModal,
+  };
+}
+
+export function ProfilePhotoEditor({
+  src,
+  name,
+  hint,
+  onPick,
+  onErr,
+  disabled,
+}: {
+  src?: string;
+  name: string;
+  hint: string;
+  onPick: (dataUrl: string) => void | Promise<void>;
+  onErr: (message: string) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const capture = usePhotoCapture({
+    slot: PROFILE_PHOTO_SLOT,
+    disabled,
+    onErr,
+    onPick: async (dataUrl) => {
+      await onPick(dataUrl);
+      setOpen(false);
+    },
+  });
+
+  return (
+    <div className="relative shrink-0" data-photo-slot={PROFILE_PHOTO_SLOT} data-profile-photo-editor="">
+      <button
+        type="button"
+        data-profile-photo-edit=""
+        disabled={disabled || capture.busy}
+        aria-label={t("photo.editAria")}
+        aria-expanded={open}
+        className="relative shrink-0 rounded-2xl disabled:opacity-50"
+        onClick={() => setOpen(true)}
+      >
+        <Face src={src} name={name} size="lg" />
+        <span className="absolute -bottom-1 -right-1 grid size-9 place-items-center rounded-full border-2 border-surface bg-accent text-ink shadow-sm">
+          <Pencil className="size-4" aria-hidden />
+        </span>
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("photo.editAria")}
+          data-profile-photo-sheet=""
+          className="fixed inset-0 z-50 grid place-items-end bg-black/70 p-4 sm:place-items-center"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-line bg-bg p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <Face src={src} name={name} size="md" />
+              <p className="min-w-0 pt-1 text-sm leading-relaxed text-muted" data-profile-photo-hint="">
+                {hint}
+              </p>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={disabled || capture.busy}
+                className="tap flex h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
+                onClick={capture.openChoose}
+              >
+                <ImageIcon className="size-4 shrink-0" />
+                {t("photo.choose")}
               </button>
-              <button type="button" className="h-11 rounded-xl bg-accent font-semibold text-ink" onClick={snapDesktop}>
-                {t("photo.cameraSnap")}
+              <button
+                type="button"
+                disabled={disabled || capture.busy}
+                className="tap flex h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
+                onClick={capture.openTake}
+              >
+                <Camera className="size-4 shrink-0" />
+                {t("photo.take")}
               </button>
             </div>
+            <button
+              type="button"
+              className="mt-2 h-11 w-full rounded-xl border border-line font-semibold"
+              onClick={() => setOpen(false)}
+            >
+              {t("photo.cameraCancel")}
+            </button>
           </div>
         </div>
       ) : null}
+      {capture.fileInputs}
+      {capture.cameraModal}
+    </div>
+  );
+}
+
+export function PhotoPicker({
+  slot,
+  value,
+  name,
+  onPick,
+  onErr,
+  disabled,
+  label,
+  hint,
+  compact,
+}: {
+  slot: PhotoSlot;
+  value?: string;
+  name: string;
+  onPick: (dataUrl: string) => void | Promise<void>;
+  onErr: (message: string) => void;
+  disabled?: boolean;
+  label: string;
+  hint: string;
+  compact?: boolean;
+}) {
+  const { t } = useI18n();
+  const capture = usePhotoCapture({ slot, disabled, onPick, onErr });
+  const [dropping, setDropping] = useState(false);
+  const desktop = !isMobilePhotoDevice();
+  const isProfile = slot === PROFILE_PHOTO_SLOT;
+  const isVehicle = slot === VEHICLE_PHOTO_SLOT;
+  const bayFilled = !isProfile && hasBayPhoto(value);
+  const addLabel = isVehicle ? t("photo.addVehicle") : t("photo.addBay");
+  void name;
+
+  return (
+    <div
+      data-photo-slot={slot}
+      data-photo-compact={compact ? "true" : undefined}
+      className={`flex flex-col gap-3 rounded-xl ${dropping ? "ring-2 ring-accent" : ""}`}
+      data-bay-empty={isProfile ? undefined : bayFilled ? "false" : "true"}
+      onDragEnter={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragOver={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={() => setDropping(false)}
+      onDrop={async (e) => {
+        e.preventDefault();
+        setDropping(false);
+        const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
+        await capture.acceptFile(file);
+      }}
+    >
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+        {compact && bayFilled ? null : <p className="mt-1 text-sm text-muted">{hint}</p>}
+        {desktop && !(compact && bayFilled) ? (
+          <p className="mt-1 text-sm text-dim" data-drop-hint="">
+            {t("photo.dropHint")}
+          </p>
+        ) : null}
+      </div>
+      {isProfile ? (
+        <div className="flex items-center gap-3">
+          <Face src={value} name={name} size="lg" />
+          <p className="text-sm text-muted">{value ? t("photo.profileSet") : t("photo.profileEmpty")}</p>
+        </div>
+      ) : bayFilled ? (
+        <BayPreview src={value} />
+      ) : null}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={disabled || capture.busy}
+          className="tap flex h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
+          onClick={capture.openChoose}
+        >
+          <ImageIcon className="size-4 shrink-0" />
+          {isProfile || bayFilled ? t("photo.choose") : addLabel}
+        </button>
+        <button
+          type="button"
+          disabled={disabled || capture.busy}
+          className="tap flex h-10 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold disabled:opacity-50"
+          onClick={capture.openTake}
+        >
+          <Camera className="size-4 shrink-0" />
+          {t("photo.take")}
+        </button>
+      </div>
+      {capture.fileInputs}
+      {capture.cameraModal}
     </div>
   );
 }

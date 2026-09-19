@@ -19,9 +19,9 @@ import {
   X,
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
-import { BayPreview, Face, PhotoPicker } from "@/components/photo-input";
+import { BayPreview, Face, PhotoPicker, ProfilePhotoEditor } from "@/components/photo-input";
 import { VehicleArt } from "@/components/vehicle-art";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, SYMPTOM_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, symptomPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
+import { BAY_PHOTO_SLOT, SYMPTOM_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, symptomPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
 
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
@@ -3487,7 +3487,26 @@ function Account({
       />
       <div className="rounded-xl border border-line bg-surface p-4">
         <div className="flex items-start gap-3">
-          <Face src={profilePhoto} name={user.name} size="lg" />
+          <ProfilePhotoEditor
+            src={profilePhoto}
+            name={user.role === "independent" ? bizName || user.name : shop?.name || user.name}
+            hint={
+              user.role === "independent" || (user.role === "shop" && user.shopRole === "owner")
+                ? t("photo.editPublicHint")
+                : t("photo.editAccountHint")
+            }
+            onErr={(msg) => flash(translateStoreError(locale, msg))}
+            onPick={async (dataUrl) => {
+              const res = await Store.saveProfilePhoto(user, dataUrl);
+              if (!res.ok) {
+                flash(translateStoreError(locale, res.error));
+                return;
+              }
+              setProfilePhoto(dataUrl);
+              onSaved(res.user);
+              flash(t("toast.profilePhotoSaved"));
+            }}
+          />
           <div className="min-w-0">
             <h2 className="text-lg font-semibold">{user.name}</h2>
             <p className="text-sm text-muted">
@@ -3500,36 +3519,6 @@ function Account({
         </div>
       </div>
       <NotificationsCard user={user} flash={flash} onSaved={onSaved} />
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
-        <PhotoPicker
-          slot={PROFILE_PHOTO_SLOT}
-          value={profilePhoto}
-          name={user.role === "independent" ? bizName || user.name : shop?.name || user.name}
-          label={
-            user.role === "shop" && user.shopRole === "owner"
-              ? t("photo.shopLabel")
-              : t("photo.profileLabel")
-          }
-          hint={
-            user.role === "independent"
-              ? t("photo.indyHint")
-              : user.role === "shop" && user.shopRole === "owner"
-                ? t("photo.shopHint")
-                : t("photo.profileHint")
-          }
-          onErr={(msg) => flash(translateStoreError(locale, msg))}
-          onPick={async (dataUrl) => {
-            const res = await Store.saveProfilePhoto(user, dataUrl);
-            if (!res.ok) {
-              flash(translateStoreError(locale, res.error));
-              return;
-            }
-            setProfilePhoto(dataUrl);
-            onSaved(res.user);
-            flash(t("toast.profilePhotoSaved"));
-          }}
-        />
-      </div>
       {user.role === "customer" ? (
         <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-account-vehicles="">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.vehicles")}</p>
