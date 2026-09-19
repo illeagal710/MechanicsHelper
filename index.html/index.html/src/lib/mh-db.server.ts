@@ -3,6 +3,7 @@ import { getSql } from "@/lib/db";
 import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.server";
 import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
+import { blockHoursFromRecord, normalizeBlockAfterHours } from "@/lib/booking-block";
 import { applyDecline, slotTakenAmong } from "@/lib/job-status";
 import {
   DEMO_SHOP_FIND_CODE,
@@ -80,6 +81,7 @@ function rowUser(r: Record<string, unknown>): User {
     hoursDays: String(r.hours_days || "123456"),
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
+    blockAfterHours: normalizeBlockAfterHours(r.block_after_hours),
     ...publicProfileFromRecord(r),
   };
 }
@@ -99,6 +101,7 @@ function rowShop(r: Record<string, unknown>): Shop {
     hoursDays: String(r.hours_days || "123456"),
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
+    blockAfterHours: normalizeBlockAfterHours(r.block_after_hours),
     ...publicProfileFromRecord(r),
   };
 }
@@ -717,6 +720,7 @@ export async function updateShopProfile(
     hoursDays?: string;
     hoursOpen?: string;
     hoursClose?: string;
+    blockAfterHours?: number;
     specialties?: string[];
     credentials?: string[];
     serviceArea?: string;
@@ -767,6 +771,16 @@ export async function updateShopProfile(
       patch.hoursClose ?? shop.hoursClose ?? "16:00",
     ]);
   }
+  if (patch.blockAfterHours !== undefined) {
+    try {
+      await sql.query("update mh_shops set block_after_hours = $2 where id = $1", [
+        shop.id,
+        normalizeBlockAfterHours(patch.blockAfterHours),
+      ]);
+    } catch {
+      /* column arrives after 0012 */
+    }
+  }
   if (
     patch.specialties !== undefined ||
     patch.credentials !== undefined ||
@@ -805,6 +819,7 @@ export async function updateIndependentProfile(
     hoursDays?: string;
     hoursOpen?: string;
     hoursClose?: string;
+    blockAfterHours?: number;
     specialties?: string[];
     credentials?: string[];
     serviceArea?: string;
@@ -834,6 +849,9 @@ export async function updateIndependentProfile(
   const hoursDays = patch.hoursDays ?? user.hoursDays ?? "123456";
   const hoursOpen = patch.hoursOpen ?? user.hoursOpen ?? "08:00";
   const hoursClose = patch.hoursClose ?? user.hoursClose ?? "16:00";
+  const blockAfterHours = normalizeBlockAfterHours(
+    patch.blockAfterHours !== undefined ? patch.blockAfterHours : user.blockAfterHours,
+  );
   const next = sanitizePublicProfile({
     specialties: patch.specialties ?? user.specialties,
     credentials: patch.credentials ?? user.credentials,
@@ -861,6 +879,11 @@ export async function updateIndependentProfile(
       next.address,
     ],
   );
+  try {
+    await sql.query("update mh_users set block_after_hours = $2 where id = $1", [user.id, blockAfterHours]);
+  } catch {
+    /* column arrives after 0012 */
+  }
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
   if (!fresh) return { ok: false as const, error: "Account not found." };
   const { pass: _p, ...rest } = fresh;
@@ -941,7 +964,9 @@ export async function addJob(job: Job) {
   await ensureSeeded();
   job = { ...job, symptoms: normalizeSymptoms(job.symptoms) };
   const board = await loadBoard();
-  const taken = slotTakenAmong(board.jobs, job.providerId, job.slot);
+  const provider =
+    board.shops.find((s) => s.id === job.providerId) || board.users.find((u) => u.id === job.providerId);
+  const taken = slotTakenAmong(board.jobs, job.providerId, job.slot, blockHoursFromRecord(provider));
   if (taken) {
     return { ok: false as const, error: "That time is already booked. Pick another slot." };
   }

@@ -62,6 +62,7 @@ export const mhUpdateShop = createServerFn({ method: "POST" })
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: number;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;
@@ -88,6 +89,7 @@ export const mhUpdateIndy = createServerFn({ method: "POST" })
       hoursDays?: string;
       hoursOpen?: string;
       hoursClose?: string;
+      blockAfterHours?: number;
       specialties?: string[];
       credentials?: string[];
       serviceArea?: string;

@@ -48,6 +48,11 @@ import {
   vehicleLabel,
 } from "@/lib/store";
 import { missingRequiredBookingFields, normalizeSymptoms } from "@/lib/booking";
+import {
+  BLOCK_AFTER_HOURS_CHOICES,
+  normalizeBlockAfterHours,
+  type BlockAfterHours,
+} from "@/lib/booking-block";
 import { resolveBookingProvider } from "@/lib/booking-provider";
 import { isCompleteVehicle, vehicleKey, type VehicleFields } from "@/lib/customer-vehicles";
 import {
@@ -1447,6 +1452,7 @@ function Book({
   const [pickedVehicleKey, setPickedVehicleKey] = useState(savedVehicles[0] ? vehicleKey(savedVehicles[0]) : "");
   const pickedVehicle = savedVehicles.find((v) => vehicleKey(v) === pickedVehicleKey) || null;
   const [linkCode, setLinkCode] = useState("");
+  const [slotIso, setSlotIso] = useState("");
   const pending = typeof window === "undefined" ? "" : sessionStorage.getItem("mh.symptoms") || "";
   const provider = resolveBookingProvider({
     user,
@@ -1456,7 +1462,6 @@ function Book({
     linkedCode: Store.getLinkedCode(user),
     allowSavedBay: !Store.wasUnlinked(user),
   });
-  const dates = localeTag(locale);
 
   if (!provider) {
     return (
@@ -1593,23 +1598,20 @@ function Book({
         />
         <p className="mt-2 text-sm text-muted">{t("book.symptomsHint")}</p>
       </Field>
-      <Field label={t("book.preferredTime")}>
-        <SelectWrap>
-          <select name="slot" className={selectClass} required defaultValue="">
-            <option value="">{t("book.chooseOpenTime")}</option>
-            {Store.openSlots(provider.id).map((d) => (
-              <option key={d.toISOString()} value={d.toISOString()}>
-                {fmtWhen(d.toISOString(), dates)}
-              </option>
-            ))}
-          </select>
-        </SelectWrap>
+      <Fieldset label={t("book.preferredTime")}>
+        <input type="hidden" name="slot" value={slotIso} />
+        <SlotCalendar
+          providerId={provider.id}
+          selected={slotIso}
+          onSelect={setSlotIso}
+          locale={locale}
+        />
         {Store.openSlots(provider.id).length === 0 ? (
           <p className="mt-2 text-sm text-accent2">{t("book.bayFull")}</p>
         ) : (
           <p className="mt-2 text-sm text-muted">{t("book.takenHint")}</p>
         )}
-      </Field>
+      </Fieldset>
       <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
         <input type="checkbox" name="notifySms" defaultChecked className="mt-1 size-4 accent-amber-400" />
         <span>
@@ -2613,6 +2615,7 @@ function Account({
   const [shopDays, setShopDays] = useState(shop?.hoursDays || "123456");
   const [shopOpen, setShopOpen] = useState(shop?.hoursOpen || "08:00");
   const [shopClose, setShopClose] = useState(shop?.hoursClose || "16:00");
+  const [shopBlock, setShopBlock] = useState(normalizeBlockAfterHours(shop?.blockAfterHours));
   const [shopSpecialties, setShopSpecialties] = useState(shop?.specialties || []);
   const [shopCredentials, setShopCredentials] = useState(shop?.credentials || []);
   const [shopArea, setShopArea] = useState(shop?.serviceArea || "");
@@ -2621,6 +2624,7 @@ function Account({
   const [indyDays, setIndyDays] = useState(user.hoursDays || "123456");
   const [indyOpen, setIndyOpen] = useState(user.hoursOpen || "08:00");
   const [indyClose, setIndyClose] = useState(user.hoursClose || "16:00");
+  const [indyBlock, setIndyBlock] = useState(normalizeBlockAfterHours(user.blockAfterHours));
   const [indySpecialties, setIndySpecialties] = useState(user.specialties || []);
   const [indyCredentials, setIndyCredentials] = useState(user.credentials || []);
   const [indyArea, setIndyArea] = useState(user.serviceArea || "");
@@ -2805,6 +2809,7 @@ function Account({
               hoursDays: shopDays,
               hoursOpen: shopOpen,
               hoursClose: shopClose,
+              blockAfterHours: shopBlock,
               specialties: shopSpecialties,
               credentials: shopCredentials,
               serviceArea: shopArea,
@@ -2947,6 +2952,7 @@ function Account({
             onClose={setShopClose}
             canEdit={!!canEditShop}
           />
+          <BlockAfterEditor value={shopBlock} onChange={setShopBlock} canEdit={!!canEditShop} />
           </div>
           {canEditShop ? (
             <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
@@ -3002,6 +3008,7 @@ function Account({
               hoursDays: indyDays,
               hoursOpen: indyOpen,
               hoursClose: indyClose,
+              blockAfterHours: indyBlock,
               specialties: indySpecialties,
               credentials: indyCredentials,
               serviceArea: indyArea,
@@ -3119,6 +3126,7 @@ function Account({
             onClose={setIndyClose}
             canEdit
           />
+          <BlockAfterEditor value={indyBlock} onChange={setIndyBlock} canEdit />
           </div>
           <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
             {t("account.saveProfile")}
@@ -3168,6 +3176,117 @@ function Account({
         </button>
       </form>
     </div>
+  );
+}
+
+const BLOCK_LABELS: Record<BlockAfterHours, MessageKey> = {
+  0: "account.blockOff",
+  1: "account.block1h",
+  2: "account.block2h",
+  3: "account.block3h",
+  4: "account.block4h",
+};
+
+function SlotCalendar({
+  providerId,
+  selected,
+  onSelect,
+  locale,
+}: {
+  providerId: string;
+  selected: string;
+  onSelect: (iso: string) => void;
+  locale: "en" | "es";
+}) {
+  const { t } = useI18n();
+  const slots = Store.weekSlotStates(providerId);
+  const groups: { key: string; label: string; items: typeof slots }[] = [];
+  for (const slot of slots) {
+    const key = `${slot.date.getFullYear()}-${slot.date.getMonth()}-${slot.date.getDate()}`;
+    const last = groups.at(-1);
+    if (last?.key === key) last.items.push(slot);
+    else {
+      groups.push({
+        key,
+        label: slot.date.toLocaleDateString(localeTag(locale), { weekday: "short", month: "short", day: "numeric" }),
+        items: [slot],
+      });
+    }
+  }
+  return (
+    <div className="flex flex-col gap-3" data-slot-calendar="">
+      {groups.map((group) => (
+        <div key={group.key} data-slot-day={group.key}>
+          <p className="mb-1.5 text-sm font-semibold">{group.label}</p>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            {group.items.map((slot) => {
+              const time = formatClock(
+                locale,
+                `${String(slot.date.getHours()).padStart(2, "0")}:${String(slot.date.getMinutes()).padStart(2, "0")}`,
+              );
+              const active = selected === slot.iso;
+              return (
+                <button
+                  key={slot.iso}
+                  type="button"
+                  disabled={slot.taken}
+                  data-slot-iso={slot.iso}
+                  data-slot-state={slot.taken ? "blocked" : "open"}
+                  aria-pressed={active}
+                  className={`rounded-xl border px-2.5 py-2 text-left text-sm font-semibold ${
+                    slot.taken
+                      ? "cursor-not-allowed border-line bg-surface2 text-dim"
+                      : active
+                        ? "border-accent bg-accent/15 text-fg"
+                        : "border-line bg-bg2 text-fg"
+                  }`}
+                  onClick={() => onSelect(slot.iso)}
+                >
+                  <span className="block">{time}</span>
+                  {slot.taken ? <span className="mt-0.5 block text-xs font-medium">{t("book.blocked")}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BlockAfterEditor({
+  value,
+  onChange,
+  canEdit,
+}: {
+  value: BlockAfterHours;
+  onChange: (v: BlockAfterHours) => void;
+  canEdit: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <Field label={t("account.jobLength")}>
+      {canEdit ? (
+        <div data-block-after-hours="">
+          <SelectWrap>
+            <select
+              className={selectClass}
+              value={value}
+              onChange={(e) => onChange(normalizeBlockAfterHours(Number(e.target.value)))}
+            >
+              {BLOCK_AFTER_HOURS_CHOICES.map((hours) => (
+                <option key={hours} value={hours}>
+                  {t(BLOCK_LABELS[hours])}
+                </option>
+              ))}
+            </select>
+          </SelectWrap>
+          <p className="mt-2 text-sm text-muted">{t("account.jobLengthHint")}</p>
+        </div>
+      ) : (
+        <p className="text-sm text-muted">{t(BLOCK_LABELS[normalizeBlockAfterHours(value)])}</p>
+      )}
+    </Field>
   );
 }
 
