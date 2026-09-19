@@ -1,8 +1,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Camera, ImageIcon, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, hasBayPhoto, isMobilePhotoDevice, type PhotoSlot } from "@/lib/photos";
-import { resizePhoto } from "@/lib/store";
+import {
+  BAY_PHOTO_SLOT,
+  PHOTO_CAMERA_VIDEO,
+  PHOTO_JPEG_QUALITY,
+  PROFILE_PHOTO_SLOT,
+  hasBayPhoto,
+  isMobilePhotoDevice,
+  resizePhoto,
+  type PhotoSlot,
+} from "@/lib/photos";
 
 export function ProfileSilhouette({
   size = "md",
@@ -11,7 +19,7 @@ export function ProfileSilhouette({
   size?: "sm" | "md" | "lg";
   label: string;
 }) {
-  const box = size === "lg" ? "size-16" : size === "sm" ? "size-10" : "size-14";
+  const box = size === "lg" ? "size-20" : size === "sm" ? "size-12" : "size-16";
   return (
     <div
       className={`${box} grid shrink-0 place-items-center overflow-hidden rounded-2xl border border-line bg-surface2 text-muted`}
@@ -39,9 +47,17 @@ export function Face({
   size?: "sm" | "md" | "lg";
 }) {
   const { t } = useI18n();
-  const box = size === "lg" ? "size-16" : size === "sm" ? "size-10" : "size-14";
+  const box = size === "lg" ? "size-20" : size === "sm" ? "size-12" : "size-16";
   if (src) {
-    return <img src={src} alt="" className={`${box} shrink-0 rounded-2xl border border-line object-cover`} />;
+    return (
+      <img
+        src={src}
+        alt=""
+        data-user-photo=""
+        decoding="async"
+        className={`${box} shrink-0 rounded-2xl border border-line object-cover [image-rendering:auto]`}
+      />
+    );
   }
   return <ProfileSilhouette size={size} label={t("photo.silhouetteAlt", { name: name || "?" })} />;
 }
@@ -144,7 +160,8 @@ export function PhotoLightbox({
           src={src}
           alt=""
           data-lightbox-image=""
-          className="max-h-full max-w-full origin-center object-contain"
+          decoding="async"
+          className="max-h-full max-w-full origin-center object-contain [image-rendering:auto]"
           style={{ transform: `scale(${scale})`, touchAction: "none" }}
           onDoubleClick={() => setScale((s) => (s > 1 ? 1 : 2.5))}
         />
@@ -182,7 +199,9 @@ export function BayPreview({ src }: { src?: string }) {
         <img
           src={photo}
           alt=""
-          className="mx-auto max-h-72 min-h-44 w-full object-contain md:max-h-[28rem]"
+          data-user-photo=""
+          decoding="async"
+          className="mx-auto max-h-80 min-h-48 w-full object-contain [image-rendering:auto] md:max-h-[32rem]"
         />
       </button>
       {open ? <PhotoLightbox src={photo} onClose={() => setOpen(false)} /> : null}
@@ -250,7 +269,7 @@ export function PhotoPicker({
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: PHOTO_CAMERA_VIDEO,
         audio: false,
       });
       streamRef.current = stream;
@@ -290,7 +309,7 @@ export function PhotoPicker({
         await handleFile(new File([blob], "camera.jpg", { type: "image/jpeg" }));
       },
       "image/jpeg",
-      0.82,
+      PHOTO_JPEG_QUALITY,
     );
   }
 
