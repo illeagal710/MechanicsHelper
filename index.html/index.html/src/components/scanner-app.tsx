@@ -259,7 +259,7 @@ export function ScannerApp() {
           <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Mechanics Helper</p>
           <h1 className="text-lg font-semibold tracking-tight">Chart scanner</h1>
           <p className="text-sm text-muted" data-scanner-mode="">
-              {SETUP_NAME} · 4h 21×200 cross · hunt low 4h + high 1h ·{" "}
+              {SETUP_NAME} · 4h 21×200 cross · hunt low 4h + high 1h · time 15m ·{" "}
             {killed
               ? "kill switch on — no orders"
               : execution === "live"
@@ -509,7 +509,7 @@ export function ScannerApp() {
           <div className={`${tab === "rules" ? "block" : "hidden"} border-b border-line p-3 lg:block`}>
             <h2 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Alert setup</h2>
             <p className="mt-1 text-sm text-muted" data-setup-name="">
-              {SETUP_NAME}: 4h long when SMA 21 crosses above SMA 200 (Discord 21×200 clip). Continuation: 21 already above and price on/flagging the 21 (no % band). Stretch off the 21 is an exit warning. Death cross = 4h 50 below 200; early warning = 21×50. Hunt low 4h + high 1h, time on 15m. Tick the pre-trade list. Alerts do not place orders.
+              {SETUP_NAME}: 4h long when SMA 21 crosses above SMA 200 (Discord 2022-07-17 clip, not YouTube FbLAelAw83Y). Continuation: 21 already above and price on/flagging the 21 (no % band). Stretch off the 21 is an exit warning. Death cross = 4h 50 below 200; early warning = 21×50. Hunt low 4h + high 1h, time on 15m. Tick the pre-trade list. Alerts do not place orders.
             </p>
             <RuleToggles />
             <button
@@ -633,8 +633,9 @@ function RuleToggles() {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">SMA 21 crosses above SMA 200</span>
           <span className="mt-1 text-xs text-muted">
-            4h long on the cross (Discord 2022-07-17 clip). Continuation when 21 is already above 200
-            and price is on the 21. Not the Proper Risk Management YouTube.
+            4h long on the cross (Discord clip 2022-07-17_08-39-59.mp4). Continuation when 21 is
+            already above 200 and price is on the 21. YouTube FbLAelAw83Y is risk math, not this
+            setup.
           </span>
         </span>
       </label>

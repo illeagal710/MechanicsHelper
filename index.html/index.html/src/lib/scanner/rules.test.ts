@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_INTERVAL, DEFAULT_RULES, PRETRADE_CHECKS, SETUP_NAME, VRVP_SETTINGS } from "./defaults.ts";
+import {
+  DEFAULT_INTERVAL,
+  DEFAULT_RULES,
+  HUNT_FILTER,
+  PRETRADE_CHECKS,
+  SETUP_NAME,
+  VRVP_SETTINGS,
+} from "./defaults.ts";
 import { evaluateSetup } from "./rules.ts";
 import type { BuyRules, Candle } from "./types.ts";
 
@@ -139,7 +146,23 @@ test("Crypto Lifers defaults: 4h 21×200 cross, 50/200 death, 21×50 early, Stoc
   assert.equal(DEFAULT_RULES.jdStoch.dSmooth, 1);
   assert.equal(PRETRADE_CHECKS.length, 9);
   assert.equal(VRVP_SETTINGS.rowSize, 240);
+  assert.equal(VRVP_SETTINGS.volume, "Up/Down");
   assert.equal(VRVP_SETTINGS.valueArea, 70);
+  assert.equal(VRVP_SETTINGS.timeframe, "4h");
+  assert.match(HUNT_FILTER, /low 4h \+ high 1h/);
+  assert.match(HUNT_FILTER, /15m/);
+});
+
+test("4h long fires on SMA 21 crossing above 200 even if price is off the 21", () => {
+  const rally = [14, 13, 12, 11, 12, 16, 20];
+  const hit = evaluateSetup(
+    series(rally),
+    offExtras({ vsSma: { enabled: true, fast: 3, period: 5, side: "above" } }),
+    0,
+  );
+  assert.ok(hit);
+  assert.equal(hit.matched, true);
+  assert.equal(hit.conditions.find((c) => c.id === "vsSma")?.detail, "4h cross");
 });
 
 test("SMA 21 above 200 continuation needs price on the 21, not a stretch-away", () => {
