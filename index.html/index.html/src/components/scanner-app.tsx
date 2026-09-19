@@ -3,10 +3,12 @@ import { Link } from "@tanstack/react-router";
 import {
   Activity,
   Bell,
+  Menu,
   Pause,
   Play,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { ScannerChart } from "@/components/scanner-chart";
@@ -45,7 +47,8 @@ export function ScannerApp() {
   const [error, setError] = useState<string | null>(null);
   const [addValue, setAddValue] = useState("");
   const [adding, setAdding] = useState(false);
-  const [tab, setTab] = useState<"watch" | "chart" | "rules" | "weex" | "signals">("chart");
+  const [tab, setTab] = useState<"watch" | "chart" | "signals">("chart");
+  const [setupOpen, setSetupOpen] = useState(false);
   const execution = useWeexStore((s) => s.execution);
   const liveArmed = useWeexStore((s) => s.liveArmed);
   const killed = useWeexStore((s) => s.killed);
@@ -248,13 +251,26 @@ export function ScannerApp() {
     [watchlist],
   );
 
+  useEffect(() => {
+    if (!setupOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSetupOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    document.documentElement.classList.add("scanner-setup-open");
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.documentElement.classList.remove("scanner-setup-open");
+    };
+  }, [setupOpen]);
+
   return (
     <div
       data-scanner-app=""
       className="mx-auto flex min-h-dvh max-w-[1400px] flex-col bg-bg text-fg shadow-[0_0_0_1px_var(--color-line)]"
     >
       <Toaster richColors position="top-center" />
-      <header className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+      <header className="relative flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 pr-16">
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[11px] tracking-[0.18em] text-accent uppercase">Mechanics Helper</p>
           <h1 className="text-lg font-semibold tracking-tight">Chart scanner</h1>
@@ -304,6 +320,17 @@ export function ScannerApp() {
             Back to shop
           </Link>
         </div>
+        <button
+          type="button"
+          data-setup-toggle=""
+          className="tap absolute top-3 right-4 grid size-10 place-items-center rounded-[10px] border border-line bg-surface"
+          aria-label="Open setup"
+          aria-expanded={setupOpen}
+          aria-controls="scanner-setup-panel"
+          onClick={() => setSetupOpen(true)}
+        >
+          <Menu className="size-5" aria-hidden="true" />
+        </button>
       </header>
 
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-sm">
@@ -319,8 +346,8 @@ export function ScannerApp() {
         )}
       </div>
 
-      <nav className="grid grid-cols-5 border-b border-line lg:hidden">
-        {(["watch", "chart", "rules", "weex", "signals"] as const).map((id) => (
+      <nav className="grid grid-cols-3 border-b border-line lg:hidden">
+        {(["watch", "chart", "signals"] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -498,36 +525,8 @@ export function ScannerApp() {
           </div>
         </section>
 
-        <section className={`${tab === "rules" || tab === "signals" || tab === "weex" ? "block" : "hidden"} border-l border-line lg:block`}>
-          <div className={`${tab === "weex" ? "block" : "hidden"} lg:block`}>
-            <WeexPanel
-              selected={selected}
-              lastPrice={selectedRow?.ticker?.lastPrice ?? null}
-              watchlist={watchlist}
-            />
-          </div>
-          <div className={`${tab === "rules" ? "block" : "hidden"} border-b border-line p-3 lg:block`}>
-            <h2 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Alert setup</h2>
-            <p className="mt-1 text-sm text-muted" data-setup-name="">
-              {SETUP_NAME}: 4h long when SMA 21 crosses above SMA 200 (Discord 2022-07-17 clip, not YouTube FbLAelAw83Y). Continuation: 21 already above and price on/flagging the 21 (no % band). Stretch off the 21 is an exit warning. Death cross = 4h 50 below 200; early warning = 21×50. Hunt low 4h + high 1h, time on 15m. Tick the pre-trade list. Alerts do not place orders.
-            </p>
-            <RuleToggles />
-            <button
-              type="button"
-              data-reset-rules=""
-              className="mt-3 text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
-              onClick={() => {
-                setRules(() => mergeRules(DEFAULT_RULES));
-                setIntervalTf(DEFAULT_INTERVAL);
-              }}
-            >
-              Reset Crypto Lifers defaults
-            </button>
-          </div>
-          <div className={`${tab === "rules" ? "block" : "hidden"} lg:block`}>
-            <ScannerChecklist />
-          </div>
-          <div className={`${tab === "signals" ? "block" : "hidden"} p-3 lg:block`}>
+        <section className={`${tab === "signals" ? "block" : "hidden"} border-l border-line lg:block`}>
+          <div className="p-3">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-[0.14em] text-muted uppercase">
                 <Bell className="size-3.5" /> Signals
@@ -547,7 +546,7 @@ export function ScannerApp() {
                       : "No alerts yet. Live is selected but not armed, so matches stay paper/dry-run."}
               </p>
             ) : (
-              <ol className="flex max-h-[42dvh] flex-col gap-2 overflow-y-auto" data-signals-list="">
+              <ol className="flex max-h-[calc(100dvh-220px)] flex-col gap-2 overflow-y-auto" data-signals-list="">
                 {signals.map((s) => (
                   <li key={s.id}>
                     <button
@@ -587,6 +586,67 @@ export function ScannerApp() {
           </div>
         </section>
       </div>
+
+      <button
+        type="button"
+        className={`scanner-setup-overlay${setupOpen ? " is-open" : ""}`}
+        aria-label="Close setup"
+        aria-hidden={!setupOpen}
+        tabIndex={-1}
+        data-setup-overlay=""
+        onClick={() => setSetupOpen(false)}
+      />
+      <aside
+        id="scanner-setup-panel"
+        className={`scanner-setup-panel${setupOpen ? " is-open" : ""}`}
+        data-setup-panel=""
+        role="dialog"
+        aria-modal={setupOpen}
+        aria-labelledby="scanner-setup-title"
+        aria-hidden={!setupOpen}
+        inert={!setupOpen}
+      >
+        <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-3">
+          <h2 id="scanner-setup-title" className="text-sm font-semibold tracking-tight">
+            Setup
+          </h2>
+          <button
+            type="button"
+            data-setup-close=""
+            className="tap grid size-10 place-items-center rounded-[10px] border border-line bg-surface"
+            aria-label="Close setup"
+            onClick={() => setSetupOpen(false)}
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="scanner-setup-body">
+          <div className="border-b border-line p-3">
+            <h3 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">Alert setup</h3>
+            <p className="mt-1 text-sm text-muted" data-setup-name="">
+              {SETUP_NAME}: 4h long when SMA 21 crosses above SMA 200 (Discord 2022-07-17 clip, not YouTube FbLAelAw83Y). Continuation: 21 already above and price on/flagging the 21 (no % band). Stretch off the 21 is an exit warning. Death cross = 4h 50 below 200; early warning = 21×50. Hunt low 4h + high 1h, time on 15m. Tick the pre-trade list. Alerts do not place orders.
+            </p>
+            <RuleToggles />
+            <button
+              type="button"
+              data-reset-rules=""
+              className="mt-3 text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
+              onClick={() => {
+                setRules(() => mergeRules(DEFAULT_RULES));
+                setIntervalTf(DEFAULT_INTERVAL);
+              }}
+            >
+              Reset Crypto Lifers defaults
+            </button>
+          </div>
+          <ScannerChecklist />
+          <WeexPanel
+            selected={selected}
+            lastPrice={selectedRow?.ticker?.lastPrice ?? null}
+            watchlist={watchlist}
+          />
+        </div>
+      </aside>
     </div>
   );
 }

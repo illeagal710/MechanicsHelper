@@ -143,3 +143,60 @@ html[data-theme="light"] {
     transform: scale(0.98);
   }
 }
+
+html.scanner-setup-open,
+html.scanner-setup-open body {
+  overflow: hidden;
+}
+
+.scanner-setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgb(5 7 12 / 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+.scanner-setup-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.scanner-setup-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 71;
+  display: flex;
+  flex-direction: column;
+  width: min(26.5rem, 100vw);
+  height: 100dvh;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border-left: 1px solid var(--color-line);
+  box-shadow: -16px 0 40px rgb(0 0 0 / 0.28);
+  transform: translateX(100%);
+  transition: transform 200ms ease-out;
+  pointer-events: none;
+}
+.scanner-setup-panel.is-open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.scanner-setup-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanner-setup-overlay,
+  .scanner-setup-panel {
+    transition: none;
+  }
+}
