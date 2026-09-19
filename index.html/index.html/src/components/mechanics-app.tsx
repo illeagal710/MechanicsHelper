@@ -158,9 +158,13 @@ function slots() {
   return out;
 }
 
-export function MechanicsApp() {
+export function MechanicsApp({
+  initialView = "welcome",
+}: {
+  initialView?: "welcome" | "login";
+} = {}) {
   const { t } = useI18n();
-  const [view, setView] = useState<View>("welcome");
+  const [view, setView] = useState<View>(initialView);
   const [user, setUser] = useState<User | null>(null);
   const [toast, setToast] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -280,6 +284,7 @@ export function MechanicsApp() {
   return (
     <div
       data-app-shell={isProvider ? "provider" : "customer"}
+      data-app-view={view}
       data-wide-shell={isProvider ? "true" : "false"}
       className={`mx-auto flex min-h-dvh w-full flex-col bg-bg shadow-[0_0_0_1px_var(--color-line)] ${shellMax}`}
     >
