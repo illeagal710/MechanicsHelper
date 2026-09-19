@@ -300,6 +300,7 @@ export function PhotoPicker({
   disabled,
   label,
   hint,
+  compact,
 }: {
   slot: PhotoSlot;
   value?: string;
@@ -309,6 +310,7 @@ export function PhotoPicker({
   disabled?: boolean;
   label: string;
   hint: string;
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const chooseId = useId();
@@ -319,6 +321,8 @@ export function PhotoPicker({
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const desktop = !isMobilePhotoDevice();
 
   async function handleFile(file: File | undefined) {
     if (!file || disabled) return;
@@ -401,10 +405,37 @@ export function PhotoPicker({
   const addLabel = isVehicle ? t("photo.addVehicle") : t("photo.addBay");
 
   return (
-    <div data-photo-slot={slot} className="flex flex-col gap-3" data-bay-empty={isProfile ? undefined : bayFilled ? "false" : "true"}>
+    <div
+      data-photo-slot={slot}
+      data-photo-compact={compact ? "true" : undefined}
+      className={`flex flex-col gap-3 rounded-xl ${dropping ? "ring-2 ring-accent" : ""}`}
+      data-bay-empty={isProfile ? undefined : bayFilled ? "false" : "true"}
+      onDragEnter={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragOver={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={() => setDropping(false)}
+      onDrop={async (e) => {
+        e.preventDefault();
+        setDropping(false);
+        const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
+        await handleFile(file);
+      }}
+    >
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
-        <p className="mt-1 text-sm text-muted">{hint}</p>
+        {compact && bayFilled ? null : <p className="mt-1 text-sm text-muted">{hint}</p>}
+        {desktop && !(compact && bayFilled) ? (
+          <p className="mt-1 text-sm text-dim" data-drop-hint="">
+            {t("photo.dropHint")}
+          </p>
+        ) : null}
       </div>
       {isProfile ? (
         <div className="flex items-center gap-3">
@@ -437,7 +468,6 @@ export function PhotoPicker({
           {t("photo.take")}
         </button>
       </div>
-      {/* Gallery / files — no capture, so iOS/Android open the library. */}
       <input
         id={chooseId}
         ref={chooseRef}
@@ -454,7 +484,6 @@ export function PhotoPicker({
           await handleFile(file);
         }}
       />
-      {/* Camera path — capture=environment on mobile Safari/Chrome. */}
       <input
         id={takeId}
         ref={takeRef}

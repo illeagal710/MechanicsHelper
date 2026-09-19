@@ -365,8 +365,19 @@ test("alert copy is honest that SMS is not connected yet", () => {
   assert.match(translate("en", "book.notifySms"), /not connected yet/i);
   assert.match(translate("es", "book.notifySms"), /aún no están conectados/i);
   assert.match(translate("en", "account.alertsCustomer"), /not connected yet/i);
+  assert.match(translate("en", "account.alertsCustomer"), /this browser or the phone app/i);
   assert.match(translate("en", "account.alertsProvider"), /not sending yet/i);
+  assert.match(translate("en", "account.alertsProvider"), /tap Text on the ticket/i);
   assert.doesNotMatch(translate("en", "book.notifySms"), /Text me when they are on the way/);
+  assert.match(translate("en", "account.notifTitle"), /this device/i);
+  assert.match(translate("en", "account.notifBlocked"), /browser/i);
+  assert.equal(translate("en", "job.callCustomer"), "Call");
+  assert.equal(translate("en", "job.textCustomer"), "Text");
+  assert.equal(translate("en", "job.confirmContinue"), "Continue");
+  assert.equal(translate("en", "job.writeEstimate"), "Write estimate");
+  assert.equal(translate("en", "job.addParts"), "Add parts ETA");
+  assert.match(translate("en", "photo.dropHint"), /Drop a photo/i);
+  assert.match(translate("es", "job.callCustomerHint"), /ticket/);
 });
 
 test("bay-ops ticket strings and estimate notes translate", () => {

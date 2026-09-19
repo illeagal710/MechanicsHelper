@@ -24,6 +24,7 @@ import {
   mergeJobOps,
   needsStatusConfirm,
   parseEstimateAmount,
+  statusActionConfirm,
   parseJobOps,
   partsNoteText,
   serializeJobOps,
@@ -120,6 +121,20 @@ test("status skip detect jumps of more than one pipeline step", () => {
   assert.deepEqual(skippedStatuses("scheduled", "diagnosing"), ["enroute", "checkedin"]);
   assert.deepEqual(skippedStatuses("diagnosing", "parts"), []);
   assert.deepEqual(skippedStatuses("diagnosing", "repair"), ["parts"]);
+});
+
+test("statusActionConfirm asks once: silent next step, one repair dialog, one skip dialog", () => {
+  const none = statusActionConfirm("scheduled", "enroute", undefined);
+  assert.equal(none.kind, "none");
+  const skip = statusActionConfirm("scheduled", "checkedin", undefined);
+  assert.equal(skip.kind, "skip");
+  const repair = statusActionConfirm("diagnosing", "repair", undefined);
+  assert.equal(repair.kind, "repair");
+  assert.equal(repair.skipEstimate, true);
+  const jumpRepair = statusActionConfirm("scheduled", "repair", undefined);
+  assert.equal(jumpRepair.kind, "repair");
+  const approved = statusActionConfirm("diagnosing", "repair", applyEstimateDecision(applyEstimateSend(10, ""), true));
+  assert.equal(approved.kind, "none");
 });
 
 test("status change remembers the previous step so undo can restore it", () => {

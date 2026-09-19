@@ -234,6 +234,28 @@ export function needsStatusConfirm(from: string, to: string): boolean {
   return Math.abs(b - a) > 1;
 }
 
+export type StatusActionConfirm =
+  | { kind: "none"; skipEstimate: false }
+  | { kind: "skip"; skipEstimate: false; to: string }
+  | { kind: "repair"; skipEstimate: true; to: string };
+
+/**
+ * One confirm at most. Next-step taps are silent. Jumping to In repair without
+ * a written estimate uses the estimate confirm even if steps are skipped.
+ */
+export function statusActionConfirm(
+  from: string,
+  to: string,
+  estimate: JobEstimate | undefined,
+): StatusActionConfirm {
+  if (from === to) return { kind: "none", skipEstimate: false };
+  if (to === "repair" && !canEnterRepair(estimate)) {
+    return { kind: "repair", skipEstimate: true, to };
+  }
+  if (needsStatusConfirm(from, to)) return { kind: "skip", skipEstimate: false, to };
+  return { kind: "none", skipEstimate: false };
+}
+
 export function applyStatusChange<T extends { status: string }>(
   job: T,
   nextStatus: string,
