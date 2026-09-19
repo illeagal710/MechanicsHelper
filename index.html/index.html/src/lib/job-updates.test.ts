@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   activeJobsWithLatestUpdate,
+  customerFacingNotes,
+  isInternalNote,
   isNewProviderNote,
   latestProviderNote,
   notesNewestFirst,
@@ -70,4 +72,14 @@ test("rankCustomerJobs puts live tickets with fresh bay notes first", () => {
   const ranked = rankCustomerJobs([done, active]);
   assert.equal(ranked[0].id, "MH-1");
   assert.equal(ranked[1].id, "MH-2");
+});
+
+test("internal notes stay off the customer ticket and do not count as bay updates", () => {
+  const flagged: Note = { at: 120, text: "Flagged for the shop owner.", by: "internal" };
+  const job = { ...active, notes: [...active.notes, flagged] };
+  assert.equal(isInternalNote(flagged), true);
+  assert.equal(latestProviderNote(job)?.text, "Rotors are warped");
+  const visible = customerFacingNotes(job.notes);
+  assert.equal(visible.some((n) => n.by === "internal"), false);
+  assert.equal(visible.at(-1)?.text, "Rotors are warped");
 });

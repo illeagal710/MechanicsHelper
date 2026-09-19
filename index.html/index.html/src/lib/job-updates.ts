@@ -7,6 +7,19 @@ export function isProviderNote(note: Note | null | undefined): boolean {
   return !!note && note.by === "shop";
 }
 
+export function isInternalNote(note: Note | null | undefined): boolean {
+  return !!note && note.by === "internal";
+}
+
+/** Customers never see bay-only notes (flag for owner, internal chatter). */
+export function isCustomerVisibleNote(note: Note | null | undefined): boolean {
+  return !!note && !isInternalNote(note);
+}
+
+export function customerFacingNotes(notes: Note[] | undefined): Note[] {
+  return (notes || []).filter(isCustomerVisibleNote);
+}
+
 export function latestProviderNote(job: Pick<Job, "notes"> | null | undefined): Note | null {
   const notes = [...(job?.notes || [])].filter(isProviderNote);
   if (!notes.length) return null;

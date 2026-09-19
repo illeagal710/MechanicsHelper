@@ -8,14 +8,18 @@ export const PROFILE_PHOTO_SLOT = "profile" as const;
 export const BAY_PHOTO_SLOT = "bay" as const;
 /** Ticket header / hero: the vehicle (car) picture. Never bay/work media. */
 export const VEHICLE_PHOTO_SLOT = "vehicle" as const;
+/** Customer photo of the problem, attached at booking. Independent of the bay slot. */
+export const SYMPTOM_PHOTO_SLOT = "symptom" as const;
 
-export type PhotoSlot = typeof PROFILE_PHOTO_SLOT | typeof BAY_PHOTO_SLOT;
+export type PhotoSlot = typeof PROFILE_PHOTO_SLOT | typeof BAY_PHOTO_SLOT | typeof SYMPTOM_PHOTO_SLOT;
 
 export type TicketPhotoSlots = {
   /** Image above year/make/model. Never the mechanic's bay/work photo. */
   vehicle: string;
   /** Work / parts photo from the bay. Independent of the vehicle hero. */
   bay: string;
+  /** Customer symptom photo from booking. Independent of the bay slot. */
+  symptom: string;
 };
 
 export type JobMediaPatch = {
@@ -41,6 +45,12 @@ export function jobPhotoOf(job: Pick<Job, "jobPhoto" | "photo"> | null | undefin
   return String(job.jobPhoto || job.photo || "");
 }
 
+/** Customer symptom photo from booking. Never the bay slot or stock car art. */
+export function symptomPhotoOf(job: Pick<Job, "symptomPhoto"> | null | undefined): string {
+  if (!job) return "";
+  return String(job.symptomPhoto || "").trim();
+}
+
 /** True only when the bay slot actually has an image. Empty placeholders must not open a lightbox. */
 export function hasBayPhoto(src: string | null | undefined): boolean {
   return String(src || "").trim().length > 0;
@@ -60,11 +70,12 @@ export function ticketVehiclePhotoOf(
 
 /** Two independent ticket images: car hero vs bay/work photo. */
 export function ticketPhotoSlots(
-  job: (Pick<Job, "jobPhoto" | "photo"> & { make?: string; model?: string }) | null | undefined,
+  job: (Pick<Job, "jobPhoto" | "photo"> & { make?: string; model?: string; symptomPhoto?: string }) | null | undefined,
 ): TicketPhotoSlots {
   return {
     vehicle: ticketVehiclePhotoOf(job),
     bay: jobPhotoOf(job),
+    symptom: symptomPhotoOf(job),
   };
 }
 

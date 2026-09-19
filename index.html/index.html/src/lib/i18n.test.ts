@@ -277,3 +277,24 @@ test("booking slot timestamps format 12-hour AM/PM via locale tags", () => {
   assertMeridiem(fmt(afternoon, localeTag("es")));
   assert.match(fmt(afternoon, localeTag("es")), /1:00/);
 });
+
+test("alert copy is honest that SMS is not connected yet", () => {
+  assert.match(translate("en", "book.notifySms"), /not connected yet/i);
+  assert.match(translate("es", "book.notifySms"), /aún no están conectados/i);
+  assert.match(translate("en", "account.alertsCustomer"), /not connected yet/i);
+  assert.match(translate("en", "account.alertsProvider"), /not sending yet/i);
+  assert.doesNotMatch(translate("en", "book.notifySms"), /Text me when they are on the way/);
+});
+
+test("bay-ops ticket strings and estimate notes translate", () => {
+  assert.equal(translate("en", "job.appointment"), "Appointment");
+  assert.equal(translate("es", "job.addToCalendar"), "Agregar al calendario");
+  assert.equal(translateNote("es", "Customer approved the estimate."), "El cliente aprobó el presupuesto.");
+  assert.equal(translateNote("es", "Work started without a written estimate."), "El trabajo empezó sin un presupuesto escrito.");
+  assert.equal(
+    translateStoreError("es", "Send a written estimate or confirm you are going in without one."),
+    "Envía un presupuesto escrito o confirma que vas a entrar sin uno.",
+  );
+  assert.match(translate("en", "privacy.photos.body"), /symptom photo/i);
+  assert.match(translate("en", "book.symptomPhoto"), /Photo of the problem/);
+});

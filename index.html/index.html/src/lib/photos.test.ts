@@ -3,11 +3,13 @@ import { test } from "node:test";
 import {
   BAY_PHOTO_SLOT,
   PROFILE_PHOTO_SLOT,
+  SYMPTOM_PHOTO_SLOT,
   VEHICLE_PHOTO_SLOT,
   jobPhotoOf,
   hasBayPhoto,
   profilePhotoOf,
   sanitizeJobPatch,
+  symptomPhotoOf,
   ticketPhotoSlots,
   ticketVehiclePhotoOf,
   withJobPhoto,
@@ -175,4 +177,16 @@ test("hasBayPhoto is false for empty placeholders so the UI can stay compact", (
   assert.equal(hasBayPhoto(jobPhotoOf({ photo: "", jobPhoto: "" })), false);
   assert.equal(hasBayPhoto("data:image/jpeg;base64,abc"), true);
   assert.equal(hasBayPhoto(jobPhotoOf(job)), true);
+});
+
+test("symptom photo is a third ticket slot, independent of bay and vehicle hero", () => {
+  assert.notEqual(SYMPTOM_PHOTO_SLOT, BAY_PHOTO_SLOT);
+  assert.notEqual(SYMPTOM_PHOTO_SLOT, VEHICLE_PHOTO_SLOT);
+  const withSymptom = { ...job, symptomPhoto: "data:symptom" };
+  const slots = ticketPhotoSlots(withSymptom);
+  assert.equal(slots.symptom, "data:symptom");
+  assert.equal(slots.bay, "data:bay");
+  assert.equal(slots.vehicle, carImage(job));
+  assert.equal(symptomPhotoOf(withJobPhoto(withSymptom, "data:new-bay")), "data:symptom");
+  assert.equal("symptomPhoto" in sanitizeJobPatch({ symptomPhoto: "data:leak", status: "repair" }), false);
 });

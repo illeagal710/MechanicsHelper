@@ -19,7 +19,34 @@ import { customerOwnsJob } from "@/lib/booking-provider";
 import { claimFindCode, FIND_CODE_TAKEN, generateFindCode } from "@/lib/find-code";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
-import { canRotateFindCode } from "@/lib/shop-role";
+import { canRotateFindCode, isShopTechnician } from "@/lib/shop-role";
+import {
+  ESTIMATE_APPROVED_NOTE,
+  ESTIMATE_DECLINED_NOTE,
+  ESTIMATE_INVALID,
+  ESTIMATE_NOT_PENDING,
+  ESTIMATE_SKIPPED_NOTE,
+  FLAG_NOTE,
+  REPAIR_NEEDS_ESTIMATE,
+  UNFLAG_NOTE,
+  applyEstimateDecision,
+  applyEstimateSend,
+  applyOpsToJob,
+  applyParts,
+  applySkipEstimate,
+  applyStatusChange,
+  applyStatusUndo,
+  canCustomerDecideEstimate,
+  canEnterRepair,
+  estimateNoteText,
+  jobOpsOf,
+  mergeJobOps,
+  parseEstimateAmount,
+  parseJobOps,
+  partsNoteText,
+  serializeJobOps,
+} from "@/lib/job-ops";
+import { isJobStatus } from "@/lib/job-status";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
@@ -96,6 +123,7 @@ function rowShop(r: Record<string, unknown>): Shop {
 }
 
 function rowJob(r: Record<string, unknown>): Job {
+  const ops = parseJobOps(r.ops_json);
   return {
     id: String(r.id),
     userId: r.user_id ? String(r.user_id) : undefined,
@@ -118,6 +146,7 @@ function rowJob(r: Record<string, unknown>): Job {
     notifySms: r.notify_sms !== false && r.notify_sms !== "f" && r.notify_sms !== 0,
     photo: String(r.photo || ""),
     jobPhoto: String(r.photo || ""),
+    ...applyOpsToJob({}, ops),
   };
 }
 
@@ -887,7 +916,15 @@ async function insertJob(job: Job) {
   } catch {
     /* column arrives after 0006 */
   }
-  return job;
+  try {
+    await sql.query("update mh_jobs set ops_json = $2 where id = $1", [
+      job.id,
+      serializeJobOps(jobOpsOf(job)),
+    ]);
+  } catch {
+    /* column arrives after 0011 */
+  }
+  return applyOpsToJob(job, jobOpsOf(job));
 }
 
 export async function addJob(job: Job) {
@@ -1052,6 +1089,211 @@ export async function rescheduleJob(id: string, slotIso: string, actorUserId: st
     JSON.stringify(notes),
   ]);
   return { ok: true as const, job: { ...job, slot, status: "scheduled" as const, notes } };
+}
+
+function providerOwnsJob(user: User | undefined, job: Job): boolean {
+  if (!user) return false;
+  if (user.role === "independent") return job.providerId === user.id;
+  if (user.role === "shop") return !!user.shopId && job.providerId === user.shopId;
+  return false;
+}
+
+async function persistOps(job: Job) {
+  const sql = await getSql();
+  try {
+    await sql.query("update mh_jobs set ops_json = $2 where id = $1", [
+      job.id,
+      serializeJobOps(jobOpsOf(job)),
+    ]);
+  } catch {
+    /* column arrives after 0011 */
+  }
+}
+
+async function persistNotes(job: Job) {
+  const sql = await getSql();
+  await sql.query("update mh_jobs set notes_json = $2 where id = $1", [
+    job.id,
+    JSON.stringify(job.notes || []),
+  ]);
+}
+
+function withNote(job: Job, text: string, by: string, at = Date.now()): Job {
+  return { ...job, notes: appendJobNote(job.notes, text, by, at) };
+}
+
+export async function saveJobOps(
+  id: string,
+  patch: Partial<Pick<Job, "symptomPhoto" | "estimate" | "parts" | "statusBefore" | "flaggedForOwner">>,
+  actorUserId: string,
+) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  const nextOps = mergeJobOps(jobOpsOf(job), patch);
+  const next = applyOpsToJob(job, nextOps);
+  Object.assign(job, next);
+  await persistOps(job);
+  return { ok: true as const, job };
+}
+
+export async function setJobStatus(
+  id: string,
+  status: Job["status"],
+  actorUserId: string,
+  opts?: { skipEstimate?: boolean },
+) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  if (!isJobStatus(status)) {
+    return { ok: false as const, error: "Job not found." };
+  }
+  if (status === job.status) return { ok: true as const, job };
+
+  if (status === "repair" && !canEnterRepair(job.estimate)) {
+    if (!opts?.skipEstimate) {
+      return { ok: false as const, error: REPAIR_NEEDS_ESTIMATE };
+    }
+    job.estimate = applySkipEstimate();
+    Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
+    Object.assign(job, withNote(job, ESTIMATE_SKIPPED_NOTE, "system"));
+    await persistNotes(job);
+  }
+
+  const previous = job.status;
+  const changed = applyStatusChange(job, status);
+  job.status = changed.status;
+  job.statusBefore = changed.statusBefore;
+  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { statusBefore: job.statusBefore })));
+  const sql = await getSql();
+  await sql.query("update mh_jobs set status = $2 where id = $1", [job.id, job.status]);
+  await persistOps(job);
+
+  const token = job.userId
+    ? board.users.find((u) => u.id === job.userId)?.alertsOn === false
+      ? ""
+      : board.users.find((u) => u.id === job.userId)?.pushToken || ""
+    : "";
+  try {
+    const { pingJob } = await import("./notify.server");
+    await pingJob(job, previous, token);
+  } catch {
+    /* preview without Twilio/FCM is fine */
+  }
+  return { ok: true as const, job };
+}
+
+export async function undoJobStatus(id: string, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  const result = applyStatusUndo(job);
+  if (!result.ok) return result;
+  job.status = result.job.status as Job["status"];
+  job.statusBefore = undefined;
+  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { statusBefore: undefined })));
+  const sql = await getSql();
+  await sql.query("update mh_jobs set status = $2 where id = $1", [job.id, job.status]);
+  await persistOps(job);
+  return { ok: true as const, job };
+}
+
+export async function saveEstimate(id: string, amountRaw: string, note: string, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  const amount = parseEstimateAmount(amountRaw);
+  if (amount == null) return { ok: false as const, error: ESTIMATE_INVALID };
+  job.estimate = applyEstimateSend(amount, note);
+  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
+  Object.assign(job, withNote(job, estimateNoteText(job.estimate), "shop"));
+  await persistOps(job);
+  await persistNotes(job);
+  return { ok: true as const, job };
+}
+
+export async function decideEstimate(id: string, approved: boolean, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!actor || !customerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  if (!canCustomerDecideEstimate(job.estimate)) {
+    return { ok: false as const, error: ESTIMATE_NOT_PENDING };
+  }
+  job.estimate = applyEstimateDecision(job.estimate!, approved);
+  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
+  Object.assign(job, withNote(job, approved ? ESTIMATE_APPROVED_NOTE : ESTIMATE_DECLINED_NOTE, "customer"));
+  await persistOps(job);
+  await persistNotes(job);
+  return { ok: true as const, job };
+}
+
+export async function skipEstimate(id: string, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  job.estimate = applySkipEstimate();
+  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
+  Object.assign(job, withNote(job, ESTIMATE_SKIPPED_NOTE, "system"));
+  await persistOps(job);
+  await persistNotes(job);
+  return { ok: true as const, job };
+}
+
+export async function saveParts(id: string, eta: string, note: string, ordered: boolean, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  job.parts = applyParts(eta, note, ordered);
+  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { parts: job.parts })));
+  Object.assign(job, withNote(job, partsNoteText(job.parts), "shop"));
+  await persistOps(job);
+  await persistNotes(job);
+  return { ok: true as const, job };
+}
+
+export async function flagJob(id: string, flagged: boolean, actorUserId: string) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job) || !isShopTechnician(actor)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  job.flaggedForOwner = flagged;
+  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { flaggedForOwner: flagged })));
+  Object.assign(job, withNote(job, flagged ? FLAG_NOTE : UNFLAG_NOTE, "internal"));
+  await persistOps(job);
+  await persistNotes(job);
+  return { ok: true as const, job };
 }
 
 export function jobCode() {

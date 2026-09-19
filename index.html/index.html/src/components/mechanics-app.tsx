@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { QrShare } from "@/components/qr-share";
 import { BayPreview, Face, PhotoPicker } from "@/components/photo-input";
-import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
+import { BAY_PHOTO_SLOT, PROFILE_PHOTO_SLOT, SYMPTOM_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, symptomPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
 import { LanguageToggle, useI18n } from "@/lib/i18n-context";
@@ -66,6 +66,8 @@ import {
 import { shouldSkipDuplicateNote } from "@/lib/job-notes";
 import {
   activeJobsWithLatestUpdate,
+  customerFacingNotes,
+  isInternalNote,
   isNewProviderNote,
   latestProviderNote,
   markNotesSeen,
@@ -102,6 +104,15 @@ import {
   rankShopJobsForViewer,
   shopPortalKind,
 } from "@/lib/shop-role";
+import {
+  appointmentIcs,
+  canCustomerDecideEstimate,
+  canEnterRepair,
+  downloadIcs,
+  formatEstimateAmount,
+  googleCalendarUrl,
+  needsStatusConfirm,
+} from "@/lib/job-ops";
 
 type View =
   | "welcome"
@@ -131,6 +142,48 @@ function providerNoteLabel(job: Pick<Job, "providerType" | "providerName">, t: T
     return t("job.updateFrom", { name: job.providerName });
   }
   return t("job.bayUpdate");
+}
+
+function calendarPayload(job: Job) {
+  const hours = Store.hoursFor(job.providerId);
+  return {
+    id: job.id,
+    slot: job.slot,
+    providerName: job.providerName,
+    year: job.year,
+    make: job.make,
+    model: job.model,
+    address: hours?.address || "",
+  };
+}
+
+function AddToCalendar({ job, flash }: { job: Job; flash?: (s: string) => void }) {
+  const { t } = useI18n();
+  const payload = calendarPayload(job);
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2" data-add-calendar="">
+      <a
+        href={googleCalendarUrl(payload)}
+        target="_blank"
+        rel="noreferrer"
+        className="flex h-11 items-center justify-center rounded-xl border border-line bg-surface2 px-2 text-center text-xs font-semibold"
+        data-google-calendar=""
+      >
+        {t("job.googleCalendar")}
+      </a>
+      <button
+        type="button"
+        data-ics-calendar=""
+        className="h-11 rounded-xl border border-line bg-surface2 px-2 text-xs font-semibold"
+        onClick={() => {
+          downloadIcs(`${job.id}.ics`, appointmentIcs(payload));
+          flash?.(t("toast.calendarSaved"));
+        }}
+      >
+        {t("job.appleCalendar")}
+      </button>
+    </div>
+  );
 }
 
 function bayPhotoCopy(job: Pick<Job, "providerType">, shop: boolean, t: TranslateFn) {
@@ -512,7 +565,7 @@ export function MechanicsApp({
         </nav>
       )}
       {toast ? (
-        <div className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 rounded-xl border border-accent/40 bg-surface px-3.5 py-2.5 text-sm font-semibold text-fg shadow-lg">
+        <div className="fixed top-16 left-1/2 z-50 w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 rounded-xl border border-accent/40 bg-surface px-3.5 py-2.5 text-sm font-semibold text-fg shadow-lg">
           {toast}
         </div>
       ) : null}
@@ -1422,6 +1475,7 @@ function Book({
   const [pickedVehicleKey, setPickedVehicleKey] = useState(savedVehicles[0] ? vehicleKey(savedVehicles[0]) : "");
   const pickedVehicle = savedVehicles.find((v) => vehicleKey(v) === pickedVehicleKey) || null;
   const [linkCode, setLinkCode] = useState("");
+  const [symptomPhoto, setSymptomPhoto] = useState("");
   const pending = typeof window === "undefined" ? "" : sessionStorage.getItem("mh.symptoms") || "";
   const provider = resolveBookingProvider({
     user,
@@ -1491,6 +1545,7 @@ function Book({
           assignedTo: "",
           notes: [{ at: Date.now(), text: "Booked from customer app.", by: "system" }],
           notifySms: fd.get("notifySms") === "on",
+          symptomPhoto: symptomPhoto || undefined,
         };
         if (
           missingRequiredBookingFields({
@@ -1567,6 +1622,19 @@ function Book({
         />
         <p className="mt-2 text-sm text-muted">{t("book.symptomsHint")}</p>
       </Field>
+      <div className="rounded-xl border border-line bg-surface p-4" data-symptom-photo-picker="">
+        <PhotoPicker
+          slot={SYMPTOM_PHOTO_SLOT}
+          value={symptomPhoto}
+          name={t("book.symptomPhoto")}
+          label={t("book.symptomPhoto")}
+          hint={t("book.symptomPhotoHint")}
+          onErr={(msg) => onErr(translateStoreError(locale, msg))}
+          onPick={async (dataUrl) => {
+            setSymptomPhoto(dataUrl);
+          }}
+        />
+      </div>
       <Field label={t("book.preferredTime")}>
         <SelectWrap>
           <select name="slot" className={selectClass} required defaultValue="">
@@ -1612,6 +1680,7 @@ function Confirm({ job, onTrack, onHome }: { job: Job; onTrack: () => void; onHo
         <div className="p-4">
           <h3 className="font-semibold">{vehicleLabel(job)}</h3>
           <p className="text-sm text-muted">{fmtWhen(job.slot, localeTag(locale))}</p>
+          <AddToCalendar job={job} />
         </div>
       </div>
       <button type="button" onClick={onTrack} className="mt-4 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
@@ -1650,6 +1719,11 @@ function JobCard({
       {mine ? (
         <span className="mb-2 inline-flex rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-ink">
           {t("shop.assignedToYou")}
+        </span>
+      ) : null}
+      {shop && job.flaggedForOwner ? (
+        <span className="mb-2 mr-2 inline-flex rounded-full bg-danger/15 px-2 py-0.5 text-[11px] font-bold text-danger" data-owner-flag="">
+          {t("job.flagged")}
         </span>
       ) : null}
       {note ? (
@@ -1860,14 +1934,25 @@ function JobDetail({
   const { locale, t } = useI18n();
   const [posting, setPosting] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [internalNote, setInternalNote] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [busyAction, setBusyAction] = useState(false);
+  const [estAmount, setEstAmount] = useState("");
+  const [estNote, setEstNote] = useState("");
+  const [partsEta, setPartsEta] = useState("");
+  const [partsNote, setPartsNote] = useState("");
   void tick;
   const job = Store.load().jobs.find((j) => j.id === id);
 
   useEffect(() => {
     setNoteText("");
     setPosting(false);
+    setInternalNote(false);
+    setEstAmount("");
+    setEstNote("");
+    const current = Store.load().jobs.find((j) => j.id === id);
+    setPartsEta(current?.parts?.eta || "");
+    setPartsNote(current?.parts?.note || "");
   }, [id]);
 
   useEffect(() => {
@@ -1896,7 +1981,10 @@ function JobDetail({
   const seenAt = user?.id ? readSeenNoteAt(user.id, job.id) : 0;
   const latestShop = latestProviderNote(job);
   const latestIsNew = !!(latestShop && !shop && isNewProviderNote(latestShop, seenAt));
-  const orderedNotes = notesNewestFirst(job.notes);
+  const visibleNotes = shop ? job.notes : customerFacingNotes(job.notes);
+  const orderedNotes = notesNewestFirst(visibleNotes);
+  const symptomSrc = symptomPhotoOf(job);
+  const estimate = job.estimate;
 
   async function postUpdate(text: string) {
     if (posting) return;
@@ -1904,13 +1992,14 @@ function JobDetail({
     if (!clean) return;
     const current = Store.load().jobs.find((j) => j.id === id);
     if (!current) return;
-    if (shouldSkipDuplicateNote(current.notes, clean, "shop")) {
+    const by = internalNote ? "internal" : "shop";
+    if (shouldSkipDuplicateNote(current.notes, clean, by)) {
       flash?.(t("toast.updateDuplicate"));
       return;
     }
     setPosting(true);
     try {
-      await Store.addNote(current.id, clean, "shop");
+      await Store.addNote(current.id, clean, by);
       setNoteText("");
       flash?.(t("toast.updateSent"));
       bump();
@@ -1937,14 +2026,34 @@ function JobDetail({
               <p className="text-sm text-muted">
                 {job.name} · {job.providerName}
               </p>
+              <p className="mt-1 text-sm font-medium text-fg/80" data-appointment-slot="">
+                {t("job.appointment")} · {fmtWhen(job.slot, dates)}
+              </p>
               <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold badge-${st.badge}`}>
                 {statusText(locale, job.status, shop ? "shop" : "customer")}
               </span>
+              {shop && job.flaggedForOwner ? (
+                <span className="ml-2 inline-flex rounded-full bg-danger/15 px-2 py-0.5 text-[11px] font-bold text-danger" data-owner-flag="">
+                  {t("job.flagged")}
+                </span>
+              ) : null}
+              <AddToCalendar job={job} flash={flash} />
               <p className="mt-2 rounded-xl bg-bg2 p-2.5 text-sm text-muted">
                 {job.symptoms || t("book.noSymptoms")}
               </p>
             </div>
           </div>
+          {(shop || symptomSrc) ? (
+            <div
+              className="mt-3 rounded-xl border border-line bg-surface p-4"
+              data-ticket-photo={SYMPTOM_PHOTO_SLOT}
+              data-symptom-empty={symptomSrc ? "false" : "true"}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.symptomPhoto")}</p>
+              <p className="mt-1 text-sm text-muted">{symptomSrc ? t("job.symptomPhotoHint") : t("job.noSymptomPhoto")}</p>
+              {symptomSrc ? <div className="mt-3"><BayPreview src={symptomSrc} /></div> : null}
+            </div>
+          ) : null}
           {!shop && canCustomerCancel(job.status) ? (
             <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-customer-actions="">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.manageTitle")}</p>
@@ -2061,6 +2170,176 @@ function JobDetail({
             )}
           </div>
           ) : null}
+          {(estimate || shop || canCustomerDecideEstimate(estimate)) ? (
+            <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-estimate-card="">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.estimate")}</p>
+              {shop ? (
+                <>
+                  <p className="mt-1 text-sm text-muted">{t("job.estimateHint")}</p>
+                  {estimate?.status === "approved" ? (
+                    <p className="mt-2 text-sm font-semibold text-accent" data-estimate-status="approved">
+                      {t("job.estimateApproved", { amount: formatEstimateAmount(estimate.amount) })}
+                    </p>
+                  ) : estimate?.status === "declined" ? (
+                    <p className="mt-2 text-sm font-semibold text-danger" data-estimate-status="declined">
+                      {t("job.estimateDeclined", { amount: formatEstimateAmount(estimate.amount) })}
+                    </p>
+                  ) : estimate?.status === "skipped" ? (
+                    <p className="mt-2 text-sm text-muted" data-estimate-status="skipped">{t("job.estimateSkipped")}</p>
+                  ) : estimate?.status === "sent" ? (
+                    <p className="mt-2 text-sm" data-estimate-status="sent">
+                      {formatEstimateAmount(estimate.amount)}
+                      {estimate.note ? ` · ${estimate.note}` : ""} — {t("job.estimateWaiting")}
+                    </p>
+                  ) : null}
+                  <form
+                    className="mt-3"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const res = await Store.saveEstimate(job.id, estAmount, estNote);
+                      if (!res.ok) {
+                        flash?.(translateStoreError(locale, res.error));
+                        return;
+                      }
+                      setEstAmount("");
+                      setEstNote("");
+                      flash?.(t("toast.estimateSent"));
+                      bump();
+                    }}
+                  >
+                    <Field label={t("job.estimateAmount")}>
+                      <input
+                        className={inputClass}
+                        inputMode="decimal"
+                        value={estAmount}
+                        onChange={(e) => setEstAmount(e.target.value)}
+                        placeholder="240"
+                        data-estimate-amount=""
+                      />
+                    </Field>
+                    <Field label={t("job.estimateNote")}>
+                      <input
+                        className={inputClass}
+                        value={estNote}
+                        onChange={(e) => setEstNote(e.target.value)}
+                        placeholder={t("job.estimateNotePh")}
+                      />
+                    </Field>
+                    <button type="submit" className="mt-2 h-11 w-full rounded-xl bg-accent font-semibold text-ink" data-send-estimate="">
+                      {t("job.estimateSend")}
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm text-muted">{t("job.estimateCustomerHint")}</p>
+                  {estimate?.status === "sent" ? (
+                    <>
+                      <p className="mt-2 text-lg font-semibold" data-estimate-status="sent">
+                        {formatEstimateAmount(estimate.amount)}
+                      </p>
+                      {estimate.note ? <p className="text-sm text-muted">{estimate.note}</p> : null}
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          data-approve-estimate=""
+                          className="h-11 rounded-xl bg-accent font-semibold text-ink"
+                          onClick={async () => {
+                            const res = await Store.decideEstimate(job.id, true);
+                            if (!res.ok) {
+                              flash?.(translateStoreError(locale, res.error));
+                              return;
+                            }
+                            flash?.(t("toast.estimateApproved"));
+                            bump();
+                          }}
+                        >
+                          {t("job.estimateApprove")}
+                        </button>
+                        <button
+                          type="button"
+                          data-decline-estimate=""
+                          className="h-11 rounded-xl border border-danger/40 bg-danger/10 font-semibold text-danger"
+                          onClick={async () => {
+                            const res = await Store.decideEstimate(job.id, false);
+                            if (!res.ok) {
+                              flash?.(translateStoreError(locale, res.error));
+                              return;
+                            }
+                            flash?.(t("toast.estimateDeclined"));
+                            bump();
+                          }}
+                        >
+                          {t("job.estimateDecline")}
+                        </button>
+                      </div>
+                    </>
+                  ) : estimate?.status === "approved" ? (
+                    <p className="mt-2 text-sm font-semibold" data-estimate-status="approved">
+                      {t("job.estimateApproved", { amount: formatEstimateAmount(estimate.amount) })}
+                    </p>
+                  ) : estimate?.status === "declined" ? (
+                    <p className="mt-2 text-sm" data-estimate-status="declined">
+                      {t("job.estimateDeclined", { amount: formatEstimateAmount(estimate.amount) })}
+                    </p>
+                  ) : estimate?.status === "skipped" ? (
+                    <p className="mt-2 text-sm text-muted" data-estimate-status="skipped">{t("job.estimateSkipped")}</p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
+          {(shop || job.parts?.ordered || job.status === "parts") ? (
+            <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-parts-card="">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.parts")}</p>
+              {shop ? (
+                <>
+                  <p className="mt-1 text-sm text-muted">{t("job.partsHint")}</p>
+                  <form
+                    className="mt-3"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const res = await Store.saveParts(job.id, partsEta, partsNote, true);
+                      if (!res.ok) {
+                        flash?.(translateStoreError(locale, res.error));
+                        return;
+                      }
+                      flash?.(t("toast.partsSaved"));
+                      bump();
+                    }}
+                  >
+                    <Field label={t("job.partsEta")}>
+                      <input
+                        className={inputClass}
+                        value={partsEta}
+                        onChange={(e) => setPartsEta(e.target.value)}
+                        placeholder={t("job.partsEtaPh")}
+                        data-parts-eta=""
+                      />
+                    </Field>
+                    <Field label={t("job.partsNote")}>
+                      <input
+                        className={inputClass}
+                        value={partsNote}
+                        onChange={(e) => setPartsNote(e.target.value)}
+                        placeholder={t("job.partsNotePh")}
+                      />
+                    </Field>
+                    <button type="submit" className="mt-2 h-11 w-full rounded-xl bg-accent font-semibold text-ink" data-save-parts="">
+                      {t("job.partsSave")}
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <p className="mt-2 text-sm" data-parts-customer="">
+                  {t("job.partsCustomer", {
+                    eta: job.parts?.eta ? t("job.partsEtaLine", { eta: job.parts.eta }) : "",
+                  })}
+                  {job.parts?.note ? ` · ${job.parts.note}` : ""}
+                </p>
+              )}
+            </div>
+          ) : null}
           {!shop && latestShop ? (
             <div
               className={`mt-3 rounded-xl border p-4 ${latestIsNew ? "border-accent/50 bg-accent/10" : "border-line bg-surface"}`}
@@ -2119,8 +2398,26 @@ function JobDetail({
                     key={s}
                     type="button"
                     className="tap w-full"
+                    data-set-status={s}
                     onClick={async () => {
-                      await Store.updateJob(job.id, { status: s });
+                      if (s === job.status) return;
+                      let skipEstimate = false;
+                      if (s === "repair" && !canEnterRepair(job.estimate)) {
+                        if (typeof window !== "undefined" && !window.confirm(t("job.repairNoEstimateConfirm"))) return;
+                        skipEstimate = true;
+                      } else if (needsStatusConfirm(job.status, s)) {
+                        if (
+                          typeof window !== "undefined" &&
+                          !window.confirm(t("job.statusSkipConfirm", { to: statusText(locale, s, "shop") }))
+                        ) {
+                          return;
+                        }
+                      }
+                      const res = await Store.setJobStatus(job.id, s, { skipEstimate });
+                      if (!res.ok) {
+                        flash?.(translateStoreError(locale, res.error));
+                        return;
+                      }
                       await Store.addNote(job.id, "Status set to " + meta.label, "shop");
                       flash?.(t("toast.statusUpdated"));
                       bump();
@@ -2130,6 +2427,24 @@ function JobDetail({
                   </button>
                 );
               })}
+              {shop && job.statusBefore ? (
+                <button
+                  type="button"
+                  data-undo-status=""
+                  className="mb-3 h-11 w-full rounded-xl border border-line bg-surface2 text-sm font-semibold"
+                  onClick={async () => {
+                    const res = await Store.undoJobStatus(job.id);
+                    if (!res.ok) {
+                      flash?.(translateStoreError(locale, res.error));
+                      return;
+                    }
+                    flash?.(t("toast.statusUndone"));
+                    bump();
+                  }}
+                >
+                  {t("job.undoStatus")}
+                </button>
+              ) : null}
             </div>
           )}
           {showDecline && (
@@ -2180,6 +2495,26 @@ function JobDetail({
               </select>
             </Field>
           )}
+          {shop && isShopTechnician(user) && !declined && (
+            <button
+              type="button"
+              data-flag-owner=""
+              className={`mt-3 h-11 w-full rounded-xl border font-semibold ${
+                job.flaggedForOwner ? "border-danger/40 bg-danger/10 text-danger" : "border-line bg-surface2"
+              }`}
+              onClick={async () => {
+                const res = await Store.flagJob(job.id, !job.flaggedForOwner);
+                if (!res.ok) {
+                  flash?.(translateStoreError(locale, res.error));
+                  return;
+                }
+                flash?.(t(job.flaggedForOwner ? "toast.unflagged" : "toast.flagged"));
+                bump();
+              }}
+            >
+              {job.flaggedForOwner ? t("job.unflagOwner") : t("job.flagOwner")}
+            </button>
+          )}
           {shop && !declined && (
             <div className="mt-3">
               <form
@@ -2189,7 +2524,7 @@ function JobDetail({
                   await postUpdate(noteText);
                 }}
               >
-                <Field label={t("job.customerUpdate")}>
+                <Field label={internalNote ? t("job.internalNote") : t("job.customerUpdate")}>
                   <textarea
                     name="note"
                     className={inputClass + " min-h-24"}
@@ -2199,6 +2534,16 @@ function JobDetail({
                     disabled={posting}
                   />
                 </Field>
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-amber-400"
+                    checked={internalNote}
+                    onChange={(e) => setInternalNote(e.target.checked)}
+                    data-internal-note=""
+                  />
+                  {t("job.internalNote")}
+                </label>
                 <button
                   type="submit"
                   disabled={posting}
@@ -2226,8 +2571,19 @@ function JobDetail({
                     </span>
                   ) : null}
                   <strong className="text-fg">
-                    {n.by === "shop" ? providerNoteLabel(job, t) : t("job.system")}
+                    {n.by === "shop"
+                      ? providerNoteLabel(job, t)
+                      : n.by === "internal"
+                        ? t("job.noteInternal")
+                        : n.by === "customer"
+                          ? t("job.noteCustomer")
+                          : t("job.system")}
                   </strong>
+                  {isInternalNote(n) ? (
+                    <span className="rounded-full bg-surface2 px-2 py-0.5 text-[11px] font-semibold" data-internal-badge="">
+                      {t("job.noteInternal")}
+                    </span>
+                  ) : null}
                   <span>· {fmtShort(n.at, dates)}</span>
                 </div>
                 <p className="mt-1">{translateNote(locale, n.text)}</p>
