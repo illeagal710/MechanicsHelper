@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LIFER_FILL, LIFER_MA_COLORS } from "@/lib/scanner/defaults";
 import { sma } from "@/lib/scanner/indicators";
 import type { Candle } from "@/lib/scanner/types";
 
-type Point = Candle & { sma21: number | null; sma50: number | null; sma200: number | null };
+type Point = Candle & {
+  sma21: number | null;
+  sma50: number | null;
+  sma80: number | null;
+  sma100: number | null;
+  sma200: number | null;
+};
+
+const W = 2;
 
 export function ScannerChart({
   candles,
@@ -14,6 +23,7 @@ export function ScannerChart({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 640, h: 360 });
   const [hover, setHover] = useState<number | null>(null);
+  const [fillOn, setFillOn] = useState(true);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -31,8 +41,17 @@ export function ScannerChart({
     const closes = candles.map((c) => c.close);
     const s21 = sma(closes, 21);
     const s50 = sma(closes, 50);
+    const s80 = sma(closes, 80);
+    const s100 = sma(closes, 100);
     const s200 = sma(closes, 200);
-    return candles.map((c, i) => ({ ...c, sma21: s21[i], sma50: s50[i], sma200: s200[i] }));
+    return candles.map((c, i) => ({
+      ...c,
+      sma21: s21[i],
+      sma50: s50[i],
+      sma80: s80[i],
+      sma100: s100[i],
+      sma200: s200[i],
+    }));
   }, [candles]);
 
   const slice = data.slice(-120);
@@ -46,7 +65,7 @@ export function ScannerChart({
   const w = size.w;
   const h = size.h;
   const volH = Math.max(48, Math.round(h * 0.22));
-  const pad = { l: 8, r: 8, t: 12, b: 8, mid: 10 };
+  const pad = { l: 8, r: 8, t: 28, b: 8, mid: 10 };
   const plotH = h - volH - pad.t - pad.b - pad.mid;
   const plotW = w - pad.l - pad.r;
   const n = slice.length || 1;
@@ -62,9 +81,17 @@ export function ScannerChart({
   const hi = hover != null && hover >= 0 && hover < slice.length ? hover : slice.length - 1;
   const bar = slice[hi];
 
-  const sma21Path = pathFor(slice.map((c, i) => (c.sma21 == null ? null : ([x(i), y(c.sma21)] as const))));
-  const sma50Path = pathFor(slice.map((c, i) => (c.sma50 == null ? null : ([x(i), y(c.sma50)] as const))));
-  const sma200Path = pathFor(slice.map((c, i) => (c.sma200 == null ? null : ([x(i), y(c.sma200)] as const))));
+  const pts21 = slice.map((c, i) => (c.sma21 == null ? null : ([x(i), y(c.sma21)] as const)));
+  const pts50 = slice.map((c, i) => (c.sma50 == null ? null : ([x(i), y(c.sma50)] as const)));
+  const pts80 = slice.map((c, i) => (c.sma80 == null ? null : ([x(i), y(c.sma80)] as const)));
+  const pts100 = slice.map((c, i) => (c.sma100 == null ? null : ([x(i), y(c.sma100)] as const)));
+  const pts200 = slice.map((c, i) => (c.sma200 == null ? null : ([x(i), y(c.sma200)] as const)));
+  const sma21Path = pathFor(pts21);
+  const sma50Path = pathFor(pts50);
+  const sma80Path = pathFor(pts80);
+  const sma100Path = pathFor(pts100);
+  const sma200Path = pathFor(pts200);
+  const fillPath = fillOn ? areaBetween(pts21, pts200) : null;
 
   return (
     <div ref={wrapRef} className="relative h-full min-h-[240px] w-full" data-scanner-chart="">
@@ -119,21 +146,21 @@ export function ScannerChart({
             </g>
           );
         })}
-        {sma200Path ? (
-          <path
-            d={sma200Path}
-            fill="none"
-            stroke="var(--color-muted)"
-            strokeWidth={1.2}
-            strokeDasharray="4 3"
-            data-sma200=""
-          />
+        {fillPath ? <path d={fillPath} fill={LIFER_FILL} data-lifer-fill="" /> : null}
+        {sma21Path ? (
+          <path d={sma21Path} fill="none" stroke={LIFER_MA_COLORS[21]} strokeWidth={W} data-sma21="" />
         ) : null}
         {sma50Path ? (
-          <path d={sma50Path} fill="none" stroke="#f87171" strokeWidth={1.15} data-sma50="" />
+          <path d={sma50Path} fill="none" stroke={LIFER_MA_COLORS[50]} strokeWidth={W} data-sma50="" />
         ) : null}
-        {sma21Path ? (
-          <path d={sma21Path} fill="none" stroke="var(--color-fg)" strokeWidth={1.6} data-sma21="" />
+        {sma80Path ? (
+          <path d={sma80Path} fill="none" stroke={LIFER_MA_COLORS[80]} strokeWidth={W} data-sma80="" />
+        ) : null}
+        {sma100Path ? (
+          <path d={sma100Path} fill="none" stroke={LIFER_MA_COLORS[100]} strokeWidth={W} data-sma100="" />
+        ) : null}
+        {sma200Path ? (
+          <path d={sma200Path} fill="none" stroke={LIFER_MA_COLORS[200]} strokeWidth={W} data-sma200="" />
         ) : null}
         {bar ? (
           <line
@@ -153,21 +180,54 @@ export function ScannerChart({
           <span className="ml-2">H {fmt(bar.high)}</span>
           <span className="ml-2">L {fmt(bar.low)}</span>
           <span className="ml-2">V {fmt(bar.volume, 0)}</span>
-          {bar.sma21 != null ? <span className="ml-2 text-fg">SMA21 {fmt(bar.sma21)}</span> : null}
-          {bar.sma50 != null ? <span className="ml-2 text-down">SMA50 {fmt(bar.sma50)}</span> : null}
-          {bar.sma200 != null ? <span className="ml-2">SMA200 {fmt(bar.sma200)}</span> : null}
+          {bar.sma21 != null ? (
+            <span className="ml-2" style={{ color: LIFER_MA_COLORS[21] }}>
+              21 {fmt(bar.sma21)}
+            </span>
+          ) : null}
+          {bar.sma50 != null ? (
+            <span className="ml-2" style={{ color: LIFER_MA_COLORS[50] }}>
+              50 {fmt(bar.sma50)}
+            </span>
+          ) : null}
+          {bar.sma80 != null ? (
+            <span className="ml-2" style={{ color: LIFER_MA_COLORS[80] }}>
+              80 {fmt(bar.sma80)}
+            </span>
+          ) : null}
+          {bar.sma100 != null ? (
+            <span className="ml-2" style={{ color: LIFER_MA_COLORS[100] }}>
+              100 {fmt(bar.sma100)}
+            </span>
+          ) : null}
+          {bar.sma200 != null ? (
+            <span className="ml-2" style={{ color: LIFER_MA_COLORS[200] }}>
+              200 {fmt(bar.sma200)}
+            </span>
+          ) : null}
         </div>
       ) : (
         <div className="absolute inset-0 grid place-items-center text-sm text-muted">No candles yet</div>
       )}
       <div
-        className="pointer-events-none absolute right-2 bottom-14 flex gap-2 font-mono text-[10px] text-muted"
+        className="pointer-events-none absolute right-2 bottom-14 flex flex-wrap justify-end gap-x-2 gap-y-0.5 font-mono text-[10px]"
         data-sma-legend=""
       >
-        <span className="text-fg">SMA 21</span>
-        <span className="text-down">SMA 50</span>
-        <span>SMA 200</span>
+        <span style={{ color: LIFER_MA_COLORS[21] }}>21 white</span>
+        <span style={{ color: LIFER_MA_COLORS[50] }}>50 red</span>
+        <span style={{ color: LIFER_MA_COLORS[80] }}>80 purple</span>
+        <span style={{ color: LIFER_MA_COLORS[100] }}>100 blue</span>
+        <span style={{ color: LIFER_MA_COLORS[200] }}>200 yellow</span>
       </div>
+      <label className="absolute right-2 top-7 z-10 flex items-center gap-1.5 font-mono text-[10px] text-muted">
+        <input
+          type="checkbox"
+          data-lifer-fill-toggle=""
+          checked={fillOn}
+          onChange={(e) => setFillOn(e.target.checked)}
+        />
+        21–200 fill
+      </label>
     </div>
   );
 }
@@ -183,6 +243,37 @@ function pathFor(points: (readonly [number, number] | null)[]): string | null {
     d += started ? ` L ${p[0]} ${p[1]}` : `M ${p[0]} ${p[1]}`;
     started = true;
   }
+  return d || null;
+}
+
+function areaBetween(
+  a: (readonly [number, number] | null)[],
+  b: (readonly [number, number] | null)[],
+): string | null {
+  const segs: { a: (readonly [number, number])[]; b: (readonly [number, number])[] }[] = [];
+  let cur: { a: (readonly [number, number])[]; b: (readonly [number, number])[] } | null = null;
+  for (let i = 0; i < a.length; i++) {
+    const pa = a[i];
+    const pb = b[i];
+    if (pa && pb) {
+      if (!cur) cur = { a: [], b: [] };
+      cur.a.push(pa);
+      cur.b.push(pb);
+    } else if (cur) {
+      segs.push(cur);
+      cur = null;
+    }
+  }
+  if (cur) segs.push(cur);
+  const d = segs
+    .filter((s) => s.a.length > 1)
+    .map((s) => {
+      let out = `M ${s.a[0]![0]} ${s.a[0]![1]}`;
+      for (const p of s.a.slice(1)) out += ` L ${p[0]} ${p[1]}`;
+      for (let i = s.b.length - 1; i >= 0; i--) out += ` L ${s.b[i]![0]} ${s.b[i]![1]}`;
+      return `${out} Z`;
+    })
+    .join(" ");
   return d || null;
 }
 

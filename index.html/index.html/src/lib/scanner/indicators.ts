@@ -1,3 +1,4 @@
+/** Simple moving average of `period` values — TradingView `ta.sma`, no extra smoothing. */
 export function sma(values: number[], period: number): (number | null)[] {
   const out: (number | null)[] = Array.from({ length: values.length }, () => null);
   if (period < 1 || values.length < period) return out;

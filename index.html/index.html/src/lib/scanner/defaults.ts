@@ -50,7 +50,20 @@ export const DEFAULT_RULES: BuyRules = {
   pullback: { enabled: false, maxChangePct: -3 },
 };
 
-export const LIFER_MAS = [21, 50, 200] as const;
+/** Official LIFER_5ma: ta.sma(close, n), no extra smoothing. */
+export const LIFER_MAS = [21, 50, 80, 100, 200] as const;
+
+/** TradingView color.white / red / purple / blue / yellow */
+export const LIFER_MA_COLORS = {
+  21: "#ffffff",
+  50: "#ff0000",
+  80: "#800080",
+  100: "#0000ff",
+  200: "#ffff00",
+} as const;
+
+/** color.new(color.gray, 90) — Pine transparency 90 ≈ 10% opaque. */
+export const LIFER_FILL = "rgba(128, 128, 128, 0.10)";
 
 export const SCAN_MS: Record<Interval, number> = {
   "1m": 12_000,

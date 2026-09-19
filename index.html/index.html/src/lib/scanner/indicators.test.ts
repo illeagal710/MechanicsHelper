@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { crossedUp, lastClosedIndex, rsi, sma, stochRsi } from "./indicators.ts";
+import { LIFER_MA_COLORS, LIFER_MAS } from "./defaults.ts";
 
 test("SMA is the simple window mean", () => {
   const series = sma([1, 2, 3, 4, 5], 3);
@@ -41,4 +42,13 @@ test("lastClosedIndex skips the in-progress candle", () => {
   assert.equal(lastClosedIndex(10), 8);
   assert.equal(lastClosedIndex(1), 0);
   assert.equal(lastClosedIndex(0), 0);
+});
+
+test("LIFER_5ma periods are 21 50 80 100 200 with TV colors", () => {
+  assert.deepEqual([...LIFER_MAS], [21, 50, 80, 100, 200]);
+  assert.equal(LIFER_MA_COLORS[21], "#ffffff");
+  assert.equal(LIFER_MA_COLORS[50], "#ff0000");
+  assert.equal(LIFER_MA_COLORS[80], "#800080");
+  assert.equal(LIFER_MA_COLORS[100], "#0000ff");
+  assert.equal(LIFER_MA_COLORS[200], "#ffff00");
 });
