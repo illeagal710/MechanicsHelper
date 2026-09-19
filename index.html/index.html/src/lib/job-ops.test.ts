@@ -133,8 +133,9 @@ test("statusActionConfirm asks once: silent next step, one repair dialog, one sk
   assert.equal(repair.skipEstimate, true);
   const jumpRepair = statusActionConfirm("scheduled", "repair", undefined);
   assert.equal(jumpRepair.kind, "repair");
-  const approved = statusActionConfirm("diagnosing", "repair", applyEstimateDecision(applyEstimateSend(10, ""), true));
-  assert.equal(approved.kind, "none");
+  const approved = applyEstimateDecision(applyEstimateSend(10, ""), true);
+  assert.equal(statusActionConfirm("parts", "repair", approved).kind, "none");
+  assert.equal(statusActionConfirm("diagnosing", "repair", approved).kind, "skip");
 });
 
 test("status change remembers the previous step so undo can restore it", () => {

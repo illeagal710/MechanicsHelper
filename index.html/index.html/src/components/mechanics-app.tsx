@@ -49,6 +49,7 @@ import {
   type Job,
   type Provider,
   type Role,
+  type StatusId,
   type User,
   fmtShort,
   fmtWhen,
@@ -2177,15 +2178,16 @@ function JobDetail({
   );
   const callShopHref = telHref(shopPhone);
   const pendingAction = pendingStatus ? statusActionConfirm(job.status, pendingStatus, estimate) : null;
+  const ticketId = job.id;
 
   async function applyShopStatus(next: string, skipEstimate: boolean) {
     const meta = statusMeta(next);
-    const res = await Store.setJobStatus(job.id, next, { skipEstimate });
+    const res = await Store.setJobStatus(ticketId, next as StatusId, { skipEstimate });
     if (!res.ok) {
       flash?.(translateStoreError(locale, res.error));
       return;
     }
-    await Store.addNote(job.id, "Status set to " + meta.label, "shop");
+    await Store.addNote(ticketId, "Status set to " + meta.label, "shop");
     flash?.(t("toast.statusUpdated"));
     setPendingStatus(null);
     if (next === "parts") setPartsOpen(true);
@@ -2277,6 +2279,7 @@ function JobDetail({
               {canManageAppointment(job) ? (
               <>
               {!rescheduling ? (
+                <>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -2315,6 +2318,7 @@ function JobDetail({
                   }}
                 />
               ) : null}
+                </>
               ) : (
                 <div className="mt-3">
                   <p className="mb-2 text-sm text-muted">{t("job.pickNewTime")}</p>
