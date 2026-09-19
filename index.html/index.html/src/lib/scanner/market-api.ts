@@ -9,7 +9,7 @@ async function binanceGet(path: string): Promise<unknown> {
     try {
       const res = await fetch(`${host}${path}`, {
         headers: { accept: "application/json" },
-        signal: AbortSignal.timeout(12_000),
+        signal: AbortSignal.timeout(20_000),
       });
       if (res.status === 451) {
         lastError = `Binance ${host} geo-restricted`;

@@ -75,40 +75,47 @@ export function ScannerApp() {
       setError(null);
       try {
         const tickers = await loadTickers(state.watchlist);
+        if (cancelled) return;
         const tickerMap = Object.fromEntries(tickers.map((t) => [t.symbol, t]));
         const next: Record<string, SymbolScan> = {};
-        const klines = await Promise.all(
-          state.watchlist.map(async (symbol) => {
-            try {
-              const candles = await loadKlines(symbol, state.interval);
-              return { symbol, candles, error: null as string | null };
-            } catch (err) {
-              return {
-                symbol,
-                candles: [] as Candle[],
-                error: err instanceof Error ? err.message : "klines failed",
-              };
-            }
-          }),
-        );
-        if (cancelled) return;
-        for (const item of klines) {
-          const ticker = tickerMap[item.symbol] ?? null;
-          const ev = item.candles.length
-            ? evaluateSetup(item.candles, rulesRef.current, ticker?.changePct ?? null)
-            : null;
-          next[item.symbol] = {
-            symbol: item.symbol,
-            ticker,
-            eval: ev,
-            error: item.error,
+        for (const symbol of state.watchlist) {
+          next[symbol] = {
+            symbol,
+            ticker: tickerMap[symbol] ?? null,
+            eval: null,
+            error: null,
             updatedAt: Date.now(),
           };
-          if (item.symbol === state.selected && item.candles.length) setChart(item.candles);
+        }
+        setRows({ ...next });
+        setStatus(`Live prices · ${state.watchlist.length} pairs · fetching ${state.interval} charts`);
+
+        await mapPool(state.watchlist, 3, async (symbol) => {
+          let candles: Candle[] = [];
+          let klineError: string | null = null;
+          try {
+            candles = await loadKlines(symbol, state.interval);
+          } catch (err) {
+            klineError = err instanceof Error ? err.message : "klines failed";
+          }
+          if (cancelled) return;
+          const ticker = tickerMap[symbol] ?? next[symbol]?.ticker ?? null;
+          const ev = candles.length
+            ? evaluateSetup(candles, rulesRef.current, ticker?.changePct ?? null)
+            : null;
+          next[symbol] = {
+            symbol,
+            ticker,
+            eval: ev,
+            error: klineError,
+            updatedAt: Date.now(),
+          };
+          setRows({ ...next });
+          if (symbol === state.selected && candles.length) setChart(candles);
           if (ev?.matched) {
             const added = pushSignal({
-              id: `${item.symbol}-${ev.fingerprint}`,
-              symbol: item.symbol,
+              id: `${symbol}-${ev.fingerprint}`,
+              symbol,
               interval: state.interval,
               at: Date.now(),
               price: ev.price,
@@ -117,11 +124,11 @@ export function ScannerApp() {
               reasons: ev.reasons,
             });
             if (added) {
-              toast(`${item.symbol} buy setup`, { description: ev.reasons.join(" · ") });
+              toast(`${symbol} buy setup`, { description: ev.reasons.join(" · ") });
             }
           }
-        }
-        setRows(next);
+        });
+        if (cancelled) return;
         const hits = Object.values(next).filter((r) => r.eval?.matched).length;
         setStatus(`Live · ${state.watchlist.length} pairs · ${hits} match${hits === 1 ? "" : "es"}`);
       } catch (err) {
@@ -674,4 +681,18 @@ function RuleToggles() {
 function num(value: string, fallback: number) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      out[index] = await fn(items[index]!);
+    }
+  }
+  const n = Math.max(1, Math.min(concurrency, items.length));
+  await Promise.all(Array.from({ length: n }, () => worker()));
+  return out;
 }
