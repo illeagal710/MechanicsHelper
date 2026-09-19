@@ -66,6 +66,7 @@ export function ScannerApp() {
       return;
     }
     let cancelled = false;
+    inFlight.current = false;
 
     async function tick() {
       if (cancelled || inFlight.current) return;
