@@ -44,7 +44,7 @@ const en = {
   "welcome.demoCustomer": "Customer: maya@example.com",
   "welcome.demoShop": "Shop: shop@example.com",
   "welcome.demoIndependent": "Independent: indy@example.com",
-  "welcome.demoCodes": "Find codes: RIV4 · LEON",
+  "welcome.demoCodes": "Demo find code: RIV4",
 
   "login.title": "Log in",
   "login.id": "Email or phone",
@@ -716,7 +716,7 @@ const es: Record<MessageKey, string> = {
   "welcome.demoCustomer": "Cliente: maya@example.com",
   "welcome.demoShop": "Taller: shop@example.com",
   "welcome.demoIndependent": "Independiente: indy@example.com",
-  "welcome.demoCodes": "Códigos: RIV4 · LEON",
+  "welcome.demoCodes": "Código de demo: RIV4",
 
   "login.title": "Iniciar sesión",
   "login.id": "Correo o teléfono",

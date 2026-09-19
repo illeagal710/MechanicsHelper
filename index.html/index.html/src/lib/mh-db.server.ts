@@ -5,6 +5,7 @@ import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
 import { applyDecline, slotTakenAmong } from "@/lib/job-status";
 import {
+  DEMO_SHOP_FIND_CODE,
   FIND_CODE_TAKEN,
   USED_FIND_AS_JOIN,
   allocateShopCodes,
@@ -20,6 +21,8 @@ const RIVERSIDE_BIO =
   "Family-run shop since 1998. Brakes, engines, and same-day diagnostics. We text you before we turn a wrench.";
 const LEON_BIO =
   "I come to your driveway. Scan tools, common parts, and straight talk. Nights and weekends if the car is down.";
+/** Demo independent find code. LEON is left free for a real shop to claim. */
+const DEMO_INDY_FIND_CODE = "INDY1";
 
 export const BIO_MAX = 320;
 
@@ -154,6 +157,33 @@ async function allocatePreferredCode(preferred: string | undefined, used: Set<st
   return claimFindCode(raw, used, current, blocked);
 }
 
+/**
+ * Seed independent used to own LEON. Reassign that demo row so a real shop
+ * can claim LEON. Never touches a non-seed account that already has LEON.
+ */
+async function freeSeedLeonFindCode() {
+  const sql = await getSql();
+  const holders = await sql.query<{ id: string; kind: string }>(
+    `select id, 'user' as kind from mh_users
+       where code = 'LEON' and (id = 'u-indy' or email = 'indy@example.com')
+     union all
+     select id, 'shop' as kind from mh_shops
+       where code = 'LEON' and owner_id = 'u-indy'`,
+  );
+  if (!holders.length) return;
+  const used = await usedCodes();
+  used.delete("LEON");
+  let next = DEMO_INDY_FIND_CODE;
+  if (used.has(next)) next = generateUnusedCode(used);
+  for (const row of holders) {
+    if (row.kind === "user") {
+      await sql.query("update mh_users set code = $2 where id = $1", [row.id, next]);
+    } else {
+      await sql.query("update mh_shops set code = $2 where id = $1", [row.id, next]);
+    }
+  }
+}
+
 /** Existing shops that still share one code get a distinct team-join value. */
 async function ensureShopJoinCodes() {
   const sql = await getSql();
@@ -172,11 +202,13 @@ async function ensureShopJoinCodes() {
 }
 
 export async function ensureSeeded() {
-  const sql = await getSql();  const live = Boolean(process.env.DATABASE_URL?.trim()) && process.env.SEED_DEMO !== "1";
+  const sql = await getSql();
+  await freeSeedLeonFindCode();
+  const live = Boolean(process.env.DATABASE_URL?.trim()) && process.env.SEED_DEMO !== "1";
   if (live) {
     await sql.query("delete from mh_jobs where id in ('MH-4821','MH-4822','MH-1094') or provider_id in ('s-main','u-indy') or user_id in ('u-maya','u-shop','u-alex','u-indy')");
     await sql.query("delete from mh_users where id in ('u-maya','u-shop','u-alex','u-indy') or email in ('maya@example.com','shop@example.com','alex@example.com','indy@example.com')");
-    await sql.query("delete from mh_shops where id = 's-main' or code = 'RIV4'");
+    await sql.query("delete from mh_shops where id = 's-main' or code = $1", [DEMO_SHOP_FIND_CODE]);
     await ensureShopJoinCodes();
     return;
   }
@@ -189,7 +221,7 @@ export async function ensureSeeded() {
   const now = Date.now();
   await sql.query(
     `insert into mh_shops (id, name, code, join_code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6,$7)`,
-    ["s-main", "Riverside Auto", "RIV4", "RIVTEAM", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
+    ["s-main", "Riverside Auto", DEMO_SHOP_FIND_CODE, "RIVTEAM", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
   );
   await sql.query(
     `update mh_shops set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5 where id = $1`,
@@ -210,7 +242,7 @@ export async function ensureSeeded() {
     ["u-maya", "Maya Chen", "maya@example.com", "5550148821", "customer", passHash("demo123"), null, null, null, null, null, null, ""],
     ["u-shop", "Shop Desk", "shop@example.com", "5550100000", "shop", passHash("demo123"), "s-main", "Riverside Auto", "owner", null, null, null, ""],
     ["u-alex", "Alex Ruiz", "alex@example.com", "5550100001", "shop", passHash("demo123"), "s-main", "Riverside Auto", "tech", null, null, null, ""],
-    ["u-indy", "Leon Miles", "indy@example.com", "5550166000", "independent", passHash("demo123"), null, null, null, "Leon Mobile Repair", "mobile", "LEON", LEON_BIO],
+    ["u-indy", "Leon Miles", "indy@example.com", "5550166000", "independent", passHash("demo123"), null, null, null, "Leon Mobile Repair", "mobile", DEMO_INDY_FIND_CODE, LEON_BIO],
   ];
   for (const u of users) {
     await sql.query(

@@ -10,6 +10,15 @@ export const FIND_CODE_TAKEN = "That find code is already taken.";
 export const FIND_EQUALS_JOIN = "The customer find code and team join code must be different.";
 export const USED_FIND_AS_JOIN = "That's the customer find code. Ask the owner for the team join code.";
 
+/** Demo Riverside shop find code. Seeded when SEED_DEMO=1. Not claimable by others. */
+export const DEMO_SHOP_FIND_CODE = "RIV4";
+
+/**
+ * Permanently reserved find codes. LEON is intentionally absent — a real shop
+ * (including Leon's) may claim it. Uniqueness still rejects a true duplicate.
+ */
+export const RESERVED_FIND_CODES = new Set<string>([DEMO_SHOP_FIND_CODE]);
+
 export type FindCodeResult =
   | { ok: true; code: string }
   | { ok: false; error: string };
@@ -39,7 +48,11 @@ export function generateFindCode(len = FIND_CODE_MIN): string {
 }
 
 export function generateUnusedCode(used: Set<string>, ...reserved: string[]): string {
-  const blocked = new Set([...used, ...reserved.map(normalizeFindCode).filter(Boolean)]);
+  const blocked = new Set([
+    ...used,
+    ...RESERVED_FIND_CODES,
+    ...reserved.map(normalizeFindCode).filter(Boolean),
+  ]);
   let c = generateFindCode();
   while (blocked.has(c)) c = generateFindCode();
   return c;
@@ -63,6 +76,9 @@ export function claimFindCode(
   const blockedNorm = blocked ? normalizeFindCode(blocked) : "";
   if (blockedNorm && parsed.code === blockedNorm) {
     return { ok: false, error: FIND_EQUALS_JOIN };
+  }
+  if (RESERVED_FIND_CODES.has(parsed.code) && parsed.code !== currentNorm) {
+    return { ok: false, error: FIND_CODE_TAKEN };
   }
   if (used.has(parsed.code)) return { ok: false, error: FIND_CODE_TAKEN };
   return parsed;
