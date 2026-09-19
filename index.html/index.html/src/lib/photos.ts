@@ -1,6 +1,6 @@
 import type { Job, Shop, StatusId, User } from "@/lib/store";
 import { isJobStatus } from "./job-status.ts";
-import { carImage } from "./vehicles.ts";
+import { pickVehicleImage } from "./vehicles.ts";
 
 /** Account / shop / mechanic identity photo. Never a bay/job image. */
 export const PROFILE_PHOTO_SLOT = "profile" as const;
@@ -9,7 +9,7 @@ export const BAY_PHOTO_SLOT = "bay" as const;
 /** Ticket header / hero: the vehicle (car) picture. Never bay/work media. */
 export const VEHICLE_PHOTO_SLOT = "vehicle" as const;
 
-export type PhotoSlot = typeof PROFILE_PHOTO_SLOT | typeof BAY_PHOTO_SLOT;
+export type PhotoSlot = typeof PROFILE_PHOTO_SLOT | typeof BAY_PHOTO_SLOT | typeof VEHICLE_PHOTO_SLOT;
 
 export type TicketPhotoSlots = {
   /** Image above year/make/model. Never the mechanic's bay/work photo. */
@@ -22,6 +22,9 @@ export type JobMediaPatch = {
   status?: StatusId;
   assignedTo?: string;
   jobPhoto?: string;
+  /** Customer / ticket vehicle hero. Never aliases bay `photo`. */
+  vehiclePhoto?: string;
+  color?: string;
 };
 
 /**
@@ -48,19 +51,42 @@ export function hasBayPhoto(src: string | null | undefined): boolean {
 
 /**
  * Ticket header / hero above the vehicle name.
- * Uses stock car art (sedan/suv/…) — never jobPhoto / photo (the bay slot).
- * Empty when there is no job; callers may show a placeholder.
+ * Prefers the customer/ticket vehicle photo. Generic body-type art is fallback.
+ * Never uses jobPhoto / photo (the bay slot) or a profile avatar.
  */
 export function ticketVehiclePhotoOf(
-  job: { make?: string; model?: string; jobPhoto?: string; photo?: string } | null | undefined,
+  job:
+    | {
+        make?: string;
+        model?: string;
+        vehiclePhoto?: string;
+        color?: string;
+        jobPhoto?: string;
+        photo?: string;
+      }
+    | null
+    | undefined,
 ): string {
   if (!job) return "";
-  return carImage({ make: job.make, model: job.model });
+  return pickVehicleImage({
+    make: job.make,
+    model: job.model,
+    vehiclePhoto: job.vehiclePhoto,
+    color: job.color,
+  }).src;
 }
 
 /** Two independent ticket images: car hero vs bay/work photo. */
 export function ticketPhotoSlots(
-  job: (Pick<Job, "jobPhoto" | "photo"> & { make?: string; model?: string }) | null | undefined,
+  job:
+    | (Pick<Job, "jobPhoto" | "photo"> & {
+        make?: string;
+        model?: string;
+        vehiclePhoto?: string;
+        color?: string;
+      })
+    | null
+    | undefined,
 ): TicketPhotoSlots {
   return {
     vehicle: ticketVehiclePhotoOf(job),
@@ -107,6 +133,9 @@ export function sanitizeJobPatch(patch: Record<string, unknown> | null | undefin
   } else if (!looksLikeProfile && typeof patch.photo === "string") {
     out.jobPhoto = patch.photo;
   }
+
+  if (typeof patch.vehiclePhoto === "string") out.vehiclePhoto = patch.vehiclePhoto;
+  if (typeof patch.color === "string") out.color = patch.color;
 
   return out;
 }

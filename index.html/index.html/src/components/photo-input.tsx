@@ -6,6 +6,7 @@ import {
   PHOTO_CAMERA_VIDEO,
   PHOTO_JPEG_QUALITY,
   PROFILE_PHOTO_SLOT,
+  VEHICLE_PHOTO_SLOT,
   hasBayPhoto,
   isMobilePhotoDevice,
   resizePhoto,
@@ -395,7 +396,9 @@ export function PhotoPicker({
   }
 
   const isProfile = slot === PROFILE_PHOTO_SLOT;
+  const isVehicle = slot === VEHICLE_PHOTO_SLOT;
   const bayFilled = !isProfile && hasBayPhoto(value);
+  const addLabel = isVehicle ? t("photo.addVehicle") : t("photo.addBay");
 
   return (
     <div data-photo-slot={slot} className="flex flex-col gap-3" data-bay-empty={isProfile ? undefined : bayFilled ? "false" : "true"}>
@@ -419,7 +422,7 @@ export function PhotoPicker({
           onClick={() => chooseRef.current?.click()}
         >
           <ImageIcon className="size-4 shrink-0" />
-          {isProfile || bayFilled ? t("photo.choose") : t("photo.addBay")}
+          {isProfile || bayFilled ? t("photo.choose") : addLabel}
         </button>
         <button
           type="button"

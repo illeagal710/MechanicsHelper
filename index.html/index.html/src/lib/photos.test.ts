@@ -171,6 +171,29 @@ test("ticketVehiclePhotoOf ignores jobPhoto even if it looks like a car picture"
   assert.equal(ticketPhotoSlots(spoofed).vehicle, carImage(job));
 });
 
+test("ticket hero prefers a customer vehicle photo and never a profile or bay shot", () => {
+  const withCar = { ...job, vehiclePhoto: "data:image/jpeg;base64,mycar" };
+  assert.equal(ticketVehiclePhotoOf(withCar), "data:image/jpeg;base64,mycar");
+  assert.equal(ticketPhotoSlots(withCar).vehicle, "data:image/jpeg;base64,mycar");
+  assert.equal(ticketPhotoSlots(withCar).bay, "data:bay");
+  assert.notEqual(ticketVehiclePhotoOf(withCar), jobPhotoOf(withCar));
+  assert.notEqual(ticketVehiclePhotoOf({ ...job, photo: "data:profile-leak" }), "data:profile-leak");
+  assert.equal(ticketVehiclePhotoOf({ ...job, vehiclePhoto: "/img/car-sedan.jpg" }), carImage(job));
+});
+
+test("sanitizeJobPatch keeps vehiclePhoto off the bay key", () => {
+  const cleaned = sanitizeJobPatch({
+    vehiclePhoto: "data:car",
+    color: "red",
+    jobPhoto: "data:bay-new",
+    photo: "data:should-not-become-vehicle",
+  });
+  assert.equal(cleaned.vehiclePhoto, "data:car");
+  assert.equal(cleaned.color, "red");
+  assert.equal(cleaned.jobPhoto, "data:bay-new");
+  assert.equal("photo" in cleaned, false);
+});
+
 test("fitPhotoSize keeps photos sharp: 1280 edge, no upscale", () => {
   assert.equal(PHOTO_MAX_EDGE, 1280);
   assert.ok(PHOTO_JPEG_QUALITY >= 0.9);

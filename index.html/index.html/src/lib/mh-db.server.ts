@@ -129,6 +129,8 @@ function rowJob(r: Record<string, unknown>): Job {
     notifySms: r.notify_sms !== false && r.notify_sms !== "f" && r.notify_sms !== 0,
     photo: String(r.photo || ""),
     jobPhoto: String(r.photo || ""),
+    vehiclePhoto: String(r.vehicle_photo || ""),
+    color: String(r.color || ""),
   };
 }
 
@@ -204,6 +206,24 @@ async function ensureShopJoinCodes() {
   }
 }
 
+/** Paint colors on demo tickets so generic silver art can show a tint. */
+async function ensureDemoVehicleHero() {
+  const sql = await getSql();
+  const patches: Array<[string, string]> = [
+    ["MH-4820", "red"],
+    ["MH-4821", "white"],
+    ["MH-4822", "blue"],
+    ["MH-4823", "green"],
+  ];
+  for (const [id, color] of patches) {
+    try {
+      await sql.query("update mh_jobs set color = $2 where id = $1 and (color is null or color = '')", [id, color]);
+    } catch {
+      /* 0013 */
+    }
+  }
+}
+
 export async function ensureSeeded() {
   const sql = await getSql();
   await freeSeedLeonFindCode();
@@ -218,6 +238,7 @@ export async function ensureSeeded() {
   const rows = await sql.query<{ n: number }>("select count(*)::int as n from mh_users");
   if ((rows[0]?.n || 0) > 0) {
     await ensureShopJoinCodes();
+    await ensureDemoVehicleHero();
     return;
   }
 
@@ -279,6 +300,7 @@ export async function ensureSeeded() {
       year: "2019",
       make: "Honda",
       model: "CR-V",
+      color: "white",
       symptoms: "Grinding noise when braking, especially downhill.",
       slot: slotDays(1, "09:00"),
       status: "repair",
@@ -304,6 +326,7 @@ export async function ensureSeeded() {
       year: "2016",
       make: "Ford",
       model: "F-150",
+      color: "blue",
       symptoms: "Check engine light. Rough idle after warmup.",
       slot: slotDays(0, "11:30"),
       status: "diagnosing",
@@ -325,6 +348,7 @@ export async function ensureSeeded() {
       year: "2022",
       make: "Toyota",
       model: "Camry",
+      color: "red",
       symptoms: "Oil change and 30k service.",
       slot: slotDays(0, "08:00"),
       status: "ready",
@@ -367,6 +391,7 @@ export async function ensureSeeded() {
       year: "2021",
       make: "Subaru",
       model: "Outback",
+      color: "green",
       symptoms: "A/C blows warm on the highway.",
       slot: slotDays(2, "13:00"),
       status: "scheduled",
@@ -377,6 +402,7 @@ export async function ensureSeeded() {
     await insertJob(j);
   }
   await ensureShopJoinCodes();
+  await ensureDemoVehicleHero();
 }
 
 export async function loadBoard() {
@@ -957,6 +983,15 @@ async function insertJob(job: Job) {
   } catch {
     /* column arrives after 0006 */
   }
+  try {
+    await sql.query("update mh_jobs set vehicle_photo = $2, color = $3 where id = $1", [
+      job.id,
+      job.vehiclePhoto || "",
+      job.color || "",
+    ]);
+  } catch {
+    /* columns arrive after 0013 */
+  }
   return job;
 }
 
@@ -983,6 +1018,8 @@ export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: s
   if (safe.status) job.status = safe.status;
   if (safe.assignedTo !== undefined) job.assignedTo = safe.assignedTo;
   if (safe.jobPhoto !== undefined) Object.assign(job, withJobPhoto(job, safe.jobPhoto));
+  if (safe.vehiclePhoto !== undefined) job.vehiclePhoto = safe.vehiclePhoto;
+  if (safe.color !== undefined) job.color = safe.color;
   // Do not rewrite notes_json here — addNote is the only writer for ticket notes.
   const sql = await getSql();
   await sql.query(
@@ -996,6 +1033,17 @@ export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: s
       await sql.query("update mh_jobs set photo = $2 where id = $1", [job.id, safe.jobPhoto]);
     } catch {
       /* 0007 */
+    }
+  }
+  if (safe.vehiclePhoto !== undefined || safe.color !== undefined) {
+    try {
+      await sql.query("update mh_jobs set vehicle_photo = $2, color = $3 where id = $1", [
+        job.id,
+        job.vehiclePhoto || "",
+        job.color || "",
+      ]);
+    } catch {
+      /* 0013 */
     }
   }
   if (safe.status && safe.status !== previous) {
