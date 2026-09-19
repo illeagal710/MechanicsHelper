@@ -4,6 +4,13 @@ import { mailerConfigured, revealRecoveryCode, sendEmail } from "@/lib/mailer.se
 import { normalizeSymptoms } from "@/lib/booking";
 import { appendJobNote } from "@/lib/job-notes";
 import { applyDecline, slotTakenAmong } from "@/lib/job-status";
+import {
+  FIND_CODE_TAKEN,
+  USED_FIND_AS_JOIN,
+  allocateShopCodes,
+  claimFindCode,
+  generateUnusedCode,
+} from "@/lib/find-code";
 import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode } from "@/lib/shop-role";
@@ -26,12 +33,6 @@ function passHash(s: string) {
   return (h >>> 0).toString(16);
 }
 
-function shopCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s = "";
-  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
-}
 
 function slotDays(days: number, hhmm: string) {
   const d = new Date();
@@ -85,6 +86,7 @@ function rowShop(r: Record<string, unknown>): Shop {
     id: String(r.id),
     name: String(r.name),
     code: String(r.code),
+    joinCode: r.join_code ? String(r.join_code) : "",
     ownerId: String(r.owner_id),
     techs: parseJson<string[]>(r.techs_json, []),
     bio: String(r.bio || ""),
@@ -126,19 +128,47 @@ function rowJob(r: Record<string, unknown>): Job {
 
 async function usedCodes() {
   const sql = await getSql();
-  const shops = await sql.query<{ code: string }>("select code from mh_shops");
+  const shops = await sql.query<{ code: string; join_code: string | null }>(
+    "select code, join_code from mh_shops",
+  );
   const users = await sql.query<{ code: string | null }>("select code from mh_users where code is not null");
   const used = new Set<string>();
-  for (const s of shops) used.add(s.code);
+  for (const s of shops) {
+    if (s.code) used.add(s.code);
+    if (s.join_code) used.add(s.join_code);
+  }
   for (const u of users) if (u.code) used.add(u.code);
   return used;
 }
 
 export async function uniqueCode() {
   const used = await usedCodes();
-  let c = shopCode();
-  while (used.has(c)) c = shopCode();
-  return c;
+  return generateUnusedCode(used);
+}
+
+async function allocatePreferredCode(preferred: string | undefined, used: Set<string>, current?: string, blocked?: string) {
+  const raw = String(preferred || "").trim();
+  if (!raw) {
+    return { ok: true as const, code: generateUnusedCode(used, current || "", blocked || "") };
+  }
+  return claimFindCode(raw, used, current, blocked);
+}
+
+/** Existing shops that still share one code get a distinct team-join value. */
+async function ensureShopJoinCodes() {
+  const sql = await getSql();
+  const shops = await sql.query<{ id: string; code: string; join_code: string | null }>(
+    "select id, code, join_code from mh_shops",
+  );
+  const used = await usedCodes();
+  for (const shop of shops) {
+    const join = String(shop.join_code || "");
+    if (join && join !== shop.code) continue;
+    if (join) used.delete(join);
+    const next = generateUnusedCode(used, shop.code);
+    used.add(next);
+    await sql.query("update mh_shops set join_code = $2 where id = $1", [shop.id, next]);
+  }
 }
 
 export async function ensureSeeded() {
@@ -147,15 +177,19 @@ export async function ensureSeeded() {
     await sql.query("delete from mh_jobs where id in ('MH-4821','MH-4822','MH-1094') or provider_id in ('s-main','u-indy') or user_id in ('u-maya','u-shop','u-alex','u-indy')");
     await sql.query("delete from mh_users where id in ('u-maya','u-shop','u-alex','u-indy') or email in ('maya@example.com','shop@example.com','alex@example.com','indy@example.com')");
     await sql.query("delete from mh_shops where id = 's-main' or code = 'RIV4'");
+    await ensureShopJoinCodes();
     return;
   }
   const rows = await sql.query<{ n: number }>("select count(*)::int as n from mh_users");
-  if ((rows[0]?.n || 0) > 0) return;
+  if ((rows[0]?.n || 0) > 0) {
+    await ensureShopJoinCodes();
+    return;
+  }
 
   const now = Date.now();
   await sql.query(
-    `insert into mh_shops (id, name, code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6)`,
-    ["s-main", "Riverside Auto", "RIV4", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
+    `insert into mh_shops (id, name, code, join_code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6,$7)`,
+    ["s-main", "Riverside Auto", "RIV4", "RIVTEAM", "u-shop", JSON.stringify(["Shop Desk", "Alex Ruiz"]), RIVERSIDE_BIO],
   );
   await sql.query(
     `update mh_shops set specialties_json = $2, credentials_json = $3, service_area = $4, years_wrenching = $5 where id = $1`,
@@ -307,6 +341,7 @@ export async function ensureSeeded() {
   for (const j of jobs) {
     await insertJob(j);
   }
+  await ensureShopJoinCodes();
 }
 
 export async function loadBoard() {
@@ -478,6 +513,7 @@ export async function register(fields: {
   shopJoin?: string;
   shopName?: string;
   shopCode?: string;
+  findCode?: string;
   businessName?: string;
   serviceMode?: User["serviceMode"];
 }) {
@@ -508,9 +544,13 @@ export async function register(fields: {
   if (role === "shop") {
     if (fields.shopJoin === "join") {
       const code = String(fields.shopCode || "").trim().toUpperCase();
-      const shops = await sql.query<Record<string, unknown>>("select * from mh_shops where code = $1", [code]);
-      const shop = shops[0] ? rowShop(shops[0]) : null;
-      if (!shop) return { ok: false as const, error: "No shop with that code." };
+      const byJoin = await sql.query<Record<string, unknown>>("select * from mh_shops where join_code = $1", [code]);
+      const shop = byJoin[0] ? rowShop(byJoin[0]) : null;
+      if (!shop) {
+        const byFind = await sql.query<Record<string, unknown>>("select * from mh_shops where code = $1", [code]);
+        if (byFind[0]) return { ok: false as const, error: USED_FIND_AS_JOIN };
+        return { ok: false as const, error: "No shop with that code." };
+      }
       user.shopId = shop.id;
       user.shopName = shop.name;
       user.shopRole = "tech";
@@ -518,17 +558,21 @@ export async function register(fields: {
       await sql.query("update mh_shops set techs_json = $2 where id = $1", [shop.id, JSON.stringify(shop.techs)]);
     } else {
       const shopName = String(fields.shopName || "").trim() || user.name + "'s Shop";
+      const used = await usedCodes();
+      const allocated = allocateShopCodes(fields.findCode, used);
+      if (!allocated.ok) return allocated;
       const shop: Shop = {
         id: "s-" + Math.random().toString(36).slice(2, 7),
         name: shopName,
-        code: await uniqueCode(),
+        code: allocated.findCode,
+        joinCode: allocated.joinCode,
         ownerId: user.id,
         techs: [user.name],
         bio: "",
       };
       await sql.query(
-        `insert into mh_shops (id, name, code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6)`,
-        [shop.id, shop.name, shop.code, shop.ownerId, JSON.stringify(shop.techs), shop.bio],
+        `insert into mh_shops (id, name, code, join_code, owner_id, techs_json, bio) values ($1,$2,$3,$4,$5,$6,$7)`,
+        [shop.id, shop.name, shop.code, shop.joinCode, shop.ownerId, JSON.stringify(shop.techs), shop.bio],
       );
       user.shopId = shop.id;
       user.shopName = shop.name;
@@ -538,7 +582,10 @@ export async function register(fields: {
   if (role === "independent") {
     user.businessName = String(fields.businessName || "").trim() || user.name;
     user.serviceMode = fields.serviceMode || "both";
-    user.code = await uniqueCode();
+    const used = await usedCodes();
+    const allocated = await allocatePreferredCode(fields.findCode, used);
+    if (!allocated.ok) return allocated;
+    user.code = allocated.code;
     user.bio = "";
   }
   await sql.query(
@@ -568,17 +615,56 @@ export async function rotateCustomerCode(userId: string) {
   const board = await loadBoard();
   const user = board.users.find((u) => u.id === userId);
   if (!user || !canRotateFindCode(user)) return "";
-  const next = await uniqueCode();
+  const used = await usedCodes();
   const sql = await getSql();
   if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
+    const shop = board.shops.find((s) => s.id === user.shopId);
+    const current = shop?.code || "";
+    if (current) used.delete(current);
+    const next = generateUnusedCode(used, shop?.joinCode || "");
     await sql.query("update mh_shops set code = $2 where id = $1", [user.shopId, next]);
     return next;
   }
   if (user.role === "independent") {
+    const current = user.code || "";
+    if (current) used.delete(current);
+    const next = generateUnusedCode(used);
     await sql.query("update mh_users set code = $2 where id = $1", [user.id, next]);
     return next;
   }
   return "";
+}
+
+export async function claimCustomerCode(userId: string, desired: string) {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user || !canRotateFindCode(user)) {
+    return { ok: false as const, error: "Only the shop owner can edit this." };
+  }
+  const used = await usedCodes();
+  let current = "";
+  let blocked = "";
+  if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
+    const shop = board.shops.find((s) => s.id === user.shopId);
+    current = shop?.code || "";
+    blocked = shop?.joinCode || "";
+  } else if (user.role === "independent") {
+    current = user.code || "";
+  }
+  if (current) used.delete(current);
+  const allocated = await allocatePreferredCode(desired, used, current, blocked);
+  if (!allocated.ok) return allocated;
+  if (allocated.code === current) return { ok: true as const, code: current };
+  const sql = await getSql();
+  if (user.role === "shop" && user.shopRole === "owner" && user.shopId) {
+    await sql.query("update mh_shops set code = $2 where id = $1", [user.shopId, allocated.code]);
+    return { ok: true as const, code: allocated.code };
+  }
+  if (user.role === "independent") {
+    await sql.query("update mh_users set code = $2 where id = $1", [user.id, allocated.code]);
+    return { ok: true as const, code: allocated.code };
+  }
+  return { ok: false as const, error: FIND_CODE_TAKEN };
 }
 
 function profilePhotoFrom(patch: { photo?: string; profilePhoto?: string }) {

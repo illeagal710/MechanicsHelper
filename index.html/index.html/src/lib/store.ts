@@ -10,6 +10,7 @@ import {
   mhRequestPasswordReset,
   mhResetPassword,
   mhRotateCode,
+  mhClaimCode,
   mhUpdateIndy,
   mhUpdateJob,
   mhUpdateUserPhoto,
@@ -65,6 +66,8 @@ export type Shop = {
   id: string;
   name: string;
   code: string;
+  /** Employee invite — never the same value as `code` (customer find). */
+  joinCode?: string;
   ownerId: string;
   techs: string[];
   bio?: string;
@@ -372,6 +375,11 @@ export const Store = {
     return "";
   },
 
+  teamJoinCodeFor(user: User | null): string {
+    if (!user || user.role !== "shop" || !user.shopId) return "";
+    return this.shopRecord(user.shopId)?.joinCode || "";
+  },
+
   shopRecord(shopId: string) {
     return cache.shops.find((s) => s.id === shopId) || null;
   },
@@ -481,6 +489,7 @@ export const Store = {
     shopJoin?: string;
     shopName?: string;
     shopCode?: string;
+    findCode?: string;
     businessName?: string;
     serviceMode?: User["serviceMode"];
   }) {
@@ -498,6 +507,14 @@ export const Store = {
     const fresh = this.getSession();
     if (fresh) this.setSession(fresh);
     return next;
+  },
+
+  async claimCustomerCode(user: User, desired: string) {
+    const res = await mhClaimCode({ data: { userId: user.id, desired } });
+    await this.hydrate();
+    const fresh = this.getSession();
+    if (fresh) this.setSession(fresh);
+    return res;
   },
 
   async updateShopProfile(
