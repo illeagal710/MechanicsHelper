@@ -150,23 +150,6 @@ function readRefFromUrl() {
   return q.trim().toUpperCase();
 }
 
-function slots() {
-  const out: Date[] = [];
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  for (let d = 1; d <= 7; d++) {
-    for (const t of ["08:00", "09:30", "11:00", "13:00", "14:30", "16:00"]) {
-      const [h, m] = t.split(":").map(Number);
-      const dt = new Date(start);
-      dt.setDate(dt.getDate() + d);
-      dt.setHours(h, m, 0, 0);
-      if (dt.getDay() === 0) continue;
-      out.push(dt);
-    }
-  }
-  return out;
-}
-
 export function MechanicsApp() {
   const { t } = useI18n();
   const [view, setView] = useState<View>("welcome");
