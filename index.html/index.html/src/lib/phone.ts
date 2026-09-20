@@ -7,6 +7,16 @@ export function phoneDigits(raw: string): string {
   return plus ? `+${digits}` : digits;
 }
 
+/** Public US numbers as (661) 202-4288. Leaves short/international strings as stored. */
+export function formatPublicPhone(raw: string): string {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const digits = s.replace(/\D/g, "");
+  const national = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (national.length !== 10) return s;
+  return `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
+}
+
 function enoughDigits(digits: string): boolean {
   return digits.replace(/\D/g, "").length >= 7;
 }

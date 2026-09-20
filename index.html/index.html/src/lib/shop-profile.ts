@@ -84,22 +84,41 @@ export function sanitizeTags(raw: unknown, allowedIds: readonly string[]): strin
   return out;
 }
 
+const USPS_STATES = new Set([
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
+  "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM",
+  "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA",
+  "WV", "WI", "WY",
+]);
+
+/** "Riverside, Ca" → "Riverside, CA" on public addresses and service areas. */
+export function formatPublicPlace(raw: string): string {
+  return String(raw || "").replace(/,\s*([A-Za-z]{2})\b/g, (match, st: string) => {
+    const up = st.toUpperCase();
+    return USPS_STATES.has(up) ? `, ${up}` : match;
+  });
+}
+
 export function sanitizeServiceArea(raw: unknown): string {
-  return String(raw || "")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, SERVICE_AREA_MAX);
+  return formatPublicPlace(
+    String(raw || "")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, SERVICE_AREA_MAX),
+  );
 }
 
 /** A single-line street address (no angle brackets, collapsed whitespace). */
 export function sanitizeAddress(raw: unknown): string {
-  return String(raw || "")
-    .replace(/[<>]/g, "")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, ADDRESS_MAX);
+  return formatPublicPlace(
+    String(raw || "")
+      .replace(/[<>]/g, "")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, ADDRESS_MAX),
+  );
 }
 
 export function sanitizeYearsWrenching(raw: unknown): string {

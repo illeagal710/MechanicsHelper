@@ -6,6 +6,7 @@ import {
   SERVICE_AREA_MAX,
   SPECIALTY_IDS,
   TAGS_MAX,
+  formatPublicPlace,
   publicProfileFromRecord,
   sanitizeAddress,
   sanitizePublicProfile,
@@ -15,8 +16,15 @@ import {
   toggleTag,
 } from "./shop-profile.ts";
 
+test("public places uppercase two-letter state abbreviations", () => {
+  assert.equal(formatPublicPlace("Riverside, Ca"), "Riverside, CA");
+  assert.equal(formatPublicPlace("1450 Market St, Riverside, ca 92501"), "1450 Market St, Riverside, CA 92501");
+  assert.equal(formatPublicPlace("Riverside, CA"), "Riverside, CA");
+  assert.equal(formatPublicPlace("Inland Empire · mobile"), "Inland Empire · mobile");
+});
+
 test("address collapses whitespace, strips angle brackets, and caps length", () => {
-  assert.equal(sanitizeAddress("  123 Main St,\n  Riverside, CA  "), "123 Main St, Riverside, CA");
+  assert.equal(sanitizeAddress("  123 Main St,\n  Riverside, Ca  "), "123 Main St, Riverside, CA");
   assert.equal(sanitizeAddress("<b>10 Oak Ave</b>"), "b10 Oak Ave/b");
   assert.equal(sanitizeAddress(""), "");
   assert.equal(sanitizeAddress(undefined), "");

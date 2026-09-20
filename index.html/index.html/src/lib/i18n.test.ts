@@ -287,6 +287,13 @@ test("linked customer booking copy hides the shop directory in English and Spani
   assert.match(translate("en", "home.chooseDifferent"), /find code/i);
 });
 
+test("booking optional extras stay collapsed behind more-details copy", () => {
+  assert.match(translate("en", "book.moreDetails"), /optional/i);
+  assert.match(translate("es", "book.moreDetails"), /opcional/i);
+  assert.match(translate("en", "vehicle.subShort"), /Year, make, and model/i);
+  assert.match(translate("es", "vehicle.subShort"), /Año, marca y modelo/i);
+});
+
 test("booking symptoms are marked optional in English and Spanish", () => {
   assert.match(translate("en", "book.whatsGoingOn"), /optional/i);
   assert.match(translate("es", "book.whatsGoingOn"), /opcional/i);

@@ -106,6 +106,7 @@ import {
   TAG_MAX,
   TAGS_MAX,
   isPresetTag,
+  formatPublicPlace,
   sanitizeYearsWrenching,
   toggleTag,
 } from "@/lib/shop-profile";
@@ -136,7 +137,7 @@ import {
   statusActionConfirm,
 } from "@/lib/job-ops";
 import { guestLandingView } from "@/lib/app-entry";
-import { customerSmsKey, firstReachablePhone, smsHref, telHref } from "@/lib/phone";
+import { customerSmsKey, firstReachablePhone, formatPublicPhone, smsHref, telHref } from "@/lib/phone";
 
 type View =
   | "welcome"
@@ -498,9 +499,6 @@ export function MechanicsApp({
         {view === "provider" && (
           <GuestProviderPage
             provider={liveLocked}
-            codeInput={codeInput}
-            setCodeInput={setCodeInput}
-            onApply={() => applyCode(codeInput, false)}
             onBook={startBooking}
             onLogin={() => setView("login")}
             onRegister={() => setView("register")}
@@ -548,12 +546,6 @@ export function MechanicsApp({
             codeInput={codeInput}
             setCodeInput={setCodeInput}
             onApply={() => applyCode(codeInput)}
-            onClear={() => {
-              Store.setLinkedCode(user, "");
-              setLockedProvider(null);
-              setCodeInput("");
-              flash(t("toast.unlocked"));
-            }}
             go={setView}
             onOpenJob={(id) => {
               setSelectedId(id);
@@ -947,9 +939,9 @@ function PublicProviderCard({
             {t("welcome.referredCode", { detail: translateDetail(locale, provider.detail), code: provider.code })}
           </p>
           {provider.serviceArea ? (
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted" data-public-place="">
               <MapPin className="size-3.5 shrink-0 text-accent" aria-hidden />
-              {t("profile.basedIn", { area: provider.serviceArea })}
+              {t("profile.basedIn", { area: formatPublicPlace(provider.serviceArea) })}
             </p>
           ) : null}
         </div>
@@ -958,7 +950,7 @@ function PublicProviderCard({
         <div className="mt-2 flex items-start justify-between gap-3 rounded-lg border border-line bg-surface p-3">
           <p className="flex items-start gap-1.5 text-sm text-fg">
             <MapPin className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
-            <span>{provider.address}</span>
+            <span data-public-address="">{formatPublicPlace(provider.address)}</span>
           </p>
           <button
             type="button"
@@ -982,8 +974,10 @@ function PublicProviderCard({
       />
       <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, provider)}</p>
       {(provider.supportPhone || provider.supportEmail) && (
-        <p className="mt-2 text-sm text-muted">
-          {provider.supportPhone ? provider.supportPhone : ""}
+        <p className="mt-2 text-sm text-muted" data-public-contact="">
+          {provider.supportPhone ? (
+            <span data-public-phone="">{formatPublicPhone(provider.supportPhone)}</span>
+          ) : null}
           {provider.supportPhone && provider.supportEmail ? " · " : ""}
           {provider.supportEmail ? provider.supportEmail : ""}
         </p>
@@ -1122,32 +1116,48 @@ function Welcome({
           <p className="mt-2 text-sm text-muted">{t("welcome.body")}</p>
         </div>
       )}
-      <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
-        <div className="mt-2 flex gap-2">
-          <input
-            className={inputClass}
-            placeholder={t("welcome.codePlaceholder")}
-            aria-label={t("welcome.haveCode")}
-            value={codeInput}
-            onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onApply();
-            }}
-          />
-          <button type="button" onClick={onApply} className="h-12 shrink-0 rounded-xl bg-accent px-4 font-semibold text-ink">
-            {t("welcome.find")}
+      {locked ? null : (
+        <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
+          <div className="mt-2 flex gap-2">
+            <input
+              className={inputClass}
+              placeholder={t("welcome.codePlaceholder")}
+              aria-label={t("welcome.haveCode")}
+              value={codeInput}
+              onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onApply();
+              }}
+            />
+            <button type="button" onClick={onApply} className="h-12 shrink-0 rounded-xl bg-accent px-4 font-semibold text-ink">
+              {t("welcome.find")}
+            </button>
+          </div>
+        </div>
+      )}
+      {locked ? (
+        <div className="mt-3 flex items-center justify-center gap-3 text-sm" data-guest-auth="">
+          <button type="button" onClick={onLogin} className="font-semibold text-muted underline-offset-2 hover:text-fg hover:underline">
+            {t("welcome.login")}
+          </button>
+          <span className="text-dim" aria-hidden>
+            ·
+          </span>
+          <button type="button" onClick={onRegister} className="font-semibold text-muted underline-offset-2 hover:text-fg hover:underline">
+            {t("welcome.createAccount")}
           </button>
         </div>
-      </div>
-      <div className="mt-4 flex flex-col gap-2.5">
-        <button type="button" onClick={onLogin} className="h-12 rounded-xl bg-accent font-semibold text-ink">
-          {t("welcome.login")}
-        </button>
-        <button type="button" onClick={onRegister} className="h-12 rounded-xl border border-line bg-surface font-semibold">
-          {t("welcome.createAccount")}
-        </button>
-      </div>
+      ) : (
+        <div className="mt-4 flex flex-col gap-2.5">
+          <button type="button" onClick={onLogin} className="h-12 rounded-xl bg-accent font-semibold text-ink">
+            {t("welcome.login")}
+          </button>
+          <button type="button" onClick={onRegister} className="h-12 rounded-xl border border-line bg-surface font-semibold">
+            {t("welcome.createAccount")}
+          </button>
+        </div>
+      )}
       <PolicyFooterLinks />
     </div>
   );
@@ -1155,17 +1165,11 @@ function Welcome({
 
 function GuestProviderPage({
   provider,
-  codeInput,
-  setCodeInput,
-  onApply,
   onBook,
   onLogin,
   onRegister,
 }: {
   provider: Provider | null;
-  codeInput: string;
-  setCodeInput: (s: string) => void;
-  onApply: () => void;
   onBook: () => void;
   onLogin: () => void;
   onRegister: () => void;
@@ -1179,46 +1183,31 @@ function GuestProviderPage({
       <PublicProviderCard provider={provider} eyebrow={t("welcome.referred")}>
         <p className="mt-2 text-sm text-muted">{t("welcome.referredLogin")}</p>
       </PublicProviderCard>
-      <div className="mt-4 flex flex-col gap-2.5">
-        <button
-          type="button"
-          data-guest-book=""
-          onClick={onBook}
-          className="h-12 rounded-xl bg-accent font-semibold text-ink"
-        >
-          {t("welcome.bookAppointment")}
-        </button>
-        <button type="button" onClick={onLogin} className="h-12 rounded-xl border border-line bg-surface font-semibold">
+      <button
+        type="button"
+        data-guest-book=""
+        onClick={onBook}
+        className="mt-4 h-12 w-full rounded-xl bg-accent font-semibold text-ink"
+      >
+        {t("welcome.bookAppointment")}
+      </button>
+      <div className="mt-3 flex items-center justify-center gap-3 text-sm" data-guest-auth="">
+        <button type="button" onClick={onLogin} className="font-semibold text-muted underline-offset-2 hover:text-fg hover:underline">
           {t("welcome.login")}
         </button>
+        <span className="text-dim" aria-hidden>
+          ·
+        </span>
         <button
           type="button"
           data-guest-register=""
           onClick={onRegister}
-          className="h-12 rounded-xl border border-line bg-transparent font-semibold text-muted"
+          className="font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
         >
           {t("welcome.createAccount")}
         </button>
       </div>
-      <p className="mt-3 text-center text-sm text-muted">{t("welcome.accountWhenBooking")}</p>
-      <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
-        <div className="mt-2 flex gap-2">
-          <input
-            className={inputClass}
-            placeholder={t("welcome.codePlaceholder")}
-            aria-label={t("welcome.haveCode")}
-            value={codeInput}
-            onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onApply();
-            }}
-          />
-          <button type="button" onClick={onApply} className="h-12 shrink-0 rounded-xl bg-accent px-4 font-semibold text-ink">
-            {t("welcome.find")}
-          </button>
-        </div>
-      </div>
+      <p className="mt-2 text-center text-xs text-muted">{t("welcome.accountWhenBooking")}</p>
       <PolicyFooterLinks />
     </div>
   );
@@ -1633,7 +1622,6 @@ function CustomerHome({
   codeInput,
   setCodeInput,
   onApply,
-  onClear,
   go,
   onOpenJob,
 }: {
@@ -1642,7 +1630,6 @@ function CustomerHome({
   codeInput: string;
   setCodeInput: (s: string) => void;
   onApply: () => void;
-  onClear: () => void;
   go: (v: View) => void;
   onOpenJob: (id: string) => void;
 }) {
@@ -1660,11 +1647,7 @@ function CustomerHome({
         </button>
       </div>
       {locked ? (
-        <PublicProviderCard provider={locked} eyebrow={t("home.bookingWith")}>
-          <button type="button" onClick={onClear} className="mt-2 text-sm font-semibold text-accent">
-            {t("home.chooseDifferent")}
-          </button>
-        </PublicProviderCard>
+        <PublicProviderCard provider={locked} eyebrow={t("home.bookingWith")} />
       ) : (
         <div className="rounded-2xl border border-line bg-surface p-5">
           <h1 className="text-[26px] font-bold leading-tight">{t("home.headline")}</h1>
@@ -1706,6 +1689,7 @@ function CustomerHome({
           })}
         </div>
       ) : null}
+      {locked ? null : (
       <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
         <div className="mt-2 flex gap-2">
@@ -1724,6 +1708,7 @@ function CustomerHome({
           </button>
         </div>
       </div>
+      )}
       <div className="mt-3 grid gap-2.5">
         <button type="button" onClick={() => go("book")} className="tap rounded-2xl bg-accent px-4 py-3.5 text-left">
           <p className="font-semibold text-ink">{t("home.bookAppt")}</p>
@@ -1769,6 +1754,7 @@ function Book({
   const [symptomPhoto, setSymptomPhoto] = useState("");
 
   const [slotIso, setSlotIso] = useState("");
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const pending = typeof window === "undefined" ? "" : sessionStorage.getItem("mh.symptoms") || "";
   const provider = resolveBookingProvider({
@@ -1894,13 +1880,25 @@ function Book({
       <Field label={t("book.yourName")}>
         <input name="name" className={inputClass} defaultValue={user?.name || ""} required />
       </Field>
-      <div className="grid grid-cols-2 gap-2.5">
-        <Field label={t("book.phone")}>
-          <input name="phone" className={inputClass} defaultValue={user?.phone || ""} required />
-        </Field>
-        <Field label={t("book.email")}>
-          <input name="email" type="email" className={inputClass} defaultValue={user?.email || ""} />
-        </Field>
+      <Field label={t("book.phone")}>
+        <input name="phone" className={inputClass} defaultValue={user?.phone || ""} required />
+      </Field>
+      <div data-book-slot="">
+      <Fieldset label={t("book.preferredTime")}>
+        <input type="hidden" name="slot" value={slotIso} />
+        <SlotCalendar
+          providerId={provider.id}
+          selected={slotIso}
+          onSelect={setSlotIso}
+          locale={locale}
+        />
+
+        {Store.openSlots(provider.id).length === 0 ? (
+          <p className="mt-2 text-sm text-accent2">{t("book.bayFull")}</p>
+        ) : (
+          <p className="mt-2 text-sm text-muted">{t("book.takenHint")}</p>
+        )}
+      </Fieldset>
       </div>
       {savedVehicles.length ? (
         <div className="rounded-xl border border-line bg-surface p-4">
@@ -1935,45 +1933,51 @@ function Book({
           </div>
         </div>
       ) : null}
-      <VehiclePicker key={pickedVehicleKey || "new"} defaults={pickedVehicle || undefined} />
-      <Field label={t("book.whatsGoingOn")}>
-        <textarea
-          name="symptoms"
-          className={inputClass + " min-h-28"}
-          defaultValue={pending}
-          placeholder={t("book.symptomsPh")}
-        />
-        <p className="mt-2 text-sm text-muted">{t("book.symptomsHint")}</p>
-      </Field>
-
-      <div className="rounded-xl border border-line bg-surface p-4" data-symptom-photo-picker="">
-        <PhotoPicker
-          slot={SYMPTOM_PHOTO_SLOT}
-          value={symptomPhoto}
-          name={t("book.symptomPhoto")}
-          label={t("book.symptomPhoto")}
-          hint={t("book.symptomPhotoHint")}
-          onErr={(msg) => onErr(translateStoreError(locale, msg))}
-          onPick={async (dataUrl) => {
-            setSymptomPhoto(dataUrl);
-          }}
-        />
-      </div>
-      <Fieldset label={t("book.preferredTime")}>
-        <input type="hidden" name="slot" value={slotIso} />
-        <SlotCalendar
-          providerId={provider.id}
-          selected={slotIso}
-          onSelect={setSlotIso}
-          locale={locale}
-        />
-
-        {Store.openSlots(provider.id).length === 0 ? (
-          <p className="mt-2 text-sm text-accent2">{t("book.bayFull")}</p>
-        ) : (
-          <p className="mt-2 text-sm text-muted">{t("book.takenHint")}</p>
-        )}
-      </Fieldset>
+      <VehiclePicker key={pickedVehicleKey || "new"} defaults={pickedVehicle || undefined} optionalOpen={moreOpen} />
+      <button
+        type="button"
+        data-book-more=""
+        data-book-more-open={moreOpen ? "true" : "false"}
+        onClick={() => setMoreOpen((open) => !open)}
+        className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface text-sm font-semibold text-muted"
+      >
+        <ChevronDown className={`size-4 transition-transform ${moreOpen ? "rotate-180" : ""}`} aria-hidden />
+        {moreOpen ? t("book.hideDetails") : t("book.moreDetails")}
+      </button>
+      {moreOpen ? (
+        <div data-book-optional="" className="flex flex-col gap-3">
+          <Field label={t("book.email")}>
+            <input name="email" type="email" className={inputClass} defaultValue={user?.email || ""} />
+          </Field>
+          <Field label={t("book.whatsGoingOn")}>
+            <textarea
+              name="symptoms"
+              className={inputClass + " min-h-28"}
+              defaultValue={pending}
+              placeholder={t("book.symptomsPh")}
+            />
+            <p className="mt-2 text-sm text-muted">{t("book.symptomsHint")}</p>
+          </Field>
+          <div className="rounded-xl border border-line bg-surface p-4" data-symptom-photo-picker="">
+            <PhotoPicker
+              slot={SYMPTOM_PHOTO_SLOT}
+              value={symptomPhoto}
+              name={t("book.symptomPhoto")}
+              label={t("book.symptomPhoto")}
+              hint={t("book.symptomPhotoHint")}
+              onErr={(msg) => onErr(translateStoreError(locale, msg))}
+              onPick={async (dataUrl) => {
+                setSymptomPhoto(dataUrl);
+              }}
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          <input type="hidden" name="email" defaultValue={user?.email || ""} />
+          <input type="hidden" name="symptoms" defaultValue={pending} />
+        </>
+      )}
       <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
         <input type="checkbox" name="notifySms" defaultChecked className="mt-1 size-4 accent-amber-400" />
         <span>
@@ -3167,9 +3171,12 @@ function vehicleFromPickerForm(fd: FormData): VehicleFields {
 function VehiclePicker({
   defaults,
   footerKey = "vehicle.onAppointment",
+  optionalOpen,
 }: {
   defaults?: VehicleFields;
   footerKey?: MessageKey;
+  /** When set, trim/color/photo stay collapsed until true. Account omits this. */
+  optionalOpen?: boolean;
 }) {
   const makeSplit = splitFromList(defaults?.make, Object.keys(VEHICLE_DATA));
   const [make, setMake] = useState(makeSplit.selected);
@@ -3188,6 +3195,7 @@ function VehiclePicker({
   const [photoErr, setPhotoErr] = useState("");
   const { locale, t } = useI18n();
   const trims = model ? trimOptions(make, model) : [];
+  const showExtras = optionalOpen === undefined || optionalOpen;
   const preview = [
     year,
     resolveListedOrOther(make, makeOther),
@@ -3197,11 +3205,11 @@ function VehiclePicker({
     .filter(Boolean)
     .join(" ");
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface" data-vehicle-picker="">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <div>
           <p className="text-sm font-semibold">{t("vehicle.title")}</p>
-          <p className="text-sm text-muted">{t("vehicle.sub")}</p>
+          <p className="text-sm text-muted">{t(optionalOpen === undefined ? "vehicle.sub" : "vehicle.subShort")}</p>
         </div>
         {make ? (
           <VehicleArt
@@ -3311,67 +3319,78 @@ function VehiclePicker({
             />
           </label>
         ) : null}
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.trimOptional")}</span>
-          <SelectWrap>
-            <select
-              name="trim"
-              className={selectClass}
-              value={trim}
-              disabled={!model}
-              onChange={(e) => setTrim(e.target.value)}
-            >
-              <option value="">{model ? t("vehicle.skipTrim") : t("vehicle.pickModelFirst")}</option>
-              {trims.map((trimName) => (
-                <option key={trimName} value={trimName}>
-                  {listedLabel(trimName, t)}
-                </option>
-              ))}
-            </select>
-          </SelectWrap>
-        </label>
-        {trim === OTHER_VALUE ? (
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.whichTrim")}</span>
-            <input
-              name="trimOther"
-              className={inputClass}
-              value={trimOther}
-              onChange={(e) => setTrimOther(e.target.value)}
-              placeholder={t("vehicle.typeHere")}
-              autoComplete="off"
-            />
-          </label>
-        ) : null}
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.color")}</span>
-          <SelectWrap>
-            <select name="color" className={selectClass} value={color} onChange={(e) => setColor(e.target.value)}>
-              <option value="">{t("vehicle.chooseColor")}</option>
-              {VEHICLE_COLOR_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {t(`color.${id}` as MessageKey)}
-                </option>
-              ))}
-            </select>
-          </SelectWrap>
-        </label>
-        <div>
-          <input type="hidden" name="vehiclePhoto" value={vehiclePhoto} />
-          <PhotoPicker
-            slot={VEHICLE_PHOTO_SLOT}
-            value={vehiclePhoto}
-            name={preview || t("vehicle.notChosen")}
-            label={t("vehicle.photoLabel")}
-            hint={t("vehicle.photoHint")}
-            onErr={(msg) => setPhotoErr(translateStoreError(locale, msg))}
-            onPick={(dataUrl) => {
-              setPhotoErr("");
-              setVehiclePhoto(dataUrl);
-            }}
-          />
-          {photoErr ? <p className="mt-2 text-sm text-danger">{photoErr}</p> : null}
-        </div>
+        {showExtras ? (
+          <div data-vehicle-extras="" className="grid gap-3">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.trimOptional")}</span>
+              <SelectWrap>
+                <select
+                  name="trim"
+                  className={selectClass}
+                  value={trim}
+                  disabled={!model}
+                  onChange={(e) => setTrim(e.target.value)}
+                >
+                  <option value="">{model ? t("vehicle.skipTrim") : t("vehicle.pickModelFirst")}</option>
+                  {trims.map((trimName) => (
+                    <option key={trimName} value={trimName}>
+                      {listedLabel(trimName, t)}
+                    </option>
+                  ))}
+                </select>
+              </SelectWrap>
+            </label>
+            {trim === OTHER_VALUE ? (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.whichTrim")}</span>
+                <input
+                  name="trimOther"
+                  className={inputClass}
+                  value={trimOther}
+                  onChange={(e) => setTrimOther(e.target.value)}
+                  placeholder={t("vehicle.typeHere")}
+                  autoComplete="off"
+                />
+              </label>
+            ) : null}
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold text-muted">{t("vehicle.color")}</span>
+              <SelectWrap>
+                <select name="color" className={selectClass} value={color} onChange={(e) => setColor(e.target.value)}>
+                  <option value="">{t("vehicle.chooseColor")}</option>
+                  {VEHICLE_COLOR_IDS.map((id) => (
+                    <option key={id} value={id}>
+                      {t(`color.${id}` as MessageKey)}
+                    </option>
+                  ))}
+                </select>
+              </SelectWrap>
+            </label>
+            <div>
+              <input type="hidden" name="vehiclePhoto" value={vehiclePhoto} />
+              <PhotoPicker
+                slot={VEHICLE_PHOTO_SLOT}
+                value={vehiclePhoto}
+                name={preview || t("vehicle.notChosen")}
+                label={t("vehicle.photoLabel")}
+                hint={t("vehicle.photoHint")}
+                onErr={(msg) => setPhotoErr(translateStoreError(locale, msg))}
+                onPick={(dataUrl) => {
+                  setPhotoErr("");
+                  setVehiclePhoto(dataUrl);
+                }}
+              />
+              {photoErr ? <p className="mt-2 text-sm text-danger">{photoErr}</p> : null}
+            </div>
+          </div>
+        ) : (
+          <>
+            <input type="hidden" name="trim" value={trim} />
+            {trim === OTHER_VALUE ? <input type="hidden" name="trimOther" value={trimOther} /> : null}
+            <input type="hidden" name="color" value={color} />
+            <input type="hidden" name="vehiclePhoto" value={vehiclePhoto} />
+          </>
+        )}
       </div>
       <div className="border-t border-line bg-bg2 px-4 py-3">
         <p className="text-sm text-muted">{t(footerKey)}</p>
