@@ -30,7 +30,7 @@ export function initialViewFromSearch(search: AppEntrySearch): GuestLanding {
 
 /**
  * Unsigned QR / find-code visits open the public shop page.
- * Account is required only when they book (or they tap Log in).
+ * Booking does not require an account; creating one is optional for tracking.
  */
 export function guestLandingView(opts: {
   wantsLogin: boolean;

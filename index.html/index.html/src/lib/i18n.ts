@@ -30,7 +30,7 @@ const en = {
 
   "welcome.referred": "You were referred",
   "welcome.referredCode": "{detail} · code {code}",
-  "welcome.referredLogin": "No account needed to look around. You'll create one when you book.",
+  "welcome.referredLogin": "No account needed. Look around, then book with your name and phone.",
   "welcome.title1": "Sign in to book",
   "welcome.title2": "or run the bay.",
   "welcome.body":
@@ -42,7 +42,7 @@ const en = {
   "welcome.createAccount": "Create an account",
   "welcome.bookAppointment": "Book an appointment",
   "welcome.lookingUp": "Opening this shop…",
-  "welcome.accountWhenBooking": "You'll create a customer account when you book.",
+  "welcome.accountWhenBooking": "Account is optional. Create one only if you want to track this car in the app.",
   "welcome.demoLogins": "Demo logins · password demo123",
   "welcome.demoCustomer": "Customer: maya@example.com",
   "welcome.demoShop": "Shop: shop@example.com",
@@ -93,7 +93,7 @@ const en = {
   "recover.user.emailed": "If this account has email and mail is connected, we also sent the login there.",
 
   "register.title": "Create account",
-  "register.customerToBook": "Create a customer account to book with {name}.",
+  "register.customerToBook": "Optional — create a customer account to track jobs with {name}.",
   "register.name": "Full name",
   "register.email": "Email",
   "register.phone": "Phone",
@@ -158,11 +158,15 @@ const en = {
   "book.preferredTime": "Preferred time",
   "book.chooseSlot": "Choose a slot",
   "book.request": "Request appointment",
+  "book.guestHint": "No account needed. The shop uses this name and phone for the visit.",
+  "book.guestTrackHint": "Want to track this car here later? Create an account — optional.",
 
   "confirm.title": "You’re on the board",
   "confirm.jobCode": "Job code",
   "confirm.goingTo": "Going to {name}",
   "confirm.track": "Track this job",
+  "confirm.guestHint": "The shop will use the name and phone you entered. Save this job code.",
+  "confirm.createAccount": "Create an account to track in the app",
 
   "track.title": "Track a repair",
   "track.placeholder": "Job code or phone",
@@ -736,6 +740,7 @@ const en = {
   "job.cancelTooLate":
     "It's less than an hour before your appointment. Cancel or reschedule by calling the shop.",
   "job.callShop": "Call the shop",
+  "job.guestManage": "Call the shop to change this appointment. An account lets you manage it here.",
   "job.callCustomer": "Call",
   "job.textCustomer": "Text",
   "job.callCustomerHint":
@@ -857,7 +862,7 @@ const es: Record<MessageKey, string> = {
 
   "welcome.referred": "Te recomendaron",
   "welcome.referredCode": "{detail} · código {code}",
-  "welcome.referredLogin": "No necesitas cuenta para mirar. La creas cuando reservas.",
+  "welcome.referredLogin": "No necesitas cuenta. Mira el taller y reserva con tu nombre y teléfono.",
   "welcome.title1": "Inicia sesión para reservar",
   "welcome.title2": "o atender el taller.",
   "welcome.body":
@@ -869,7 +874,7 @@ const es: Record<MessageKey, string> = {
   "welcome.createAccount": "Crear una cuenta",
   "welcome.bookAppointment": "Reservar una cita",
   "welcome.lookingUp": "Abriendo este taller…",
-  "welcome.accountWhenBooking": "Crearás una cuenta de cliente cuando reserves.",
+  "welcome.accountWhenBooking": "La cuenta es opcional. Créala solo si quieres seguir el auto en la app.",
   "welcome.demoLogins": "Accesos de demo · contraseña demo123",
   "welcome.demoCustomer": "Cliente: maya@example.com",
   "welcome.demoShop": "Taller: shop@example.com",
@@ -920,7 +925,7 @@ const es: Record<MessageKey, string> = {
   "recover.user.emailed": "Si la cuenta tiene correo y el envío está conectado, también enviamos el usuario ahí.",
 
   "register.title": "Crear cuenta",
-  "register.customerToBook": "Crea una cuenta de cliente para reservar con {name}.",
+  "register.customerToBook": "Opcional — crea una cuenta de cliente para seguir trabajos con {name}.",
   "register.name": "Nombre completo",
   "register.email": "Correo",
   "register.phone": "Teléfono",
@@ -985,11 +990,15 @@ const es: Record<MessageKey, string> = {
   "book.preferredTime": "Horario preferido",
   "book.chooseSlot": "Elige un horario",
   "book.request": "Solicitar cita",
+  "book.guestHint": "No necesitas cuenta. El taller usa este nombre y teléfono para la visita.",
+  "book.guestTrackHint": "¿Quieres seguir el auto aquí después? Crea una cuenta — opcional.",
 
   "confirm.title": "Ya estás en la lista",
   "confirm.jobCode": "Código del trabajo",
   "confirm.goingTo": "Va a {name}",
   "confirm.track": "Seguir este trabajo",
+  "confirm.guestHint": "El taller usará el nombre y teléfono que diste. Guarda este código.",
+  "confirm.createAccount": "Crear una cuenta para seguirlo en la app",
 
   "track.title": "Seguir una reparación",
   "track.placeholder": "Código o teléfono",
@@ -1563,6 +1572,7 @@ const es: Record<MessageKey, string> = {
   "job.cancelTooLate":
     "Falta menos de una hora para tu cita. Cancela o reprograma llamando al taller.",
   "job.callShop": "Llama al taller",
+  "job.guestManage": "Llama al taller para cambiar esta cita. Con una cuenta la administras aquí.",
   "job.callCustomer": "Llamar",
   "job.textCustomer": "Texto",
   "job.callCustomerHint":

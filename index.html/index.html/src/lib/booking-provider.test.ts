@@ -183,3 +183,25 @@ test("explicit unlink does not snap back to last ticket", () => {
   assert.equal(provider, null);
   assert.equal(bookProviderUi(provider), "link-code");
 });
+
+test("guest with a QR lock books that shop without an account", () => {
+  const provider = resolveBookingProvider({
+    user: null,
+    locked: riverside,
+    providers,
+    jobs: [],
+  });
+  assert.equal(provider?.code, "RIV4");
+  assert.equal(bookProviderUi(provider), "locked");
+});
+
+test("guest without a lock cannot pick from a shop directory", () => {
+  const provider = resolveBookingProvider({
+    user: null,
+    locked: null,
+    providers,
+    jobs: [],
+  });
+  assert.equal(provider, null);
+  assert.equal(bookProviderUi(provider), "link-code");
+});

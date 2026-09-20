@@ -344,8 +344,14 @@ export function MechanicsApp({
       }
     }
     const next = homeFor(u.role);
-    if (u.role === "customer" && (lockedProvider || Store.getRefCode())) setView("book");
-    else setView(next);
+    if (u.role === "customer" && (lockedProvider || Store.getRefCode())) {
+      if (draft) {
+        setSelectedId(draft.id);
+        setView("job");
+      } else {
+        setView("book");
+      }
+    } else setView(next);
     flash(t("toast.hi", { name: u.name.split(" ")[0] }));
   }
 
@@ -412,15 +418,15 @@ export function MechanicsApp({
     setLockedProvider(p);
     flash(t("toast.found", { name: p.name }));
     if (!user) {
-      setView("provider");
+      setView(goBook ? "book" : "provider");
       return;
     }
     if (goBook && user.role === "customer") setView("book");
   }
 
   function startBooking() {
-    if (user?.role === "customer") setView("book");
-    else setView("register");
+    if (!user || user.role === "customer") setView("book");
+    else setView(homeFor(user.role));
   }
 
   function authBack() {
@@ -434,7 +440,8 @@ export function MechanicsApp({
   const liveLocked = lockedProvider
     ? Store.findProviderByCode(lockedProvider.code) || lockedProvider
     : null;
-  const showWordmark =
+  const unsignedChrome =
+    !user ||
     view === "welcome" ||
     view === "login" ||
     view === "register" ||
@@ -442,6 +449,7 @@ export function MechanicsApp({
     view === "forgotPassword" ||
     view === "forgotUsername" ||
     view === "provider";
+  const showWordmark = unsignedChrome;
   const bayLabel = isShopTechnician(user)
     ? t("shop.techBadge", { shop: user?.shopName || t("shop.shop") })
     : isProvider
@@ -476,7 +484,7 @@ export function MechanicsApp({
           {showWordmark ? <span className="font-mono text-dim">{bayLabel}</span> : null}
         </div>
       </header>
-      <main className={`flex-1 overflow-y-auto px-4 pt-3 ${isProvider ? "md:px-6" : ""} ${view === "welcome" || view === "login" || view === "register" || view === "recover" || view === "forgotPassword" || view === "forgotUsername" || view === "provider" ? "pb-16" : "pb-36"}`}>
+      <main className={`flex-1 overflow-y-auto px-4 pt-3 ${isProvider ? "md:px-6" : ""} ${unsignedChrome ? "pb-16" : "pb-36"}`}>
         {view === "welcome" && (
           <Welcome
             locked={liveLocked}
@@ -495,6 +503,7 @@ export function MechanicsApp({
             onApply={() => applyCode(codeInput, false)}
             onBook={startBooking}
             onLogin={() => setView("login")}
+            onRegister={() => setView("register")}
           />
         )}
         {view === "login" && (
@@ -552,21 +561,28 @@ export function MechanicsApp({
             }}
           />
         )}
-        {view === "book" && user && (
+        {view === "book" && (!user || user.role === "customer") && (
           <Book
             user={user}
             locked={liveLocked}
             onLink={(code) => applyCode(code)}
-            onBack={() => setView("home")}
+            onBack={() => setView(user ? "home" : liveLocked ? "provider" : "welcome")}
             onBooked={(j) => {
               setDraft(j);
               setView("confirm");
             }}
             onErr={flash}
+            onRegister={() => setView("register")}
           />
         )}
         {view === "confirm" && draft && (
-          <Confirm job={draft} onTrack={() => { setSelectedId(draft.id); setView("track"); }} onHome={() => setView("home")} />
+          <Confirm
+            job={draft}
+            guest={!user}
+            onTrack={() => { setSelectedId(draft.id); setView(user ? "track" : "job"); }}
+            onHome={() => setView(user ? "home" : liveLocked ? "provider" : "welcome")}
+            onRegister={() => setView("register")}
+          />
         )}
         {view === "track" && user && (
           <Track
@@ -579,7 +595,15 @@ export function MechanicsApp({
           />
         )}
         {view === "job" && selectedId && (
-          <JobDetail id={selectedId} shop={false} user={user || undefined} onBack={() => setView("track")} bump={bump} flash={flash} tick={tick} />
+          <JobDetail
+            id={selectedId}
+            shop={false}
+            user={user || undefined}
+            onBack={() => setView(user ? "track" : draft ? "confirm" : liveLocked ? "provider" : "welcome")}
+            bump={bump}
+            flash={flash}
+            tick={tick}
+          />
         )}
         {view === "diagnose" && (
           <Diagnose
@@ -1136,6 +1160,7 @@ function GuestProviderPage({
   onApply,
   onBook,
   onLogin,
+  onRegister,
 }: {
   provider: Provider | null;
   codeInput: string;
@@ -1143,6 +1168,7 @@ function GuestProviderPage({
   onApply: () => void;
   onBook: () => void;
   onLogin: () => void;
+  onRegister: () => void;
 }) {
   const { t } = useI18n();
   if (!provider) {
@@ -1164,6 +1190,14 @@ function GuestProviderPage({
         </button>
         <button type="button" onClick={onLogin} className="h-12 rounded-xl border border-line bg-surface font-semibold">
           {t("welcome.login")}
+        </button>
+        <button
+          type="button"
+          data-guest-register=""
+          onClick={onRegister}
+          className="h-12 rounded-xl border border-line bg-transparent font-semibold text-muted"
+        >
+          {t("welcome.createAccount")}
         </button>
       </div>
       <p className="mt-3 text-center text-sm text-muted">{t("welcome.accountWhenBooking")}</p>
@@ -1715,17 +1749,19 @@ function Book({
   onBack,
   onBooked,
   onErr,
+  onRegister,
 }: {
-  user: User;
+  user: User | null;
   locked: Provider | null;
   onLink: (code: string) => void;
   onBack: () => void;
   onBooked: (j: Job) => void;
   onErr: (s: string) => void;
+  onRegister?: () => void;
 }) {
   const { locale, t } = useI18n();
   const providers = Store.listProviders();
-  const savedVehicles = Store.customerVehicles(user);
+  const savedVehicles = user ? Store.customerVehicles(user) : [];
   const [pickedVehicleKey, setPickedVehicleKey] = useState(savedVehicles[0] ? vehicleKey(savedVehicles[0]) : "");
   const pickedVehicle = savedVehicles.find((v) => vehicleKey(v) === pickedVehicleKey) || null;
   const [linkCode, setLinkCode] = useState("");
@@ -1739,9 +1775,9 @@ function Book({
     user,
     locked,
     providers,
-    jobs: Store.providerJobs(user),
-    linkedCode: Store.getLinkedCode(user),
-    allowSavedBay: !Store.wasUnlinked(user),
+    jobs: user ? Store.providerJobs(user) : [],
+    linkedCode: user ? Store.getLinkedCode(user) : Store.getRefCode(),
+    allowSavedBay: user ? !Store.wasUnlinked(user) : Boolean(locked),
   });
 
   if (!provider) {
@@ -1782,6 +1818,7 @@ function Book({
   return (
     <form
       className="flex flex-col gap-3"
+      data-guest-book-form={user ? undefined : "true"}
       onSubmit={async (e) => {
         e.preventDefault();
         const f = e.currentTarget;
@@ -1790,7 +1827,7 @@ function Book({
         const savedMatch = savedVehicles.find((v) => vehicleKey(v) === vehicleKey(picked)) || pickedVehicle;
         const job: Job = {
           id: Store.jobCode(),
-          userId: user.id,
+          userId: user?.id,
           createdAt: Date.now(),
           name: String(fd.get("name")),
           phone: String(fd.get("phone")).replace(/\D/g, ""),
@@ -1808,7 +1845,7 @@ function Book({
           providerType: provider.type,
           providerName: provider.name,
           assignedTo: "",
-          notes: [{ at: Date.now(), text: "Booked from customer app.", by: "system" }],
+          notes: [{ at: Date.now(), text: user ? "Booked from customer app." : "Booked as guest.", by: "system" }],
           notifySms: fd.get("notifySms") === "on",
           symptomPhoto: symptomPhoto || undefined,
         };
@@ -1831,31 +1868,38 @@ function Book({
           return onErr(translateStoreError(locale, saved.error));
         }
         Store.setLinkedCode(user, provider.code);
-        Store.addCustomerVehicle(user, {
-          year: job.year,
-          make: job.make,
-          model: job.model,
-          trim: job.trim,
-          photo: job.vehiclePhoto,
-          color: job.color,
-        });
+        if (user) {
+          Store.addCustomerVehicle(user, {
+            year: job.year,
+            make: job.make,
+            model: job.model,
+            trim: job.trim,
+            photo: job.vehiclePhoto,
+            color: job.color,
+          });
+        }
         sessionStorage.removeItem("mh.symptoms");
         onBooked(job);
       }}
     >
       <Top title={t("book.title")} onBack={onBack} />
+      {!user ? (
+        <p className="text-sm text-muted" data-guest-book-hint="">
+          {t("book.guestHint")}
+        </p>
+      ) : null}
       <div data-booking-bay="">
         <PublicProviderCard provider={provider} eyebrow={t("book.withShop", { name: provider.name })} compact />
       </div>
       <Field label={t("book.yourName")}>
-        <input name="name" className={inputClass} defaultValue={user.name} required />
+        <input name="name" className={inputClass} defaultValue={user?.name || ""} required />
       </Field>
       <div className="grid grid-cols-2 gap-2.5">
         <Field label={t("book.phone")}>
-          <input name="phone" className={inputClass} defaultValue={user.phone} required />
+          <input name="phone" className={inputClass} defaultValue={user?.phone || ""} required />
         </Field>
         <Field label={t("book.email")}>
-          <input name="email" type="email" className={inputClass} defaultValue={user.email} />
+          <input name="email" type="email" className={inputClass} defaultValue={user?.email || ""} />
         </Field>
       </div>
       {savedVehicles.length ? (
@@ -1939,19 +1983,41 @@ function Book({
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
         {t("book.request")}
       </button>
+      {!user && onRegister ? (
+        <button
+          type="button"
+          onClick={onRegister}
+          className="text-center text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
+        >
+          {t("book.guestTrackHint")}
+        </button>
+      ) : null}
     </form>
   );
 }
 
-function Confirm({ job, onTrack, onHome }: { job: Job; onTrack: () => void; onHome: () => void }) {
+function Confirm({
+  job,
+  guest,
+  onTrack,
+  onHome,
+  onRegister,
+}: {
+  job: Job;
+  guest?: boolean;
+  onTrack: () => void;
+  onHome: () => void;
+  onRegister?: () => void;
+}) {
   const { locale, t } = useI18n();
   return (
-    <div>
+    <div data-guest-confirm={guest ? "true" : undefined}>
       <Top title={t("confirm.title")} onBack={onHome} />
       <div className="rounded-2xl border border-accent/30 bg-accent/10 p-4 text-center">
         <p className="text-sm text-muted">{t("confirm.saveCode")}</p>
         <p className="font-mono text-3xl tracking-[0.18em] text-accent">{job.id}</p>
         <p className="mt-1 text-sm text-muted">{t("confirm.goingTo", { name: job.providerName })}</p>
+        {guest ? <p className="mt-2 text-sm text-muted">{t("confirm.guestHint")}</p> : null}
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border border-line bg-surface">
         <VehicleArt
@@ -1970,6 +2036,16 @@ function Confirm({ job, onTrack, onHome }: { job: Job; onTrack: () => void; onHo
       <button type="button" onClick={onTrack} className="mt-4 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
         {t("confirm.track")}
       </button>
+      {guest && onRegister ? (
+        <button
+          type="button"
+          data-guest-confirm-register=""
+          onClick={onRegister}
+          className="mt-2 h-12 w-full rounded-xl border border-line bg-surface font-semibold"
+        >
+          {t("confirm.createAccount")}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -2389,7 +2465,21 @@ function JobDetail({
               <div className="mt-3"><BayPreview src={symptomSrc} /></div>
             </div>
           ) : null}
-          {!shop && canCustomerCancel(job.status) ? (
+          {!shop && !user ? (
+            <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-guest-ticket="">
+              <p className="text-sm leading-relaxed text-muted">{t("job.guestManage")}</p>
+              {callShopHref ? (
+                <a
+                  href={callShopHref}
+                  data-call-shop=""
+                  className="mt-3 flex h-11 items-center justify-center gap-1.5 rounded-xl bg-accent font-semibold text-ink"
+                >
+                  <Phone className="size-4 shrink-0" aria-hidden />
+                  {t("job.callShop")}
+                </a>
+              ) : null}
+            </div>
+          ) : !shop && user && canCustomerCancel(job.status) ? (
             <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-customer-actions="">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.manageTitle")}</p>
               {canManageAppointment(job) ? (
@@ -2639,6 +2729,7 @@ function JobDetail({
                         {formatEstimateAmount(estimate.amount)}
                       </p>
                       {estimate.note ? <p className="text-sm text-muted">{estimate.note}</p> : null}
+                      {user ? (
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
                           type="button"
@@ -2673,6 +2764,9 @@ function JobDetail({
                           {t("job.estimateDecline")}
                         </button>
                       </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted">{t("job.guestManage")}</p>
+                      )}
                     </>
                   ) : estimate?.status === "approved" ? (
                     <p className="mt-2 text-sm font-semibold" data-estimate-status="approved">

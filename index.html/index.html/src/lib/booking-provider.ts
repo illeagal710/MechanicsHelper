@@ -1,7 +1,7 @@
 import type { Job, Provider, User } from "@/lib/store";
 
 export type BookingProviderInput = {
-  user: Pick<User, "id" | "role" | "email" | "phone" | "shopId">;
+  user: Pick<User, "id" | "role" | "email" | "phone" | "shopId"> | null;
   locked: Provider | null;
   providers: Provider[];
   jobs: Pick<Job, "userId" | "email" | "phone" | "providerId" | "providerType" | "createdAt">[];
@@ -39,6 +39,10 @@ export function customerOwnsJob(
  */
 export function resolveBookingProvider(input: BookingProviderInput): Provider | null {
   const { user, locked, providers, jobs, linkedCode } = input;
+
+  if (!user) {
+    return locked ? matchProvider(providers, locked.id, locked.type) || locked : null;
+  }
 
   if (user.role === "shop") {
     return matchProvider(providers, user.shopId, "shop");
