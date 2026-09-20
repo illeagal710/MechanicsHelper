@@ -441,3 +441,14 @@ test("ticket invoice copy stays a handwritten total, not QuickBooks", () => {
     "Agrega una línea con una descripción.",
   );
 });
+
+test("customers can send the shop referral link from the shop card", () => {
+  assert.equal(translate("en", "qr.sendShop"), "Send this shop to a friend");
+  assert.equal(translate("es", "qr.sendShop"), "Envía este taller a un amigo");
+  assert.equal(translate("en", "qr.copyLink"), "Copy link");
+  assert.equal(translate("en", "qr.share"), "Share");
+  assert.equal(translate("es", "qr.copyLink"), "Copiar enlace");
+  assert.equal(translate("es", "qr.share"), "Compartir");
+  assert.match(translate("en", "qr.shareText", { title: "Riverside Auto", code: "RIV4" }), /RIV4/);
+  assert.match(translate("es", "qr.shareText", { title: "Riverside Auto", code: "RIV4" }), /RIV4/);
+});

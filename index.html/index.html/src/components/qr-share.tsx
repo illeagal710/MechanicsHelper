@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Download, Printer, RefreshCw, Share2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
-import { qrDataUrl, qrPrintDataUrl, referralUrl } from "@/lib/qr";
+import { canNativeShare, qrDataUrl, qrPrintDataUrl, referralSharePayload, referralUrl } from "@/lib/qr";
 
 export function QrShare({
   code,
@@ -20,7 +20,7 @@ export function QrShare({
   const [src, setSrc] = useState("");
   const [copied, setCopied] = useState<"code" | "link" | "">("");
   const link = typeof window === "undefined" ? "" : referralUrl(code);
-  const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const nativeShare = canNativeShare();
 
   useEffect(() => {
     if (!code) return;
@@ -89,11 +89,9 @@ export function QrShare({
 
   async function shareNative() {
     try {
-      await navigator.share({
-        title: title,
-        text: t("qr.shareText", { title, code }),
-        url: link,
-      });
+      await navigator.share(
+        referralSharePayload(title, code, t("qr.shareText", { title, code })),
+      );
     } catch {
       /* cancelled */
     }
@@ -134,7 +132,7 @@ export function QrShare({
         </button>
         <button
           type="button"
-          className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface2 text-sm font-semibold ${canNativeShare ? "" : "col-span-2"}`}
+          className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface2 text-sm font-semibold ${nativeShare ? "" : "col-span-2"}`}
           onClick={download}
         >
           <Download className="size-4" />
@@ -148,7 +146,7 @@ export function QrShare({
           <Printer className="size-4" />
           {t("qr.printSheet")}
         </button>
-        {canNativeShare ? (
+        {nativeShare ? (
           <button
             type="button"
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface2 text-sm font-semibold"
@@ -173,6 +171,73 @@ export function QrShare({
         </button>
       ) : null}
       {rotateHint ? <p className="mt-1 text-xs text-dim">{rotateHint}</p> : null}
+    </div>
+  );
+}
+
+/** Word-of-mouth share on the public shop card. Same referral URL as the shop QR. */
+export function CustomerShopShare({
+  code,
+  title,
+}: {
+  code: string;
+  title: string;
+}) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+  const link = typeof window === "undefined" ? "" : referralUrl(code);
+
+  async function copyLink() {
+    const url = link || referralUrl(code);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      /* ignore */
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+
+  async function share() {
+    if (canNativeShare()) {
+      try {
+        await navigator.share(
+          referralSharePayload(title, code, t("qr.shareText", { title, code })),
+        );
+        return;
+      } catch {
+        /* cancelled */
+        return;
+      }
+    }
+    await copyLink();
+  }
+
+  if (!code) return null;
+
+  return (
+    <div className="mt-3" data-customer-share-shop="">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("qr.sendShop")}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface text-sm font-semibold"
+          data-copy-shop-link=""
+          onClick={() => void copyLink()}
+        >
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          {copied ? t("qr.copied") : t("qr.copyLink")}
+        </button>
+        <button
+          type="button"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-semibold text-ink"
+          data-share-shop=""
+          onClick={() => void share()}
+        >
+          <Share2 className="size-4" />
+          {t("qr.share")}
+        </button>
+      </div>
     </div>
   );
 }

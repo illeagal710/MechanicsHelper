@@ -18,7 +18,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { QrShare } from "@/components/qr-share";
+import { CustomerShopShare, QrShare } from "@/components/qr-share";
 import { BayPreview, Face, PhotoPicker, ProfilePhotoEditor } from "@/components/photo-input";
 import { VehicleArt } from "@/components/vehicle-art";
 import { BAY_PHOTO_SLOT, SYMPTOM_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, symptomPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
@@ -996,6 +996,7 @@ function PublicProviderCard({
           {provider.supportEmail ? provider.supportEmail : ""}
         </p>
       )}
+      {!compact && provider.code ? <CustomerShopShare code={provider.code} title={provider.name} /> : null}
       {children}
     </div>
   );

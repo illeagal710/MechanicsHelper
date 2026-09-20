@@ -1,9 +1,31 @@
 import QRCode from "qrcode";
 
-export function referralUrl(code: string) {
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const path = typeof window === "undefined" ? "/" : window.location.pathname;
-  return `${origin}${path}?ref=${encodeURIComponent(code)}`;
+export type ReferralLocation = {
+  origin: string;
+  pathname: string;
+};
+
+export function referralLocation(): ReferralLocation {
+  if (typeof window === "undefined") return { origin: "", pathname: "/" };
+  return { origin: window.location.origin, pathname: window.location.pathname };
+}
+
+/** Same URL the shop QR uses: origin + path + ?ref=CODE. */
+export function referralUrl(code: string, loc: ReferralLocation = referralLocation()) {
+  return `${loc.origin}${loc.pathname}?ref=${encodeURIComponent(code)}`;
+}
+
+export function canNativeShare(): boolean {
+  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+}
+
+export function referralSharePayload(
+  title: string,
+  code: string,
+  text: string,
+  loc: ReferralLocation = referralLocation(),
+) {
+  return { title, text, url: referralUrl(code, loc) };
 }
 
 export async function qrDataUrl(text: string) {
