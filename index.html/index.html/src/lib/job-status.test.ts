@@ -17,6 +17,7 @@ import {
   CANCEL_LEAD_MS,
   CANCEL_TOO_LATE,
   historyJobs,
+  invoiceJobs,
   isTerminalStatus,
   jobMatchesQuery,
   occupiesSlot,
@@ -93,6 +94,34 @@ test("shop board hides done and declined from Open; History lists them", () => {
   );
   assert.equal(
     shopBoardJobs(jobs, "history").every((j) => j.status === "done" || j.status === "declined"),
+    true,
+  );
+});
+
+test("Invoices tab lists every billed ticket, newest first, including open jobs", () => {
+  const jobs = [
+    job({
+      id: "MH-OLD",
+      status: "done",
+      invoice: { number: "RIV4-1", createdAt: 10, updatedAt: 10 },
+    }),
+    job({
+      id: "MH-NEW",
+      status: "repair",
+      invoice: { number: "RIV4-2", createdAt: 20, updatedAt: 40 },
+    }),
+    job({ id: "MH-NONE", status: "scheduled" }),
+  ];
+  assert.deepEqual(
+    invoiceJobs(jobs).map((j) => j.id),
+    ["MH-NEW", "MH-OLD"],
+  );
+  assert.deepEqual(
+    shopBoardJobs(jobs, "invoices").map((j) => j.invoice?.number),
+    ["RIV4-2", "RIV4-1"],
+  );
+  assert.equal(
+    shopBoardJobs(jobs, "active").some((j) => j.id === "MH-NEW"),
     true,
   );
 });
@@ -204,6 +233,7 @@ const searchJob = {
   model: "CR-V",
   trim: "EX-L",
   assignedTo: "Alex Ruiz",
+  invoice: { number: "RIV4-1" },
 };
 
 test("board search matches id, name, vehicle, tech, and email", () => {
@@ -214,6 +244,7 @@ test("board search matches id, name, vehicle, tech, and email", () => {
   assert.equal(jobMatchesQuery(searchJob, "alex"), true);
   assert.equal(jobMatchesQuery(searchJob, "example.com"), true);
   assert.equal(jobMatchesQuery(searchJob, "porsche"), false);
+  assert.equal(jobMatchesQuery(searchJob, "riv4-1"), true);
 });
 
 test("board search matches customer phone by digits (3+)", () => {

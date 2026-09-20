@@ -35,7 +35,7 @@ export type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
 export type DeclinedStatus = "declined";
 export type JobStatusId = (typeof ALL_STATUSES)[number];
 
-export type ShopBoardFilter = "active" | "ready" | "history";
+export type ShopBoardFilter = "active" | "ready" | "history" | "invoices";
 
 export type JobLike = {
   id: string;
@@ -50,6 +50,7 @@ export type JobLike = {
   providerId: string;
   providerName: string;
   notes?: { at: number; text: string; by: string }[];
+  invoice?: { number?: string; createdAt?: number; updatedAt?: number };
 };
 
 export function isJobStatus(value: unknown): value is JobStatusId {
@@ -150,14 +151,27 @@ export function historyJobs<T extends Pick<JobLike, "status" | "slot" | "created
     .sort((a, b) => +new Date(b.slot) - +new Date(a.slot) || b.createdAt - a.createdAt);
 }
 
-export function shopBoardJobs<T extends Pick<JobLike, "status" | "slot" | "createdAt">>(
-  jobs: T[],
-  filter: ShopBoardFilter,
-): T[] {
+type InvoiceStamp = { number?: string; updatedAt?: number; createdAt?: number };
+
+/** Jobs with a saved invoice, newest bill first. Open, ready, and done all stay here. */
+export function invoiceJobs<T extends { invoice?: InvoiceStamp }>(jobs: T[]): T[] {
+  return jobs
+    .filter((j) => String(j.invoice?.number || "").trim())
+    .sort((a, b) => {
+      const aAt = Number(a.invoice?.updatedAt || a.invoice?.createdAt || 0);
+      const bAt = Number(b.invoice?.updatedAt || b.invoice?.createdAt || 0);
+      return bAt - aAt;
+    });
+}
+
+export function shopBoardJobs<
+  T extends Pick<JobLike, "status" | "slot" | "createdAt"> & { invoice?: InvoiceStamp },
+>(jobs: T[], filter: ShopBoardFilter): T[] {
   if (filter === "ready") {
     return jobs.filter((j) => j.status === "ready").sort((a, b) => +new Date(a.slot) - +new Date(b.slot));
   }
   if (filter === "history") return historyJobs(jobs);
+  if (filter === "invoices") return invoiceJobs(jobs);
   return activeJobs(jobs);
 }
 
@@ -172,6 +186,7 @@ export type JobSearchable = {
   model: string;
   trim?: string;
   assignedTo?: string;
+  invoice?: { number?: string } | null;
 };
 
 /**
@@ -182,7 +197,17 @@ export type JobSearchable = {
 export function jobMatchesQuery(job: JobSearchable, query: string): boolean {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return true;
-  const haystack = [job.id, job.name, job.email, job.year, job.make, job.model, job.trim, job.assignedTo]
+  const haystack = [
+    job.id,
+    job.name,
+    job.email,
+    job.year,
+    job.make,
+    job.model,
+    job.trim,
+    job.assignedTo,
+    job.invoice?.number,
+  ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();

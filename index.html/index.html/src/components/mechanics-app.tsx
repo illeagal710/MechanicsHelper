@@ -2143,6 +2143,12 @@ function JobCard({
             {job.assignedTo ? ` · ${job.assignedTo}` : ""}
           </p>
           <p className="mt-1 text-sm font-medium text-fg/80">{fmtWhen(job.slot, localeTag(locale))}</p>
+          {shop && job.invoice ? (
+            <p className="mt-1 text-sm font-semibold" data-job-invoice={job.invoice.number}>
+              {job.invoice.number} · {formatInvoiceMoney(invoiceTotals(job.invoice.lines, job.invoice.taxPct).total)} ·{" "}
+              {job.invoice.paid ? t("job.invoicePaid") : t("job.invoiceUnpaid")}
+            </p>
+          ) : null}
           <p className="font-mono text-xs text-dim">{job.id}</p>
         </div>
       </div>
@@ -2248,10 +2254,22 @@ function ShopHome({
           <div className="text-[11px] text-muted">{t("shop.ready")}</div>
         </div>
       </div>
-      <div className="mb-3 flex rounded-xl bg-bg2 p-1">
-        {(["active", "ready", "history"] as const).map((f) => (
-          <button key={f} type="button" data-shop-filter={f} onClick={() => setFilter(f)} className={`flex-1 rounded-lg py-2 text-xs font-semibold ${filter === f ? "bg-surface2" : "text-muted"}`}>
-            {f === "active" ? t("shop.open") : f === "ready" ? t("shop.ready") : t("shop.history")}
+      <div className="mb-3 grid grid-cols-4 gap-0.5 rounded-xl bg-bg2 p-1">
+        {(["active", "ready", "history", "invoices"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            data-shop-filter={f}
+            onClick={() => setFilter(f)}
+            className={`rounded-lg py-2 text-[11px] font-semibold ${filter === f ? "bg-surface2" : "text-muted"}`}
+          >
+            {f === "active"
+              ? t("shop.open")
+              : f === "ready"
+                ? t("shop.ready")
+                : f === "history"
+                  ? t("shop.history")
+                  : t("shop.invoices")}
           </button>
         ))}
       </div>
@@ -2287,7 +2305,9 @@ function ShopHome({
               ? t("shop.searchEmpty")
               : filter === "history"
                 ? t("shop.historyEmpty")
-                : t("shop.empty")}
+                : filter === "invoices"
+                  ? t("shop.invoicesEmpty")
+                  : t("shop.empty")}
           </p>
         )}
       </div>

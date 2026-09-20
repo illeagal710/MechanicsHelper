@@ -243,6 +243,9 @@ test("booking calendar and photo pan copy exists in English and Spanish", () => 
 });
 
 test("shop history and decline copy exists in English and Spanish", () => {
+  assert.equal(translate("en", "shop.invoices"), "Invoices");
+  assert.equal(translate("es", "shop.invoices"), "Facturas");
+  assert.match(translate("en", "shop.invoicesEmpty"), /Create one on a ticket/i);
   assert.equal(translate("en", "shop.history"), "History");
   assert.equal(translate("es", "shop.history"), "Historial");
   assert.equal(translate("en", "job.decline"), "Decline booking");
