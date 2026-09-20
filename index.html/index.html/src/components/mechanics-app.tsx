@@ -135,6 +135,7 @@ import {
   googleCalendarUrl,
   statusActionConfirm,
 } from "@/lib/job-ops";
+import { guestLandingView } from "@/lib/app-entry";
 import { customerSmsKey, firstReachablePhone, smsHref, telHref } from "@/lib/phone";
 
 type View =
@@ -144,6 +145,7 @@ type View =
   | "recover"
   | "forgotPassword"
   | "forgotUsername"
+  | "provider"
   | "home"
   | "book"
   | "confirm"
@@ -305,7 +307,7 @@ function readRefFromUrl() {
 export function MechanicsApp({
   initialView = "welcome",
 }: {
-  initialView?: "welcome" | "login";
+  initialView?: "welcome" | "login" | "provider";
 } = {}) {
 
   const { t } = useI18n();
@@ -374,6 +376,13 @@ export function MechanicsApp({
       }
       if (s) {
         setView(s.role === "customer" && (fromUrl || Store.getRefCode()) ? "book" : homeFor(s.role));
+      } else {
+        const landing = guestLandingView({
+          wantsLogin: initialView === "login",
+          signedIn: false,
+          hasProvider: Boolean(resolved),
+        });
+        setView(landing);
       }
       bump();
     })();
@@ -399,9 +408,23 @@ export function MechanicsApp({
       return;
     }
     Store.setLinkedCode(user, p.code);
+    Store.setRefCode(p.code);
     setLockedProvider(p);
     flash(t("toast.found", { name: p.name }));
-    if (goBook && user?.role === "customer") setView("book");
+    if (!user) {
+      setView("provider");
+      return;
+    }
+    if (goBook && user.role === "customer") setView("book");
+  }
+
+  function startBooking() {
+    if (user?.role === "customer") setView("book");
+    else setView("register");
+  }
+
+  function authBack() {
+    setView(lockedProvider && !user ? "provider" : "welcome");
   }
 
   const isProvider = usesWideProviderShell(user);
@@ -417,7 +440,8 @@ export function MechanicsApp({
     view === "register" ||
     view === "recover" ||
     view === "forgotPassword" ||
-    view === "forgotUsername";
+    view === "forgotUsername" ||
+    view === "provider";
   const bayLabel = isShopTechnician(user)
     ? t("shop.techBadge", { shop: user?.shopName || t("shop.shop") })
     : isProvider
@@ -452,7 +476,7 @@ export function MechanicsApp({
           {showWordmark ? <span className="font-mono text-dim">{bayLabel}</span> : null}
         </div>
       </header>
-      <main className={`flex-1 overflow-y-auto px-4 pt-3 ${isProvider ? "md:px-6" : ""} ${view === "welcome" || view === "login" || view === "register" || view === "recover" || view === "forgotPassword" || view === "forgotUsername" ? "pb-16" : "pb-36"}`}>
+      <main className={`flex-1 overflow-y-auto px-4 pt-3 ${isProvider ? "md:px-6" : ""} ${view === "welcome" || view === "login" || view === "register" || view === "recover" || view === "forgotPassword" || view === "forgotUsername" || view === "provider" ? "pb-16" : "pb-36"}`}>
         {view === "welcome" && (
           <Welcome
             locked={liveLocked}
@@ -463,9 +487,19 @@ export function MechanicsApp({
             onRegister={() => setView("register")}
           />
         )}
+        {view === "provider" && (
+          <GuestProviderPage
+            provider={liveLocked}
+            codeInput={codeInput}
+            setCodeInput={setCodeInput}
+            onApply={() => applyCode(codeInput, false)}
+            onBook={startBooking}
+            onLogin={() => setView("login")}
+          />
+        )}
         {view === "login" && (
           <Login
-            onBack={() => setView("welcome")}
+            onBack={authBack}
             onOk={enter}
             onErr={flash}
             onRegister={() => setView("register")}
@@ -490,7 +524,13 @@ export function MechanicsApp({
           <ForgotUsername onBack={() => setView("recover")} onErr={flash} />
         )}
         {view === "register" && (
-          <Register onBack={() => setView("welcome")} onOk={enter} onErr={flash} />
+          <Register
+            onBack={authBack}
+            onOk={enter}
+            onErr={flash}
+            customerOnly={Boolean(liveLocked)}
+            shopName={liveLocked?.name}
+          />
         )}
         {view === "home" && user && (
           <CustomerHome
@@ -619,7 +659,7 @@ export function MechanicsApp({
             onLogout={() => {
               Store.logout();
               setUser(null);
-              setView("welcome");
+              setView(liveLocked ? "provider" : "welcome");
             }}
             onDeleted={() => {
               setUser(null);
@@ -636,7 +676,7 @@ export function MechanicsApp({
           />
         )}
       </main>
-      {user && !["welcome", "login", "register", "recover", "forgotPassword", "forgotUsername"].includes(view) && (
+        {user && !["welcome", "login", "register", "recover", "forgotPassword", "forgotUsername", "provider"].includes(view) && (
         <nav className={`fixed bottom-0 left-1/2 z-20 w-full -translate-x-1/2 border-t border-line bg-bg/95 px-2 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2 backdrop-blur ${shellMax}`}>
           {isProvider ? (
             <div className={`grid ${showShare ? "grid-cols-3" : "grid-cols-2"}`} data-provider-nav={portalKind || undefined}>
@@ -1089,6 +1129,67 @@ function Welcome({
   );
 }
 
+function GuestProviderPage({
+  provider,
+  codeInput,
+  setCodeInput,
+  onApply,
+  onBook,
+  onLogin,
+}: {
+  provider: Provider | null;
+  codeInput: string;
+  setCodeInput: (s: string) => void;
+  onApply: () => void;
+  onBook: () => void;
+  onLogin: () => void;
+}) {
+  const { t } = useI18n();
+  if (!provider) {
+    return <p className="text-sm text-muted">{t("welcome.lookingUp")}</p>;
+  }
+  return (
+    <div data-guest-provider={provider.code}>
+      <PublicProviderCard provider={provider} eyebrow={t("welcome.referred")}>
+        <p className="mt-2 text-sm text-muted">{t("welcome.referredLogin")}</p>
+      </PublicProviderCard>
+      <div className="mt-4 flex flex-col gap-2.5">
+        <button
+          type="button"
+          data-guest-book=""
+          onClick={onBook}
+          className="h-12 rounded-xl bg-accent font-semibold text-ink"
+        >
+          {t("welcome.bookAppointment")}
+        </button>
+        <button type="button" onClick={onLogin} className="h-12 rounded-xl border border-line bg-surface font-semibold">
+          {t("welcome.login")}
+        </button>
+      </div>
+      <p className="mt-3 text-center text-sm text-muted">{t("welcome.accountWhenBooking")}</p>
+      <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-find-code-entry="">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("welcome.haveCode")}</p>
+        <div className="mt-2 flex gap-2">
+          <input
+            className={inputClass}
+            placeholder={t("welcome.codePlaceholder")}
+            aria-label={t("welcome.haveCode")}
+            value={codeInput}
+            onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onApply();
+            }}
+          />
+          <button type="button" onClick={onApply} className="h-12 shrink-0 rounded-xl bg-accent px-4 font-semibold text-ink">
+            {t("welcome.find")}
+          </button>
+        </div>
+      </div>
+      <PolicyFooterLinks />
+    </div>
+  );
+}
+
 function Login({
   onBack,
   onOk,
@@ -1364,17 +1465,23 @@ function Register({
   onBack,
   onOk,
   onErr,
+  customerOnly,
+  shopName,
 }: {
   onBack: () => void;
   onOk: (u: User) => void;
   onErr: (s: string) => void;
+  customerOnly?: boolean;
+  shopName?: string;
 }) {
   const { locale, t } = useI18n();
   const [role, setRole] = useState<Role>("customer");
   const [join, setJoin] = useState<"create" | "join">("create");
+  const effectiveRole = customerOnly ? "customer" : role;
   return (
     <form
       className="flex flex-col gap-3"
+      data-register-customer-only={customerOnly ? "true" : undefined}
       onSubmit={async (e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
@@ -1383,7 +1490,7 @@ function Register({
           email: String(fd.get("email")),
           phone: String(fd.get("phone")),
           password: String(fd.get("pw")),
-          role,
+          role: effectiveRole,
           shopJoin: join,
           shopName: String(fd.get("shopName") || ""),
           shopCode: String(fd.get("shopCode") || ""),
@@ -1396,6 +1503,9 @@ function Register({
       }}
     >
       <Top title={t("register.title")} onBack={onBack} />
+      {customerOnly ? (
+        <p className="text-sm text-muted">{t("register.customerToBook", { name: shopName || t("shop.shop") })}</p>
+      ) : null}
       <Field label={t("register.name")}>
         <input name="name" className={inputClass} required />
       </Field>
@@ -1408,6 +1518,8 @@ function Register({
       <Field label={t("register.password")}>
         <input name="pw" type="password" className={inputClass} required />
       </Field>
+      {customerOnly ? null : (
+        <>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("register.iAm")}</p>
       <div className="flex rounded-xl bg-bg2 p-1">
         {(["customer", "shop", "independent"] as Role[]).map((r) => (
@@ -1470,6 +1582,8 @@ function Register({
             <input name="findCode" className={inputClass} placeholder={t("register.findCodePh")} autoCapitalize="characters" />
           </Field>
           <p className="-mt-1 text-xs text-dim">{t("register.findCodeHint")}</p>
+        </>
+      )}
         </>
       )}
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">

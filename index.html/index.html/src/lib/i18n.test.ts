@@ -23,6 +23,12 @@ test("landing welcome body uses Leon QR/referral copy in English and Spanish", (
   assert.match(translate("es", "welcome.body"), /móvil o independiente/i);
   assert.doesNotMatch(translate("en", "welcome.body"), /find code/i);
   assert.doesNotMatch(translate("es", "welcome.body"), /comparten un código/);
+  assert.match(translate("en", "welcome.referredLogin"), /No account needed/i);
+  assert.equal(translate("en", "welcome.bookAppointment"), "Book an appointment");
+  assert.match(translate("en", "welcome.accountWhenBooking"), /when you book/i);
+  assert.match(translate("es", "welcome.bookAppointment"), /Reservar/i);
+  assert.match(translate("en", "register.customerToBook"), /customer account to book/i);
+  assert.match(translate("es", "register.customerToBook"), /cuenta de cliente/i);
 });
 
 test("welcome find-code field says Shop or Mechanic code, not demo codes", () => {

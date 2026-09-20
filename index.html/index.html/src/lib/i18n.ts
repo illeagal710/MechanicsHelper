@@ -30,7 +30,7 @@ const en = {
 
   "welcome.referred": "You were referred",
   "welcome.referredCode": "{detail} · code {code}",
-  "welcome.referredLogin": "Log in as a customer to book this mechanic.",
+  "welcome.referredLogin": "No account needed to look around. You'll create one when you book.",
   "welcome.title1": "Sign in to book",
   "welcome.title2": "or run the bay.",
   "welcome.body":
@@ -40,6 +40,9 @@ const en = {
   "welcome.find": "Find",
   "welcome.login": "Log in",
   "welcome.createAccount": "Create an account",
+  "welcome.bookAppointment": "Book an appointment",
+  "welcome.lookingUp": "Opening this shop…",
+  "welcome.accountWhenBooking": "You'll create a customer account when you book.",
   "welcome.demoLogins": "Demo logins · password demo123",
   "welcome.demoCustomer": "Customer: maya@example.com",
   "welcome.demoShop": "Shop: shop@example.com",
@@ -90,6 +93,7 @@ const en = {
   "recover.user.emailed": "If this account has email and mail is connected, we also sent the login there.",
 
   "register.title": "Create account",
+  "register.customerToBook": "Create a customer account to book with {name}.",
   "register.name": "Full name",
   "register.email": "Email",
   "register.phone": "Phone",
@@ -853,7 +857,7 @@ const es: Record<MessageKey, string> = {
 
   "welcome.referred": "Te recomendaron",
   "welcome.referredCode": "{detail} · código {code}",
-  "welcome.referredLogin": "Inicia sesión como cliente para reservar con este mecánico.",
+  "welcome.referredLogin": "No necesitas cuenta para mirar. La creas cuando reservas.",
   "welcome.title1": "Inicia sesión para reservar",
   "welcome.title2": "o atender el taller.",
   "welcome.body":
@@ -863,6 +867,9 @@ const es: Record<MessageKey, string> = {
   "welcome.find": "Buscar",
   "welcome.login": "Iniciar sesión",
   "welcome.createAccount": "Crear una cuenta",
+  "welcome.bookAppointment": "Reservar una cita",
+  "welcome.lookingUp": "Abriendo este taller…",
+  "welcome.accountWhenBooking": "Crearás una cuenta de cliente cuando reserves.",
   "welcome.demoLogins": "Accesos de demo · contraseña demo123",
   "welcome.demoCustomer": "Cliente: maya@example.com",
   "welcome.demoShop": "Taller: shop@example.com",
@@ -913,6 +920,7 @@ const es: Record<MessageKey, string> = {
   "recover.user.emailed": "Si la cuenta tiene correo y el envío está conectado, también enviamos el usuario ahí.",
 
   "register.title": "Crear cuenta",
+  "register.customerToBook": "Crea una cuenta de cliente para reservar con {name}.",
   "register.name": "Nombre completo",
   "register.email": "Correo",
   "register.phone": "Teléfono",
