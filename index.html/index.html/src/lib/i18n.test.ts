@@ -425,7 +425,10 @@ test("ticket invoice copy stays a handwritten total, not QuickBooks", () => {
   assert.match(translate("en", "job.invoiceNotePh"), /Venmo|cash|pickup/i);
   assert.match(translate("en", "privacy.store.body"), /invoice/i);
   assert.match(translate("es", "privacy.store.body"), /factura/i);
-  assert.doesNotMatch(translate("en", "job.invoiceHint"), /QuickBooks|inventory|refund|deposit|card processing/i);
+  assert.equal(translate("en", "job.invoiceHint"), "Write the bill for this job, then share it.");
+  assert.equal(translate("es", "job.invoiceHint"), "Escribe la cuenta de este trabajo y compártela.");
+  assert.equal(translate("en", "job.invoiceCustomerHint"), "This is your bill from the shop.");
+  assert.doesNotMatch(translate("en", "job.invoiceHint"), /already pay|QuickBooks|inventory|refund|deposit|card processing/i);
   assert.equal(
     translateNote("es", "Invoice LEON-104 · $180.00 · Unpaid"),
     "Factura LEON-104 · $180.00 · Sin pagar",

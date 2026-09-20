@@ -357,7 +357,7 @@ export async function renderInvoicePng(input: InvoiceShareInput): Promise<Blob> 
 
   ctx.fillStyle = "#a3988c";
   ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
-  ctx.fillText("Mechanics Helper · pay the shop how you already pay", pad, canvas.height - 24);
+  ctx.fillText("Mechanics Helper", pad, canvas.height - 24);
 
   return await new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
