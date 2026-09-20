@@ -925,20 +925,23 @@ function PublicProviderCard({
   const specialties = provider.specialties || [];
   const credentials = provider.credentials || [];
   const years = provider.yearsWrenching || "";
+  const phoneLabel = provider.supportPhone ? formatPublicPhone(provider.supportPhone) : "";
+  const callHref = telHref(provider.supportPhone || "");
   return (
     <div
       className={`${compact ? "" : "mb-3 "}rounded-xl border border-accent/40 bg-accent/10 p-4`}
       data-public-provider-card=""
+      data-card-compact={compact ? "true" : undefined}
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-accent">{eyebrow}</p>
       <div className="mt-2 flex items-start gap-3">
-        <Face src={provider.photo} name={provider.name} size="lg" />
+        <Face src={provider.photo} name={provider.name} size={compact ? "md" : "lg"} />
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold">{provider.name}</h2>
+          <h2 className={`${compact ? "text-lg" : "text-xl"} font-semibold`}>{provider.name}</h2>
           <p className="mt-1 text-sm text-muted">
             {t("welcome.referredCode", { detail: translateDetail(locale, provider.detail), code: provider.code })}
           </p>
-          {provider.serviceArea ? (
+          {!compact && provider.serviceArea ? (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted" data-public-place="">
               <MapPin className="size-3.5 shrink-0 text-accent" aria-hidden />
               {t("profile.basedIn", { area: formatPublicPlace(provider.serviceArea) })}
@@ -946,6 +949,17 @@ function PublicProviderCard({
           ) : null}
         </div>
       </div>
+      {compact && phoneLabel ? (
+        callHref ? (
+          <a href={callHref} className="mt-2 block text-sm font-semibold text-fg" data-public-contact="">
+            <span data-public-phone="">{phoneLabel}</span>
+          </a>
+        ) : (
+          <p className="mt-2 text-sm text-muted" data-public-contact="">
+            <span data-public-phone="">{phoneLabel}</span>
+          </p>
+        )
+      ) : null}
       {provider.address ? (
         <div className="mt-2 flex items-start justify-between gap-3 rounded-lg border border-line bg-surface p-3">
           <p className="flex items-start gap-1.5 text-sm text-fg">
@@ -963,26 +977,32 @@ function PublicProviderCard({
           </button>
         </div>
       ) : null}
-      {provider.bio ? <p className="mt-2 text-sm text-fg">{provider.bio}</p> : null}
-      <TagPills kind="spec" tags={specialties} />
-      <TagPills
-        kind="cred"
-        tags={[
-          ...credentials,
-          ...(years ? [t("profile.years", { n: years })] : []),
-        ]}
-      />
-      <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, provider)}</p>
-      {(provider.supportPhone || provider.supportEmail) && (
-        <p className="mt-2 text-sm text-muted" data-public-contact="">
-          {provider.supportPhone ? (
-            <span data-public-phone="">{formatPublicPhone(provider.supportPhone)}</span>
-          ) : null}
-          {provider.supportPhone && provider.supportEmail ? " · " : ""}
-          {provider.supportEmail ? provider.supportEmail : ""}
-        </p>
+      {compact ? (
+        children
+      ) : (
+        <>
+          {provider.bio ? <p className="mt-2 text-sm text-fg">{provider.bio}</p> : null}
+          <TagPills kind="spec" tags={specialties} />
+          <TagPills
+            kind="cred"
+            tags={[
+              ...credentials,
+              ...(years ? [t("profile.years", { n: years })] : []),
+            ]}
+          />
+          <p className="mt-2 text-sm text-muted">{formatHoursLabel(locale, provider)}</p>
+          {(provider.supportPhone || provider.supportEmail) && (
+            <p className="mt-2 text-sm text-muted" data-public-contact="">
+              {provider.supportPhone ? (
+                <span data-public-phone="">{formatPublicPhone(provider.supportPhone)}</span>
+              ) : null}
+              {provider.supportPhone && provider.supportEmail ? " · " : ""}
+              {provider.supportEmail ? provider.supportEmail : ""}
+            </p>
+          )}
+          {children}
+        </>
       )}
-      {children}
     </div>
   );
 }
