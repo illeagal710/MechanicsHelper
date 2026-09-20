@@ -661,7 +661,7 @@ const en = {
     "Shop accounts belong to a repair shop and can have staff on the same board. Independent accounts are for a solo mechanic. Customer accounts are for people booking and tracking a car. Each account stores a name, login (email or phone), and password.",
   "privacy.store.title": "Shop and customer data",
   "privacy.store.body":
-    "A shop or independent can store a business name, find code, bio, specialties, credentials, service area, hours, support email or phone, and a profile photo or shop logo. Customers book jobs with that shop. Job tickets store the vehicle year, make, and model, optional symptoms and a symptom photo, the time slot, job status, a written estimate, parts notes, and notes the shop writes.",
+    "A shop or independent can store a business name, find code, bio, specialties, credentials, service area, hours, support email or phone, and a profile photo or shop logo. Customers book jobs with that shop. Job tickets store the vehicle year, make, and model, optional symptoms and a symptom photo, the time slot, job status, a written estimate, parts notes, an invoice (line items, optional tax, total, paid or unpaid), and notes the shop writes.",
   "privacy.photos.title": "Photos",
   "privacy.photos.body":
     "A profile photo or shop logo lives on the account and the public shop or mechanic page. A photo of your vehicle on the ticket or your vehicle list stays between you and that shop — it is not a public directory. A photo from the bay (the car or a part on a job) stays on that job ticket. Customers can attach a symptom photo when they book; it stays on that ticket, separate from the bay photo. A bay photo does not replace your profile photo or your vehicle photo.",
@@ -811,6 +811,26 @@ const en = {
   "job.partsSave": "Save parts update",
   "job.partsCustomer": "Parts ordered{eta}",
   "job.partsEtaLine": " · ETA {eta}",
+  "job.invoice": "Invoice",
+  "job.invoiceHint": "The total for this job. Share a picture; they pay how they already pay.",
+  "job.invoiceNumber": "Invoice {number}",
+  "job.invoicePendingNumber": "Number is assigned when you create.",
+  "job.invoiceDesc": "Description",
+  "job.invoiceDescPh": "Pads, labor",
+  "job.invoiceQty": "Qty",
+  "job.invoicePrice": "Price",
+  "job.invoiceTax": "Tax %",
+  "job.invoiceTaxPh": "Optional",
+  "job.invoiceNote": "Note",
+  "job.invoiceNotePh": "cash, Venmo, due on pickup",
+  "job.invoiceCreate": "Create invoice",
+  "job.invoiceShare": "Share",
+  "job.invoiceUnpaid": "Unpaid",
+  "job.invoicePaid": "Paid",
+  "job.invoiceSubtotal": "Subtotal",
+  "job.invoiceTotal": "Total",
+  "job.invoiceAddLine": "Add line",
+  "job.invoiceCustomerHint": "Pay the shop how you already pay. This is not a card charge.",
   "job.internalNote": "Internal — owner and techs only",
   "job.noteInternal": "Bay only",
   "job.noteCustomer": "Customer",
@@ -822,6 +842,9 @@ const en = {
   "toast.estimateDeclined": "Estimate declined",
   "toast.statusUndone": "Status undone",
   "toast.partsSaved": "Parts update posted",
+  "toast.invoiceSaved": "Invoice saved",
+  "toast.invoiceShared": "Invoice shared",
+  "toast.invoiceDownloaded": "Invoice image saved",
   "toast.flagged": "Flagged for the shop owner",
   "toast.unflagged": "Owner flag cleared",
   "toast.calendarSaved": "Calendar file downloaded",
@@ -831,10 +854,14 @@ const en = {
   "note.estimateSkipped": "Work started without a written estimate.",
   "note.flagged": "Flagged for the shop owner.",
   "note.unflagged": "Owner flag cleared.",
+  "note.invoiceUnpaid": "Invoice {number} · {total} · Unpaid",
+  "note.invoicePaid": "Invoice {number} · {total} · Paid",
   "err.repairNeedsEstimate": "Send a written estimate or confirm you are going in without one.",
   "err.estimateInvalid": "Enter a dollar amount.",
   "err.estimateNotPending": "There is no estimate waiting on this ticket.",
   "err.nothingToUndo": "Nothing to undo.",
+  "err.invoiceNeedLine": "Add a line with a description.",
+  "err.invoiceShareFail": "Could not share the invoice.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1496,7 +1523,7 @@ const es: Record<MessageKey, string> = {
     "Las cuentas de taller pertenecen a un taller y pueden tener personal en el mismo tablero. Las cuentas independientes son para un mecánico solo. Las cuentas de cliente son para quien reserva y sigue un auto. Cada cuenta guarda un nombre, un acceso (correo o teléfono) y una contraseña.",
   "privacy.store.title": "Datos del taller y del cliente",
   "privacy.store.body":
-    "Un taller o independiente puede guardar el nombre del negocio, el código, la bio, especialidades, credenciales, zona de servicio, el horario, el correo o teléfono de soporte y una foto de perfil o logo. Los clientes reservan trabajos con ese taller. Los tickets guardan el año, marca y modelo del vehículo, síntomas opcionales y una foto del problema, el horario, el estado del trabajo, un presupuesto escrito, notas de piezas y las notas que escribe el taller.",
+    "Un taller o independiente puede guardar el nombre del negocio, el código, la bio, especialidades, credenciales, zona de servicio, el horario, el correo o teléfono de soporte y una foto de perfil o logo. Los clientes reservan trabajos con ese taller. Los tickets guardan el año, marca y modelo del vehículo, síntomas opcionales y una foto del problema, el horario, el estado del trabajo, un presupuesto escrito, notas de piezas, una factura (líneas, impuesto opcional, total, pagada o no), y las notas que escribe el taller.",
   "privacy.photos.title": "Fotos",
   "privacy.photos.body":
     "La foto de perfil o el logo del taller viven en la cuenta y en la página pública. Una foto de tu vehículo en el ticket o en tu lista se queda entre tú y ese taller — no es un directorio público. Una foto de la bahía (el auto o una pieza en un trabajo) se queda en ese ticket. El cliente puede adjuntar una foto del problema al reservar; se queda en ese ticket, aparte de la foto de la bahía. Una foto de la bahía no reemplaza tu foto de perfil ni la de tu vehículo.",
@@ -1646,6 +1673,26 @@ const es: Record<MessageKey, string> = {
   "job.partsSave": "Guardar actualización de piezas",
   "job.partsCustomer": "Piezas pedidas{eta}",
   "job.partsEtaLine": " · ETA {eta}",
+  "job.invoice": "Factura",
+  "job.invoiceHint": "El total de este trabajo. Comparte una imagen; pagan como ya pagan.",
+  "job.invoiceNumber": "Factura {number}",
+  "job.invoicePendingNumber": "El número se asigna al crear.",
+  "job.invoiceDesc": "Descripción",
+  "job.invoiceDescPh": "Pastillas, mano de obra",
+  "job.invoiceQty": "Cant.",
+  "job.invoicePrice": "Precio",
+  "job.invoiceTax": "Impuesto %",
+  "job.invoiceTaxPh": "Opcional",
+  "job.invoiceNote": "Nota",
+  "job.invoiceNotePh": "efectivo, Venmo, al recoger",
+  "job.invoiceCreate": "Crear factura",
+  "job.invoiceShare": "Compartir",
+  "job.invoiceUnpaid": "Sin pagar",
+  "job.invoicePaid": "Pagada",
+  "job.invoiceSubtotal": "Subtotal",
+  "job.invoiceTotal": "Total",
+  "job.invoiceAddLine": "Agregar línea",
+  "job.invoiceCustomerHint": "Paga al taller como ya pagas. Esto no es un cargo a tarjeta.",
   "job.internalNote": "Interna — solo dueño y técnicos",
   "job.noteInternal": "Solo bahía",
   "job.noteCustomer": "Cliente",
@@ -1657,6 +1704,9 @@ const es: Record<MessageKey, string> = {
   "toast.estimateDeclined": "Presupuesto rechazado",
   "toast.statusUndone": "Estado deshecho",
   "toast.partsSaved": "Actualización de piezas publicada",
+  "toast.invoiceSaved": "Factura guardada",
+  "toast.invoiceShared": "Factura compartida",
+  "toast.invoiceDownloaded": "Imagen de la factura guardada",
   "toast.flagged": "Marcado para el dueño del taller",
   "toast.unflagged": "Marca del dueño quitada",
   "toast.calendarSaved": "Archivo de calendario descargado",
@@ -1666,10 +1716,14 @@ const es: Record<MessageKey, string> = {
   "note.estimateSkipped": "El trabajo empezó sin un presupuesto escrito.",
   "note.flagged": "Marcado para el dueño del taller.",
   "note.unflagged": "Marca del dueño quitada.",
+  "note.invoiceUnpaid": "Factura {number} · {total} · Sin pagar",
+  "note.invoicePaid": "Factura {number} · {total} · Pagada",
   "err.repairNeedsEstimate": "Envía un presupuesto escrito o confirma que vas a entrar sin uno.",
   "err.estimateInvalid": "Escribe un monto en dólares.",
   "err.estimateNotPending": "No hay un presupuesto en espera en este ticket.",
   "err.nothingToUndo": "Nada que deshacer.",
+  "err.invoiceNeedLine": "Agrega una línea con una descripción.",
+  "err.invoiceShareFail": "No se pudo compartir la factura.",
 
 };
 
@@ -1712,6 +1766,8 @@ const STORE_ERROR_KEYS: Record<string, MessageKey> = {
   "Enter a dollar amount.": "err.estimateInvalid",
   "There is no estimate waiting on this ticket.": "err.estimateNotPending",
   "Nothing to undo.": "err.nothingToUndo",
+  "Add a line with a description.": "err.invoiceNeedLine",
+  "Could not share the invoice.": "err.invoiceShareFail",
 };
 
 const DETAIL_KEYS: Record<string, MessageKey> = {
@@ -1812,6 +1868,13 @@ export function translateNote(locale: Locale, text: string): string {
       ? translate(locale, `status.${id}.label` as MessageKey)
       : statusMatch[1];
     return translate(locale, "note.statusSet", { label });
+  }
+  const invoiceMatch = text.match(/^Invoice ([A-Z0-9-]+) · (\$[\d,.]+) · (Paid|Unpaid)$/);
+  if (invoiceMatch) {
+    return translate(locale, invoiceMatch[3] === "Paid" ? "note.invoicePaid" : "note.invoiceUnpaid", {
+      number: invoiceMatch[1],
+      total: invoiceMatch[2],
+    });
   }
   return text;
 }

@@ -68,23 +68,35 @@ test("parts line formats ETA for the ticket", () => {
   assert.equal(partsNoteText(applyParts("", "", false)), "Parts not ordered yet.");
 });
 
-test("ops_json round-trips estimate, parts, undo pointer, photo, and flag", () => {
+test("ops_json round-trips estimate, parts, undo pointer, photo, flag, and invoice", () => {
   const ops = parseJobOps({
     estimate: { amount: 90, note: "Oil", status: "sent", at: 1 },
     parts: { ordered: true, eta: "Tue", note: "", at: 2 },
     statusBefore: "diagnosing",
     symptomPhoto: "data:symptom",
     flaggedForOwner: true,
+    invoice: {
+      number: "LEON-104",
+      lines: [{ description: "Pads", qty: 1, price: 180 }],
+      taxPct: 0,
+      note: "cash, Venmo",
+      paid: false,
+      createdAt: 3,
+      updatedAt: 4,
+    },
   });
   assert.equal(ops.estimate?.amount, 90);
   assert.equal(ops.parts?.eta, "Tue");
   assert.equal(ops.statusBefore, "diagnosing");
   assert.equal(ops.symptomPhoto, "data:symptom");
   assert.equal(ops.flaggedForOwner, true);
+  assert.equal(ops.invoice?.number, "LEON-104");
+  assert.equal(ops.invoice?.lines[0].price, 180);
   const json = serializeJobOps(ops);
   assert.deepEqual(parseJobOps(json), ops);
   assert.equal(parseJobOps("not-json").estimate, undefined);
   assert.equal(parseJobOps("").flaggedForOwner, undefined);
+  assert.equal(parseJobOps("").invoice, undefined);
 });
 
 test("mergeJobOps patches without dropping other fields, and nullish clears", () => {
@@ -92,14 +104,26 @@ test("mergeJobOps patches without dropping other fields, and nullish clears", ()
     estimate: { amount: 10, note: "", status: "sent", at: 1 },
     symptomPhoto: "data:a",
     flaggedForOwner: true,
+    invoice: {
+      number: "RIV4-1",
+      lines: [{ description: "Labor", qty: 1, price: 90 }],
+      taxPct: 0,
+      note: "",
+      paid: false,
+      createdAt: 1,
+      updatedAt: 1,
+    },
   });
   const merged = mergeJobOps(base, { parts: applyParts("Wed", ""), flaggedForOwner: false });
   assert.equal(merged.estimate?.amount, 10);
   assert.equal(merged.parts?.eta, "Wed");
   assert.equal(merged.symptomPhoto, "data:a");
   assert.equal(merged.flaggedForOwner, undefined);
+  assert.equal(merged.invoice?.number, "RIV4-1");
   const cleared = mergeJobOps(merged, { symptomPhoto: "" });
   assert.equal(cleared.symptomPhoto, undefined);
+  const partsOnly = mergeJobOps(base, { parts: applyParts("Thu", "") });
+  assert.equal(partsOnly.invoice?.number, "RIV4-1");
 });
 
 test("applyOpsToJob flattens ops onto a ticket without inventing fields", () => {

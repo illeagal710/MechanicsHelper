@@ -55,6 +55,7 @@ import {
   partsNoteText,
   serializeJobOps,
 } from "@/lib/job-ops";
+import { canShareInvoice, draftInvoice, invoiceNoteText, nextInvoiceNumber } from "@/lib/invoice";
 import type { Job, Note, Role, Shop, User } from "@/lib/store";
 
 const RIVERSIDE_BIO =
@@ -1273,7 +1274,7 @@ function withNote(job: Job, text: string, by: string, at = Date.now()): Job {
 
 export async function saveJobOps(
   id: string,
-  patch: Partial<Pick<Job, "symptomPhoto" | "estimate" | "parts" | "statusBefore" | "flaggedForOwner">>,
+  patch: Partial<Pick<Job, "symptomPhoto" | "estimate" | "parts" | "statusBefore" | "flaggedForOwner" | "invoice">>,
   actorUserId: string,
 ) {
   const board = await loadBoard();
@@ -1287,6 +1288,41 @@ export async function saveJobOps(
   const next = applyOpsToJob(job, nextOps);
   Object.assign(job, next);
   await persistOps(job);
+  return { ok: true as const, job };
+}
+
+export async function saveInvoice(
+  id: string,
+  draft: { lines: NonNullable<Job["invoice"]>["lines"]; taxPct: number; note: string; paid: boolean },
+  actorUserId: string,
+) {
+  const board = await loadBoard();
+  const job = board.jobs.find((j) => j.id === id);
+  if (!job) return { ok: false as const, error: "Job not found." };
+  const actor = board.users.find((u) => u.id === actorUserId);
+  if (!providerOwnsJob(actor, job)) {
+    return { ok: false as const, error: "Please sign in again." };
+  }
+  const check = canShareInvoice(draft.lines);
+  if (!check.ok) return { ok: false as const, error: check.error };
+  const shop = board.shops.find((s) => s.id === job.providerId);
+  const indy = board.users.find((u) => u.id === job.providerId);
+  const code = shop?.code || indy?.code || "";
+  const used = board.jobs.filter((j) => j.providerId === job.providerId).map((j) => j.invoice?.number);
+  const number = job.invoice?.number || nextInvoiceNumber(code, used);
+  const invoice = draftInvoice(number, {
+    lines: draft.lines,
+    taxPct: draft.taxPct,
+    note: draft.note,
+    paid: draft.paid,
+    createdAt: job.invoice?.createdAt,
+  });
+  const nextOps = mergeJobOps(jobOpsOf(job), { invoice });
+  const next = applyOpsToJob(job, nextOps);
+  Object.assign(job, next);
+  Object.assign(job, withNote(job, invoiceNoteText(invoice), "shop"));
+  await persistOps(job);
+  await persistNotes(job);
   return { ok: true as const, job };
 }
 

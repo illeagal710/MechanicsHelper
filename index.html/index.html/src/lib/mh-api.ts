@@ -234,6 +234,7 @@ export const mhSaveJobOps = createServerFn({ method: "POST" })
         parts?: Job["parts"];
         statusBefore?: string;
         flaggedForOwner?: boolean;
+        invoice?: Job["invoice"];
       };
       authToken?: string;
     }) => d,
@@ -314,6 +315,22 @@ export const mhFlagJob = createServerFn({ method: "POST" })
     if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
     return db.flagJob(data.id, data.flagged !== false, uid);
+  });
+
+export const mhSaveInvoice = createServerFn({ method: "POST" })
+  .validator(
+    (d: {
+      id: string;
+      draft: { lines: NonNullable<Job["invoice"]>["lines"]; taxPct: number; note: string; paid: boolean };
+      authToken?: string;
+    }) => d,
+  )
+  .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
+    const db = await import("./mh-db.server");
+    return db.saveInvoice(data.id, data.draft, uid);
   });
 
 export const mhDiagnose = createServerFn({ method: "POST" })

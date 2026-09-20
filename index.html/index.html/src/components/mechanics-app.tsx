@@ -22,6 +22,20 @@ import { QrShare } from "@/components/qr-share";
 import { BayPreview, Face, PhotoPicker, ProfilePhotoEditor } from "@/components/photo-input";
 import { VehicleArt } from "@/components/vehicle-art";
 import { BAY_PHOTO_SLOT, SYMPTOM_PHOTO_SLOT, VEHICLE_PHOTO_SLOT, hasBayPhoto, jobPhotoOf, symptomPhotoOf, ticketVehiclePhotoOf } from "@/lib/photos";
+import {
+  INVOICE_DESC_MAX,
+  INVOICE_LINE_MAX,
+  INVOICE_NOTE_MAX,
+  blankInvoiceLine,
+  canShareInvoice,
+  formatInvoiceMoney,
+  invoiceTotals,
+  parseQty,
+  parseTaxPct,
+  parseUnitPrice,
+  shareInvoiceImage,
+  type InvoiceLine,
+} from "@/lib/invoice";
 
 import { diagnoseLocal, greet, isBookChip, bookingSymptomsFromChat } from "@/lib/diagnose";
 import { mhDiagnose } from "@/lib/mh-api";
@@ -2281,6 +2295,319 @@ function ShopHome({
   );
 }
 
+function invoiceBrandOf(job: Job): { name: string; photo: string } {
+  const brand = Store.listProviders().find((p) => p.id === job.providerId);
+  return { name: brand?.name || job.providerName, photo: brand?.photo || "" };
+}
+
+function TicketInvoice({
+  job,
+  shop,
+  flash,
+  bump,
+}: {
+  job: Job;
+  shop: boolean;
+  flash?: (s: string) => void;
+  bump: () => void;
+}) {
+  const { locale, t } = useI18n();
+  const saved = job.invoice;
+  const [lines, setLines] = useState<InvoiceLine[]>(() =>
+    saved?.lines?.length ? saved.lines : [blankInvoiceLine()],
+  );
+  const [qtyText, setQtyText] = useState<string[]>(() =>
+    (saved?.lines?.length ? saved.lines : [blankInvoiceLine()]).map((l) => String(l.qty)),
+  );
+  const [priceText, setPriceText] = useState<string[]>(() =>
+    (saved?.lines?.length ? saved.lines : [blankInvoiceLine()]).map((l) => (l.price ? String(l.price) : "")),
+  );
+  const [taxPct, setTaxPct] = useState(saved?.taxPct ? String(saved.taxPct) : "");
+  const [note, setNote] = useState(saved?.note || "");
+  const [paid, setPaid] = useState(saved?.paid === true);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const current = Store.load().jobs.find((j) => j.id === job.id)?.invoice;
+    const next = current?.lines?.length ? current.lines : [blankInvoiceLine()];
+    setLines(next);
+    setQtyText(next.map((l) => String(l.qty)));
+    setPriceText(next.map((l) => (l.price ? String(l.price) : "")));
+    setTaxPct(current?.taxPct ? String(current.taxPct) : "");
+    setNote(current?.note || "");
+    setPaid(current?.paid === true);
+  }, [job.id]);
+
+  if (!shop && !saved) return null;
+
+  const liveLines = lines.map((line, i) => ({
+    ...line,
+    qty: parseQty(qtyText[i]),
+    price: parseUnitPrice(priceText[i]),
+  }));
+  const totals = invoiceTotals(liveLines, parseTaxPct(taxPct));
+  const brand = invoiceBrandOf(job);
+  const vehicle = vehicleLabel(job);
+  const number = saved?.number || "";
+
+  function parsedLines(): InvoiceLine[] {
+    return liveLines;
+  }
+
+  async function persist() {
+    const nextLines = parsedLines();
+    const check = canShareInvoice(nextLines);
+    if (!check.ok) {
+      flash?.(translateStoreError(locale, check.error));
+      return null;
+    }
+    const res = await Store.saveInvoice(job.id, {
+      lines: nextLines,
+      taxPct: parseTaxPct(taxPct),
+      note,
+      paid,
+    });
+    if (!res.ok) {
+      flash?.(translateStoreError(locale, res.error));
+      return null;
+    }
+    bump();
+    return res.job?.invoice || Store.load().jobs.find((j) => j.id === job.id)?.invoice || null;
+  }
+
+  async function onCreate() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const inv = await persist();
+      if (inv) flash?.(t("toast.invoiceSaved"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onShare() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const inv = await persist();
+      if (!inv) return;
+      const result = await shareInvoiceImage({
+        shopName: brand.name,
+        shopLogo: brand.photo,
+        number: inv.number,
+        paid: inv.paid,
+        customerName: job.name,
+        customerPhone: formatPublicPhone(job.phone) || job.phone,
+        vehicle,
+        lines: inv.lines,
+        taxPct: inv.taxPct,
+        note: inv.note,
+      });
+      flash?.(t(result === "downloaded" ? "toast.invoiceDownloaded" : "toast.invoiceShared"));
+    } catch (err) {
+      const msg = err instanceof Error && err.message ? err.message : "Could not share the invoice.";
+      flash?.(translateStoreError(locale, msg));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!shop) {
+    const view = saved!;
+    const shown = invoiceTotals(view.lines, view.taxPct);
+    return (
+      <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-invoice-card="customer">
+        <div className="flex items-start gap-3">
+          <Face src={brand.photo} name={brand.name} size="sm" />
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.invoice")}</p>
+            <p className="font-semibold" data-invoice-number="">
+              {t("job.invoiceNumber", { number: view.number })}
+            </p>
+            <p className="text-sm text-muted">
+              {job.name} · {vehicle}
+            </p>
+          </div>
+          <span
+            className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+              view.paid ? "bg-accent/20 text-accent" : "bg-danger/15 text-danger"
+            }`}
+            data-invoice-status={view.paid ? "paid" : "unpaid"}
+          >
+            {view.paid ? t("job.invoicePaid") : t("job.invoiceUnpaid")}
+          </span>
+        </div>
+        <ul className="mt-3 space-y-1.5 text-sm">
+          {view.lines.filter((line) => line.description.trim()).map((line, i) => (
+            <li key={`${line.description}-${i}`} className="flex justify-between gap-3">
+              <span className="min-w-0">
+                {line.description}
+                <span className="text-muted">
+                  {" "}
+                  · {line.qty} × {formatInvoiceMoney(line.price)}
+                </span>
+              </span>
+              <span className="shrink-0 font-medium">{formatInvoiceMoney(line.qty * line.price)}</span>
+            </li>
+          ))}
+        </ul>
+        {view.taxPct ? (
+          <p className="mt-2 text-right text-sm text-muted">
+            {t("job.invoiceTax")} {view.taxPct} · {formatInvoiceMoney(shown.tax)}
+          </p>
+        ) : null}
+        <p className="mt-1 text-right text-base font-semibold" data-invoice-total="">
+          {t("job.invoiceTotal")} {formatInvoiceMoney(shown.total)}
+        </p>
+        {view.note ? <p className="mt-2 text-sm text-muted">{view.note}</p> : null}
+        <p className="mt-2 text-xs text-muted">{t("job.invoiceCustomerHint")}</p>
+      </div>
+    );
+  }
+
+  const lineClass = "rounded-lg border border-line bg-bg2 px-2 py-2 text-sm text-fg outline-none focus:border-accent";
+
+  return (
+    <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-invoice-card="shop">
+      <div className="flex items-start gap-3">
+        <Face src={brand.photo} name={brand.name} size="sm" />
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.invoice")}</p>
+          <p className="font-semibold" data-invoice-number="">
+            {number ? t("job.invoiceNumber", { number }) : t("job.invoicePendingNumber")}
+          </p>
+          <p className="text-sm text-muted">
+            {job.name} · {vehicle}
+          </p>
+        </div>
+      </div>
+      <p className="mt-2 text-sm text-muted">{t("job.invoiceHint")}</p>
+      <div className="mt-3 flex gap-2" data-invoice-paid-toggle="">
+        <button
+          type="button"
+          data-invoice-unpaid=""
+          className={`h-9 flex-1 rounded-full text-xs font-bold ${
+            paid ? "border border-line bg-surface2 text-muted" : "bg-danger/15 text-danger"
+          }`}
+          onClick={() => setPaid(false)}
+        >
+          {t("job.invoiceUnpaid")}
+        </button>
+        <button
+          type="button"
+          data-invoice-paid=""
+          className={`h-9 flex-1 rounded-full text-xs font-bold ${
+            paid ? "bg-accent/20 text-accent" : "border border-line bg-surface2 text-muted"
+          }`}
+          onClick={() => setPaid(true)}
+        >
+          {t("job.invoicePaid")}
+        </button>
+      </div>
+      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_3.25rem_4.75rem] gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+        <span>{t("job.invoiceDesc")}</span>
+        <span>{t("job.invoiceQty")}</span>
+        <span>{t("job.invoicePrice")}</span>
+      </div>
+      {lines.map((line, i) => (
+        <div key={i} className="mt-1.5 grid grid-cols-[minmax(0,1fr)_3.25rem_4.75rem] gap-1.5" data-invoice-line="">
+          <input
+            className={lineClass}
+            value={line.description}
+            maxLength={INVOICE_DESC_MAX}
+            placeholder={t("job.invoiceDescPh")}
+            data-invoice-desc=""
+            onChange={(e) =>
+              setLines((prev) => prev.map((row, idx) => (idx === i ? { ...row, description: e.target.value } : row)))
+            }
+          />
+          <input
+            className={lineClass + " text-center"}
+            inputMode="decimal"
+            value={qtyText[i] ?? ""}
+            data-invoice-qty=""
+            onChange={(e) => setQtyText((prev) => prev.map((row, idx) => (idx === i ? e.target.value : row)))}
+          />
+          <input
+            className={lineClass + " text-right"}
+            inputMode="decimal"
+            value={priceText[i] ?? ""}
+            placeholder="0"
+            data-invoice-price=""
+            onChange={(e) => setPriceText((prev) => prev.map((row, idx) => (idx === i ? e.target.value : row)))}
+          />
+        </div>
+      ))}
+      {lines.length < INVOICE_LINE_MAX ? (
+        <button
+          type="button"
+          data-invoice-add-line=""
+          className="mt-2 text-sm font-semibold text-accent"
+          onClick={() => {
+            setLines((prev) => [...prev, blankInvoiceLine()]);
+            setQtyText((prev) => [...prev, "1"]);
+            setPriceText((prev) => [...prev, ""]);
+          }}
+        >
+          {t("job.invoiceAddLine")}
+        </button>
+      ) : null}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Field label={t("job.invoiceTax")}>
+          <input
+            className={inputClass}
+            inputMode="decimal"
+            value={taxPct}
+            placeholder={t("job.invoiceTaxPh")}
+            data-invoice-tax=""
+            onChange={(e) => setTaxPct(e.target.value)}
+          />
+        </Field>
+        <div className="flex flex-col justify-end pb-1 text-right">
+          <p className="text-sm text-muted">
+            {t("job.invoiceSubtotal")} {formatInvoiceMoney(totals.subtotal)}
+          </p>
+          {parseTaxPct(taxPct) ? (
+            <p className="text-sm text-muted">{formatInvoiceMoney(totals.tax)}</p>
+          ) : null}
+          <p className="text-base font-semibold" data-invoice-total="">
+            {t("job.invoiceTotal")} {formatInvoiceMoney(totals.total)}
+          </p>
+        </div>
+      </div>
+      <Field label={t("job.invoiceNote")}>
+        <input
+          className={inputClass}
+          value={note}
+          maxLength={INVOICE_NOTE_MAX}
+          placeholder={t("job.invoiceNotePh")}
+          data-invoice-note=""
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </Field>
+      <button
+        type="button"
+        data-create-invoice=""
+        disabled={busy}
+        className="mt-3 h-11 w-full rounded-xl bg-accent font-semibold text-ink disabled:opacity-60"
+        onClick={() => void onCreate()}
+      >
+        {t("job.invoiceCreate")}
+      </button>
+      <button
+        type="button"
+        data-share-invoice=""
+        disabled={busy}
+        className="mt-2 h-11 w-full rounded-xl border border-line bg-surface2 text-sm font-semibold disabled:opacity-60"
+        onClick={() => void onShare()}
+      >
+        {t("job.invoiceShare")}
+      </button>
+    </div>
+  );
+}
+
 function JobDetail({
   id,
   shop,
@@ -2868,6 +3195,7 @@ function JobDetail({
               )}
             </div>
           ) : null}
+          <TicketInvoice job={job} shop={shop} flash={flash} bump={bump} />
           {!shop && latestShop ? (
             <div
               className={`mt-3 rounded-xl border p-4 ${latestIsNew ? "border-accent/50 bg-accent/10" : "border-line bg-surface"}`}

@@ -27,6 +27,7 @@ import {
   mhSkipEstimate,
   mhSaveParts,
   mhFlagJob,
+  mhSaveInvoice,
 } from "@/lib/mh-api";
 import { jobPhotoOf, profilePhotoOf, resizePhoto, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, type PublicProfileFields } from "@/lib/shop-profile";
@@ -40,7 +41,7 @@ import { TIME_12H } from "@/lib/i18n";
 import { blockHoursFromRecord, normalizeBlockAfterHours, type BlockAfterHours } from "./booking-block.ts";
 import { generateSlots, type HoursLike } from "./booking-calendar.ts";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
-import type { JobEstimate, JobParts } from "./job-ops.ts";
+import type { JobEstimate, JobParts, JobInvoice } from "./job-ops.ts";
 
 export function soloMechanicDetail(
   mode?: "mobile" | "shop" | "both",
@@ -140,6 +141,8 @@ export type Job = {
   symptomPhoto?: string;
   estimate?: JobEstimate;
   parts?: JobParts;
+  /** Shop bill on this ticket. Not an estimate, not card processing. */
+  invoice?: JobInvoice;
   /** Previous pipeline status so the shop can undo the last tap. */
   statusBefore?: string;
   flaggedForOwner?: boolean;
@@ -742,7 +745,7 @@ export const Store = {
     return res;
   },
 
-  async saveJobOps(id: string, patch: Partial<Pick<Job, "symptomPhoto" | "estimate" | "parts" | "statusBefore" | "flaggedForOwner">>) {
+  async saveJobOps(id: string, patch: Partial<Pick<Job, "symptomPhoto" | "estimate" | "parts" | "statusBefore" | "flaggedForOwner" | "invoice">>) {
     const saved = await mhSaveJobOps({ data: { id, patch, authToken: this.getToken() } });
     await this.hydrate();
     return saved;
@@ -782,6 +785,15 @@ export const Store = {
 
   async saveParts(id: string, eta: string, note: string, ordered = true) {
     const res = await mhSaveParts({ data: { id, eta, note, ordered, authToken: this.getToken() } });
+    await this.hydrate();
+    return res;
+  },
+
+  async saveInvoice(
+    id: string,
+    draft: { lines: JobInvoice["lines"]; taxPct: number; note: string; paid: boolean },
+  ) {
+    const res = await mhSaveInvoice({ data: { id, draft, authToken: this.getToken() } });
     await this.hydrate();
     return res;
   },

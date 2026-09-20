@@ -1,4 +1,7 @@
+import { parseInvoice, type JobInvoice } from "./invoice.ts";
 import { PIPELINE_STATUSES, type PipelineStatus } from "./job-status.ts";
+
+export type { JobInvoice } from "./invoice.ts";
 
 export const APPOINTMENT_MINUTES = 90;
 
@@ -37,6 +40,7 @@ export type JobOps = {
   statusBefore?: string;
   symptomPhoto?: string;
   flaggedForOwner?: boolean;
+  invoice?: JobInvoice;
 };
 
 export function isEstimateStatus(value: unknown): value is EstimateStatus {
@@ -117,6 +121,8 @@ export function parseJobOps(raw: unknown): JobOps {
   if (obj.flaggedForOwner === true || obj.flaggedForOwner === "t" || obj.flaggedForOwner === 1) {
     out.flaggedForOwner = true;
   }
+  const invoice = parseInvoice(obj.invoice);
+  if (invoice) out.invoice = invoice;
   return out;
 }
 
@@ -128,6 +134,7 @@ export function jobOpsOf(job: Partial<JobOps> | null | undefined): JobOps {
     statusBefore: job.statusBefore,
     symptomPhoto: job.symptomPhoto,
     flaggedForOwner: job.flaggedForOwner,
+    invoice: job.invoice,
   });
 }
 
@@ -153,6 +160,10 @@ export function mergeJobOps(current: JobOps, patch: Partial<JobOps>): JobOps {
     if (patch.flaggedForOwner) next.flaggedForOwner = true;
     else delete next.flaggedForOwner;
   }
+  if ("invoice" in patch) {
+    if (patch.invoice) next.invoice = patch.invoice;
+    else delete next.invoice;
+  }
   return next;
 }
 
@@ -163,6 +174,7 @@ export function serializeJobOps(ops: JobOps): string {
   if (ops.statusBefore) out.statusBefore = ops.statusBefore;
   if (ops.symptomPhoto) out.symptomPhoto = ops.symptomPhoto;
   if (ops.flaggedForOwner) out.flaggedForOwner = true;
+  if (ops.invoice) out.invoice = ops.invoice;
   return JSON.stringify(out);
 }
 
@@ -174,6 +186,7 @@ export function applyOpsToJob<T extends object>(job: T, ops: JobOps): T & JobOps
     statusBefore: ops.statusBefore,
     symptomPhoto: ops.symptomPhoto,
     flaggedForOwner: ops.flaggedForOwner,
+    invoice: ops.invoice,
   };
 }
 

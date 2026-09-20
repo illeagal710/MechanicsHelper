@@ -414,3 +414,24 @@ test("bay-ops ticket strings and estimate notes translate", () => {
   assert.match(translate("en", "privacy.photos.body"), /symptom photo/i);
   assert.match(translate("en", "book.symptomPhoto"), /Photo of the problem/);
 });
+
+test("ticket invoice copy stays a handwritten total, not QuickBooks", () => {
+  assert.equal(translate("en", "job.invoiceCreate"), "Create invoice");
+  assert.equal(translate("en", "job.invoiceShare"), "Share");
+  assert.equal(translate("es", "job.invoiceCreate"), "Crear factura");
+  assert.equal(translate("es", "job.invoiceShare"), "Compartir");
+  assert.equal(translate("en", "job.invoiceUnpaid"), "Unpaid");
+  assert.equal(translate("en", "job.invoicePaid"), "Paid");
+  assert.match(translate("en", "job.invoiceNotePh"), /Venmo|cash|pickup/i);
+  assert.match(translate("en", "privacy.store.body"), /invoice/i);
+  assert.match(translate("es", "privacy.store.body"), /factura/i);
+  assert.doesNotMatch(translate("en", "job.invoiceHint"), /QuickBooks|inventory|refund|deposit|card processing/i);
+  assert.equal(
+    translateNote("es", "Invoice LEON-104 · $180.00 · Unpaid"),
+    "Factura LEON-104 · $180.00 · Sin pagar",
+  );
+  assert.equal(
+    translateStoreError("es", "Add a line with a description."),
+    "Agrega una línea con una descripción.",
+  );
+});
