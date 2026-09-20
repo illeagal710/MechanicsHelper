@@ -2372,7 +2372,17 @@ function TicketInvoice({
       return null;
     }
     bump();
-    return res.job?.invoice || Store.load().jobs.find((j) => j.id === job.id)?.invoice || null;
+    const inv = res.job?.invoice || Store.load().jobs.find((j) => j.id === job.id)?.invoice || null;
+    if (inv) {
+      const next = inv.lines.length ? inv.lines : [blankInvoiceLine()];
+      setLines(next);
+      setQtyText(next.map((l) => String(l.qty)));
+      setPriceText(next.map((l) => (l.price ? String(l.price) : "")));
+      setTaxPct(inv.taxPct ? String(inv.taxPct) : "");
+      setNote(inv.note || "");
+      setPaid(inv.paid === true);
+    }
+    return inv;
   }
 
   async function onCreate() {

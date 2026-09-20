@@ -61,6 +61,7 @@ test("parseInvoice keeps number, paid, and note; ignores junk", () => {
     updatedAt: 20,
   });
   assert.equal(inv?.number, "LEON-104");
+  assert.equal(inv?.lines.length, 1);
   assert.equal(inv?.lines[0].description, "Pads");
   assert.equal(inv?.lines[0].qty, 2);
   assert.equal(inv?.lines[0].price, 40.1);

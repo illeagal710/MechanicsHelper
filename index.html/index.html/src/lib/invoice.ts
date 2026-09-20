@@ -99,7 +99,7 @@ export function sanitizeInvoiceLines(raw: unknown): InvoiceLine[] {
   const out: InvoiceLine[] = [];
   for (const item of list) {
     const line = sanitizeInvoiceLine(item);
-    if (!line) continue;
+    if (!line?.description.trim()) continue;
     out.push(line);
     if (out.length >= INVOICE_LINE_MAX) break;
   }
