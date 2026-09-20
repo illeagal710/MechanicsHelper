@@ -1971,19 +1971,20 @@ function Book({
               }}
             />
           </div>
+          {user ? (
+            <label data-book-notify="" className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
+              <input type="checkbox" name="notifySms" defaultChecked className="mt-1 size-4 accent-amber-400" />
+              <span>{t("book.notifySms")}</span>
+            </label>
+          ) : null}
         </div>
       ) : (
         <>
           <input type="hidden" name="email" defaultValue={user?.email || ""} />
           <input type="hidden" name="symptoms" defaultValue={pending} />
+          {user ? <input type="hidden" name="notifySms" value="on" /> : null}
         </>
       )}
-      <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
-        <input type="checkbox" name="notifySms" defaultChecked className="mt-1 size-4 accent-amber-400" />
-        <span>
-          {t("book.notifySms")}
-        </span>
-      </label>
       <button type="submit" className="h-12 rounded-xl bg-accent font-semibold text-ink">
         {t("book.request")}
       </button>
@@ -2045,7 +2046,7 @@ function Confirm({
           type="button"
           data-guest-confirm-register=""
           onClick={onRegister}
-          className="mt-2 h-12 w-full rounded-xl border border-line bg-surface font-semibold"
+          className="mt-3 w-full text-center text-sm font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
         >
           {t("confirm.createAccount")}
         </button>
