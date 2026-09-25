@@ -5,27 +5,9 @@ export type { JobInvoice } from "./invoice.ts";
 
 export const APPOINTMENT_MINUTES = 90;
 
-export const REPAIR_NEEDS_ESTIMATE =
-  "Send a written estimate or confirm you are going in without one.";
-export const ESTIMATE_INVALID = "Enter a dollar amount.";
-export const ESTIMATE_NOT_PENDING = "There is no estimate waiting on this ticket.";
 export const NOTHING_TO_UNDO = "Nothing to undo.";
-export const ESTIMATE_APPROVED_NOTE = "Customer approved the estimate.";
-export const ESTIMATE_DECLINED_NOTE = "Customer declined the estimate.";
-export const ESTIMATE_SKIPPED_NOTE = "Work started without a written estimate.";
 export const FLAG_NOTE = "Flagged for the shop owner.";
 export const UNFLAG_NOTE = "Owner flag cleared.";
-
-export const ESTIMATE_STATUSES = ["sent", "approved", "declined", "skipped"] as const;
-export type EstimateStatus = (typeof ESTIMATE_STATUSES)[number];
-
-export type JobEstimate = {
-  amount: number;
-  note: string;
-  status: EstimateStatus;
-  at: number;
-  decidedAt?: number;
-};
 
 export type JobParts = {
   ordered: boolean;
@@ -35,33 +17,12 @@ export type JobParts = {
 };
 
 export type JobOps = {
-  estimate?: JobEstimate;
   parts?: JobParts;
   statusBefore?: string;
   symptomPhoto?: string;
   flaggedForOwner?: boolean;
   invoice?: JobInvoice;
 };
-
-export function isEstimateStatus(value: unknown): value is EstimateStatus {
-  return typeof value === "string" && (ESTIMATE_STATUSES as readonly string[]).includes(value);
-}
-
-export function parseEstimateAmount(raw: unknown): number | null {
-  const n = Number(String(raw ?? "").replace(/[^0-9.]/g, ""));
-  if (!Number.isFinite(n) || n <= 0 || n > 1_000_000) return null;
-  return Math.round(n * 100) / 100;
-}
-
-export function formatEstimateAmount(amount: number): string {
-  return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
-
-export function estimateNoteText(estimate: Pick<JobEstimate, "amount" | "note">): string {
-  const dollars = formatEstimateAmount(estimate.amount);
-  const extra = String(estimate.note || "").trim();
-  return extra ? `Written estimate: ${dollars}. ${extra}` : `Written estimate: ${dollars}.`;
-}
 
 export function partsNoteText(parts: Pick<JobParts, "eta" | "note" | "ordered">): string {
   if (!parts.ordered) return "Parts not ordered yet.";
@@ -89,20 +50,6 @@ export function parseJobOps(raw: unknown): JobOps {
   }
 
   const out: JobOps = {};
-  if (obj.estimate && typeof obj.estimate === "object") {
-    const e = obj.estimate as Record<string, unknown>;
-    const amount = Number(e.amount);
-    if (Number.isFinite(amount) && amount > 0 && isEstimateStatus(e.status)) {
-      const decidedAt = Number(e.decidedAt);
-      out.estimate = {
-        amount: Math.round(amount * 100) / 100,
-        note: String(e.note || ""),
-        status: e.status,
-        at: Number(e.at) || 0,
-        ...(Number.isFinite(decidedAt) && decidedAt > 0 ? { decidedAt } : {}),
-      };
-    }
-  }
   if (obj.parts && typeof obj.parts === "object") {
     const p = obj.parts as Record<string, unknown>;
     out.parts = {
@@ -129,7 +76,6 @@ export function parseJobOps(raw: unknown): JobOps {
 export function jobOpsOf(job: Partial<JobOps> | null | undefined): JobOps {
   if (!job) return {};
   return parseJobOps({
-    estimate: job.estimate,
     parts: job.parts,
     statusBefore: job.statusBefore,
     symptomPhoto: job.symptomPhoto,
@@ -140,10 +86,6 @@ export function jobOpsOf(job: Partial<JobOps> | null | undefined): JobOps {
 
 export function mergeJobOps(current: JobOps, patch: Partial<JobOps>): JobOps {
   const next: JobOps = { ...current };
-  if ("estimate" in patch) {
-    if (patch.estimate) next.estimate = patch.estimate;
-    else delete next.estimate;
-  }
   if ("parts" in patch) {
     if (patch.parts) next.parts = patch.parts;
     else delete next.parts;
@@ -169,7 +111,6 @@ export function mergeJobOps(current: JobOps, patch: Partial<JobOps>): JobOps {
 
 export function serializeJobOps(ops: JobOps): string {
   const out: JobOps = {};
-  if (ops.estimate) out.estimate = ops.estimate;
   if (ops.parts) out.parts = ops.parts;
   if (ops.statusBefore) out.statusBefore = ops.statusBefore;
   if (ops.symptomPhoto) out.symptomPhoto = ops.symptomPhoto;
@@ -181,41 +122,12 @@ export function serializeJobOps(ops: JobOps): string {
 export function applyOpsToJob<T extends object>(job: T, ops: JobOps): T & JobOps {
   return {
     ...job,
-    estimate: ops.estimate,
     parts: ops.parts,
     statusBefore: ops.statusBefore,
     symptomPhoto: ops.symptomPhoto,
     flaggedForOwner: ops.flaggedForOwner,
     invoice: ops.invoice,
   };
-}
-
-export function canEnterRepair(estimate: JobEstimate | undefined): boolean {
-  return estimate?.status === "approved" || estimate?.status === "skipped";
-}
-
-export function canCustomerDecideEstimate(estimate: JobEstimate | undefined): boolean {
-  return estimate?.status === "sent";
-}
-
-export function applyEstimateSend(amount: number, note: string, at = Date.now()): JobEstimate {
-  return { amount, note: String(note || "").trim(), status: "sent", at };
-}
-
-export function applyEstimateDecision(
-  estimate: JobEstimate,
-  approved: boolean,
-  at = Date.now(),
-): JobEstimate {
-  return {
-    ...estimate,
-    status: approved ? "approved" : "declined",
-    decidedAt: at,
-  };
-}
-
-export function applySkipEstimate(at = Date.now()): JobEstimate {
-  return { amount: 0, note: "", status: "skipped", at, decidedAt: at };
 }
 
 export function applyParts(eta: string, note: string, ordered = true, at = Date.now()): JobParts {
@@ -247,26 +159,13 @@ export function needsStatusConfirm(from: string, to: string): boolean {
   return Math.abs(b - a) > 1;
 }
 
-export type StatusActionConfirm =
-  | { kind: "none"; skipEstimate: false }
-  | { kind: "skip"; skipEstimate: false; to: string }
-  | { kind: "repair"; skipEstimate: true; to: string };
+export type StatusActionConfirm = { kind: "none" } | { kind: "skip"; to: string };
 
-/**
- * One confirm at most. Next-step taps are silent. Jumping to In repair without
- * a written estimate uses the estimate confirm even if steps are skipped.
- */
-export function statusActionConfirm(
-  from: string,
-  to: string,
-  estimate: JobEstimate | undefined,
-): StatusActionConfirm {
-  if (from === to) return { kind: "none", skipEstimate: false };
-  if (to === "repair" && !canEnterRepair(estimate)) {
-    return { kind: "repair", skipEstimate: true, to };
-  }
-  if (needsStatusConfirm(from, to)) return { kind: "skip", skipEstimate: false, to };
-  return { kind: "none", skipEstimate: false };
+/** One confirm at most. Next-step taps are silent. Skipping steps asks once. */
+export function statusActionConfirm(from: string, to: string): StatusActionConfirm {
+  if (from === to) return { kind: "none" };
+  if (needsStatusConfirm(from, to)) return { kind: "skip", to };
+  return { kind: "none" };
 }
 
 export function applyStatusChange<T extends { status: string }>(

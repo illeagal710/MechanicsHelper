@@ -30,27 +30,14 @@ import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode, isShopTechnician } from "@/lib/shop-role";
 import {
-  ESTIMATE_APPROVED_NOTE,
-  ESTIMATE_DECLINED_NOTE,
-  ESTIMATE_INVALID,
-  ESTIMATE_NOT_PENDING,
-  ESTIMATE_SKIPPED_NOTE,
   FLAG_NOTE,
-  REPAIR_NEEDS_ESTIMATE,
   UNFLAG_NOTE,
-  applyEstimateDecision,
-  applyEstimateSend,
   applyOpsToJob,
   applyParts,
-  applySkipEstimate,
   applyStatusChange,
   applyStatusUndo,
-  canCustomerDecideEstimate,
-  canEnterRepair,
-  estimateNoteText,
   jobOpsOf,
   mergeJobOps,
-  parseEstimateAmount,
   parseJobOps,
   partsNoteText,
   serializeJobOps,
@@ -1274,7 +1261,7 @@ function withNote(job: Job, text: string, by: string, at = Date.now()): Job {
 
 export async function saveJobOps(
   id: string,
-  patch: Partial<Pick<Job, "symptomPhoto" | "estimate" | "parts" | "statusBefore" | "flaggedForOwner" | "invoice">>,
+  patch: Partial<Pick<Job, "symptomPhoto" | "parts" | "statusBefore" | "flaggedForOwner" | "invoice">>,
   actorUserId: string,
 ) {
   const board = await loadBoard();
@@ -1326,12 +1313,7 @@ export async function saveInvoice(
   return { ok: true as const, job };
 }
 
-export async function setJobStatus(
-  id: string,
-  status: Job["status"],
-  actorUserId: string,
-  opts?: { skipEstimate?: boolean },
-) {
+export async function setJobStatus(id: string, status: Job["status"], actorUserId: string) {
   const board = await loadBoard();
   const job = board.jobs.find((j) => j.id === id);
   if (!job) return { ok: false as const, error: "Job not found." };
@@ -1343,16 +1325,6 @@ export async function setJobStatus(
     return { ok: false as const, error: "Job not found." };
   }
   if (status === job.status) return { ok: true as const, job };
-
-  if (status === "repair" && !canEnterRepair(job.estimate)) {
-    if (!opts?.skipEstimate) {
-      return { ok: false as const, error: REPAIR_NEEDS_ESTIMATE };
-    }
-    job.estimate = applySkipEstimate();
-    Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
-    Object.assign(job, withNote(job, ESTIMATE_SKIPPED_NOTE, "system"));
-    await persistNotes(job);
-  }
 
   const previous = job.status;
   const changed = applyStatusChange(job, status);
@@ -1393,59 +1365,6 @@ export async function undoJobStatus(id: string, actorUserId: string) {
   const sql = await getSql();
   await sql.query("update mh_jobs set status = $2 where id = $1", [job.id, job.status]);
   await persistOps(job);
-  return { ok: true as const, job };
-}
-
-export async function saveEstimate(id: string, amountRaw: string, note: string, actorUserId: string) {
-  const board = await loadBoard();
-  const job = board.jobs.find((j) => j.id === id);
-  if (!job) return { ok: false as const, error: "Job not found." };
-  const actor = board.users.find((u) => u.id === actorUserId);
-  if (!providerOwnsJob(actor, job)) {
-    return { ok: false as const, error: "Please sign in again." };
-  }
-  const amount = parseEstimateAmount(amountRaw);
-  if (amount == null) return { ok: false as const, error: ESTIMATE_INVALID };
-  job.estimate = applyEstimateSend(amount, note);
-  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
-  Object.assign(job, withNote(job, estimateNoteText(job.estimate), "shop"));
-  await persistOps(job);
-  await persistNotes(job);
-  return { ok: true as const, job };
-}
-
-export async function decideEstimate(id: string, approved: boolean, actorUserId: string) {
-  const board = await loadBoard();
-  const job = board.jobs.find((j) => j.id === id);
-  if (!job) return { ok: false as const, error: "Job not found." };
-  const actor = board.users.find((u) => u.id === actorUserId);
-  if (!actor || !customerOwnsJob(actor, job)) {
-    return { ok: false as const, error: "Please sign in again." };
-  }
-  if (!canCustomerDecideEstimate(job.estimate)) {
-    return { ok: false as const, error: ESTIMATE_NOT_PENDING };
-  }
-  job.estimate = applyEstimateDecision(job.estimate!, approved);
-  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
-  Object.assign(job, withNote(job, approved ? ESTIMATE_APPROVED_NOTE : ESTIMATE_DECLINED_NOTE, "customer"));
-  await persistOps(job);
-  await persistNotes(job);
-  return { ok: true as const, job };
-}
-
-export async function skipEstimate(id: string, actorUserId: string) {
-  const board = await loadBoard();
-  const job = board.jobs.find((j) => j.id === id);
-  if (!job) return { ok: false as const, error: "Job not found." };
-  const actor = board.users.find((u) => u.id === actorUserId);
-  if (!providerOwnsJob(actor, job)) {
-    return { ok: false as const, error: "Please sign in again." };
-  }
-  job.estimate = applySkipEstimate();
-  Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { estimate: job.estimate })));
-  Object.assign(job, withNote(job, ESTIMATE_SKIPPED_NOTE, "system"));
-  await persistOps(job);
-  await persistNotes(job);
   return { ok: true as const, job };
 }
 

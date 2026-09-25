@@ -142,14 +142,7 @@ import {
   shopPortalKind,
   usesWideProviderShell,
 } from "@/lib/shop-role";
-import {
-  appointmentIcs,
-  canCustomerDecideEstimate,
-  downloadIcs,
-  formatEstimateAmount,
-  googleCalendarUrl,
-  statusActionConfirm,
-} from "@/lib/job-ops";
+import { appointmentIcs, downloadIcs, googleCalendarUrl, statusActionConfirm } from "@/lib/job-ops";
 import { guestLandingView } from "@/lib/app-entry";
 import { customerSmsKey, firstReachablePhone, formatPublicPhone, smsHref, telHref } from "@/lib/phone";
 
@@ -471,7 +464,7 @@ export function MechanicsApp({
       ? shareCode || t("app.bay")
       : lockedProvider?.code || t("app.bay");
 
-  const shellMax = isProvider ? "max-w-[430px] md:max-w-[980px]" : "max-w-[430px]";
+  const shellMax = isProvider ? "max-w-[430px] md:max-w-none" : "max-w-[430px]";
 
   return (
     <div
@@ -872,18 +865,18 @@ function TeamJoinCard({ code }: { code: string }) {
 }
 
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, span }: { label: string; children: React.ReactNode; span?: boolean }) {
   return (
-    <label className="block">
+    <label className={span ? "block md:col-span-2" : "block"}>
       <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</span>
       {children}
     </label>
   );
 }
 
-function Fieldset({ label, children }: { label: string; children: React.ReactNode }) {
+function Fieldset({ label, children, span }: { label: string; children: React.ReactNode; span?: boolean }) {
   return (
-    <div>
+    <div className={span ? "md:col-span-2" : undefined}>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
       {children}
     </div>
@@ -2208,6 +2201,8 @@ function ShopHome({
   void tick;
   return (
     <div data-shop-home={shopPortalKind(user) || undefined}>
+      <div className="mb-4 md:grid md:grid-cols-[minmax(16rem,24rem)_minmax(0,1fr)] md:items-start md:gap-4">
+      <div>
       <div className="mb-4 flex items-center gap-2.5">
         <Face
           src={user.role === "independent" ? user.photo : Store.shopRecord(user.shopId || "")?.photo}
@@ -2241,7 +2236,8 @@ function ShopHome({
         <p className="mt-1 text-sm text-muted">{t("shop.qrTabHint")}</p>
       </button>
       ) : null}
-      <div className="mb-3 grid grid-cols-3 gap-2">
+      </div>
+      <div className="mb-3 grid grid-cols-3 gap-2 md:mb-0">
         <div className="rounded-xl border border-line bg-surface py-3 text-center">
           <div className="text-xl font-bold">{active.length}</div>
           <div className="text-[11px] text-muted">{t("shop.open")}</div>
@@ -2254,6 +2250,7 @@ function ShopHome({
           <div className={`text-xl font-bold ${ready ? "text-accent" : ""}`}>{ready}</div>
           <div className="text-[11px] text-muted">{t("shop.ready")}</div>
         </div>
+      </div>
       </div>
       <div className="mb-3 grid grid-cols-4 gap-0.5 rounded-xl bg-bg2 p-1">
         {(["active", "ready", "history", "invoices"] as const).map((f) => (
@@ -2296,7 +2293,7 @@ function ShopHome({
           </button>
         ) : null}
       </div>
-      <div className="flex flex-col gap-2.5 md:grid md:grid-cols-2" data-shop-board="">
+      <div className="flex flex-col gap-2.5 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-shop-board="">
         {list.map((j) => (
           <JobCard key={j.id} job={j} shop mine={isAssignedToUser(j, user) && tech} onClick={() => onOpen(j.id)} />
         ))}
@@ -2662,11 +2659,8 @@ function JobDetail({
   const [internalNote, setInternalNote] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [busyAction, setBusyAction] = useState(false);
-  const [estAmount, setEstAmount] = useState("");
-  const [estNote, setEstNote] = useState("");
   const [partsEta, setPartsEta] = useState("");
   const [partsNote, setPartsNote] = useState("");
-  const [estOpen, setEstOpen] = useState(false);
   const [partsOpen, setPartsOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
@@ -2678,9 +2672,6 @@ function JobDetail({
     setNoteText("");
     setPosting(false);
     setInternalNote(false);
-    setEstAmount("");
-    setEstNote("");
-    setEstOpen(false);
     setDeclineOpen(false);
     setPendingStatus(null);
     setPendingCancel(false);
@@ -2719,7 +2710,6 @@ function JobDetail({
   const visibleNotes = shop ? job.notes : customerFacingNotes(job.notes);
   const orderedNotes = notesNewestFirst(visibleNotes);
   const symptomSrc = symptomPhotoOf(job);
-  const estimate = job.estimate;
   const hours = Store.hoursFor(job.providerId);
   const ownerPhone =
     Store.load().users.find((u) => u.shopId === job.providerId && u.shopRole === "owner")?.phone ||
@@ -2732,12 +2722,12 @@ function JobDetail({
     t(customerSmsKey(job.status), { shop: job.providerName }),
   );
   const callShopHref = telHref(shopPhone);
-  const pendingAction = pendingStatus ? statusActionConfirm(job.status, pendingStatus, estimate) : null;
+  const pendingAction = pendingStatus ? statusActionConfirm(job.status, pendingStatus) : null;
   const ticketId = job.id;
 
-  async function applyShopStatus(next: string, skipEstimate: boolean) {
+  async function applyShopStatus(next: string) {
     const meta = statusMeta(next);
-    const res = await Store.setJobStatus(ticketId, next as StatusId, { skipEstimate });
+    const res = await Store.setJobStatus(ticketId, next as StatusId);
     if (!res.ok) {
       flash?.(translateStoreError(locale, res.error));
       return;
@@ -3002,150 +2992,6 @@ function JobDetail({
             )}
           </div>
           ) : null}
-          {(estimate || shop || canCustomerDecideEstimate(estimate)) ? (
-            <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-estimate-card="">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.estimate")}</p>
-              {shop ? (
-                <>
-                  {estimate?.status === "approved" ? (
-                    <p className="mt-2 text-sm font-semibold text-accent" data-estimate-status="approved">
-                      {t("job.estimateApproved", { amount: formatEstimateAmount(estimate.amount) })}
-                    </p>
-                  ) : estimate?.status === "declined" ? (
-                    <p className="mt-2 text-sm font-semibold text-danger" data-estimate-status="declined">
-                      {t("job.estimateDeclined", { amount: formatEstimateAmount(estimate.amount) })}
-                    </p>
-                  ) : estimate?.status === "skipped" ? (
-                    <p className="mt-2 text-sm text-muted" data-estimate-status="skipped">{t("job.estimateSkipped")}</p>
-                  ) : estimate?.status === "sent" ? (
-                    <p className="mt-2 text-sm" data-estimate-status="sent">
-                      {formatEstimateAmount(estimate.amount)}
-                      {estimate.note ? ` · ${estimate.note}` : ""} — {t("job.estimateWaiting")}
-                    </p>
-                  ) : null}
-                  {estOpen ? (
-                    <form
-                      className="mt-3"
-                      data-estimate-form=""
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const res = await Store.saveEstimate(job.id, estAmount, estNote);
-                        if (!res.ok) {
-                          flash?.(translateStoreError(locale, res.error));
-                          return;
-                        }
-                        setEstAmount("");
-                        setEstNote("");
-                        setEstOpen(false);
-                        flash?.(t("toast.estimateSent"));
-                        bump();
-                      }}
-                    >
-                      <p className="mb-2 text-sm text-muted">{t("job.estimateHint")}</p>
-                      <Field label={t("job.estimateAmount")}>
-                        <input
-                          className={inputClass}
-                          inputMode="decimal"
-                          value={estAmount}
-                          onChange={(e) => setEstAmount(e.target.value)}
-                          placeholder="240"
-                          data-estimate-amount=""
-                        />
-                      </Field>
-                      <Field label={t("job.estimateNote")}>
-                        <input
-                          className={inputClass}
-                          value={estNote}
-                          onChange={(e) => setEstNote(e.target.value)}
-                          placeholder={t("job.estimateNotePh")}
-                        />
-                      </Field>
-                      <button type="submit" className="mt-2 h-11 w-full rounded-xl bg-accent font-semibold text-ink" data-send-estimate="">
-                        {t("job.estimateSend")}
-                      </button>
-                      <button
-                        type="button"
-                        data-toggle-estimate=""
-                        className="mt-2 h-11 w-full rounded-xl border border-line bg-surface2 text-sm font-semibold"
-                        onClick={() => setEstOpen(false)}
-                      >
-                        {t("job.hideForm")}
-                      </button>
-                    </form>
-                  ) : (
-                    <button
-                      type="button"
-                      data-toggle-estimate=""
-                      className="mt-3 h-11 w-full rounded-xl border border-line bg-surface2 text-sm font-semibold"
-                      onClick={() => setEstOpen(true)}
-                    >
-                      {estimate ? t("job.sendNewEstimate") : t("job.writeEstimate")}
-                    </button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="mt-1 text-sm text-muted">{t("job.estimateCustomerHint")}</p>
-                  {estimate?.status === "sent" ? (
-                    <>
-                      <p className="mt-2 text-lg font-semibold" data-estimate-status="sent">
-                        {formatEstimateAmount(estimate.amount)}
-                      </p>
-                      {estimate.note ? <p className="text-sm text-muted">{estimate.note}</p> : null}
-                      {user ? (
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          data-approve-estimate=""
-                          className="h-11 rounded-xl bg-accent font-semibold text-ink"
-                          onClick={async () => {
-                            const res = await Store.decideEstimate(job.id, true);
-                            if (!res.ok) {
-                              flash?.(translateStoreError(locale, res.error));
-                              return;
-                            }
-                            flash?.(t("toast.estimateApproved"));
-                            bump();
-                          }}
-                        >
-                          {t("job.estimateApprove")}
-                        </button>
-                        <button
-                          type="button"
-                          data-decline-estimate=""
-                          className="h-11 rounded-xl border border-danger/40 bg-danger/10 font-semibold text-danger"
-                          onClick={async () => {
-                            const res = await Store.decideEstimate(job.id, false);
-                            if (!res.ok) {
-                              flash?.(translateStoreError(locale, res.error));
-                              return;
-                            }
-                            flash?.(t("toast.estimateDeclined"));
-                            bump();
-                          }}
-                        >
-                          {t("job.estimateDecline")}
-                        </button>
-                      </div>
-                      ) : (
-                        <p className="mt-2 text-sm text-muted">{t("job.guestManage")}</p>
-                      )}
-                    </>
-                  ) : estimate?.status === "approved" ? (
-                    <p className="mt-2 text-sm font-semibold" data-estimate-status="approved">
-                      {t("job.estimateApproved", { amount: formatEstimateAmount(estimate.amount) })}
-                    </p>
-                  ) : estimate?.status === "declined" ? (
-                    <p className="mt-2 text-sm" data-estimate-status="declined">
-                      {t("job.estimateDeclined", { amount: formatEstimateAmount(estimate.amount) })}
-                    </p>
-                  ) : estimate?.status === "skipped" ? (
-                    <p className="mt-2 text-sm text-muted" data-estimate-status="skipped">{t("job.estimateSkipped")}</p>
-                  ) : null}
-                </>
-              )}
-            </div>
-          ) : null}
           {(shop || job.parts?.ordered || job.status === "parts") ? (
             <div className="mt-3 rounded-xl border border-line bg-surface p-4" data-parts-card="">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t("job.parts")}</p>
@@ -3264,13 +3110,9 @@ function JobDetail({
             <div>
               {pendingAction && pendingAction.kind !== "none" && pendingStatus ? (
                 <ConfirmBar
-                  message={
-                    pendingAction.kind === "repair"
-                      ? t("job.repairNoEstimateConfirm")
-                      : t("job.statusSkipConfirm", { to: statusText(locale, pendingStatus, "shop") })
-                  }
+                  message={t("job.statusSkipConfirm", { to: statusText(locale, pendingStatus, "shop") })}
                   onStay={() => setPendingStatus(null)}
-                  onConfirm={() => applyShopStatus(pendingStatus, pendingAction.skipEstimate)}
+                  onConfirm={() => applyShopStatus(pendingStatus)}
                 />
               ) : null}
               {PIPELINE_STATUSES.map((s, i) => {
@@ -3298,12 +3140,11 @@ function JobDetail({
                     data-set-status={s}
                     onClick={() => {
                       if (s === job.status) return;
-                      const action = statusActionConfirm(job.status, s, estimate);
+                      const action = statusActionConfirm(job.status, s);
                       if (action.kind === "none") {
-                        void applyShopStatus(s, false);
+                        void applyShopStatus(s);
                         return;
                       }
-                      if (action.kind === "repair") setEstOpen(true);
                       setPendingStatus(s);
                     }}
                   >
@@ -3862,25 +3703,25 @@ function Diagnose({ onBack, onBook }: { onBack: () => void; onBook: (text: strin
   );
 }
 
-function AccountSettingsPanels() {
+function AccountSettingsPanels({ wide = false }: { wide?: boolean }) {
   const { t } = useI18n();
   return (
-    <>
+    <div className={wide ? "md:grid md:grid-cols-3 md:items-start md:gap-3" : ""}>
       <div className="rounded-xl border border-line bg-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.language")}</p>
         <p className="mt-1 mb-3 text-sm text-muted">{t("account.languageHint")}</p>
         <LanguageToggle />
       </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+      <div className={`rounded-xl border border-line bg-surface p-4 ${wide ? "mt-3 md:mt-0" : "mt-3"}`}>
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.theme")}</p>
         <p className="mt-1 mb-3 text-sm text-muted">{t("account.themeHint")}</p>
         <ThemeToggle />
       </div>
-      <div className="mt-3 rounded-xl border border-line bg-surface p-4">
+      <div className={`rounded-xl border border-line bg-surface p-4 ${wide ? "mt-3 md:mt-0" : "mt-3"}`}>
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.alerts")}</p>
         <p className="mt-2 text-sm text-muted">{t("account.alertsManageHint")}</p>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -4050,7 +3891,7 @@ function Account({
     return (
       <div data-account-settings="">
         <Top title={t("account.settings")} onBack={() => setSettingsOpen(false)} />
-        <AccountSettingsPanels />
+        <AccountSettingsPanels wide={usesWideProviderShell(user)} />
       </div>
     );
   }
@@ -4072,6 +3913,7 @@ function Account({
           </button>
         }
       />
+      <div className={usesWideProviderShell(user) ? "md:grid md:grid-cols-2 md:items-start md:gap-4" : ""}>
       <div className="rounded-xl border border-line bg-surface p-4">
         <div className="flex items-start gap-3">
           <ProfilePhotoEditor
@@ -4191,7 +4033,7 @@ function Account({
       ) : null}
       {shop && !tech && (
         <form
-          className="mt-3 rounded-xl border border-line bg-surface p-4"
+          className="mt-3 rounded-xl border border-line bg-surface p-4 md:col-span-2"
           data-account-public-profile="shop"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -4218,7 +4060,7 @@ function Account({
           }}
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.publicShop")}</p>
-          <div className="mt-3 flex flex-col gap-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           {canEditShop ? (
             <Field label={t("account.shopName")}>
               <input className={inputClass} value={shopName} onChange={(e) => setShopName(e.target.value)} required />
@@ -4226,7 +4068,7 @@ function Account({
           ) : (
             <h2 className="font-semibold">{shop.name}</h2>
           )}
-          <Field label={t("account.bioCustomers")}>
+          <Field label={t("account.bioCustomers")} span>
             {canEditShop ? (
               <>
                 <textarea
@@ -4244,7 +4086,7 @@ function Account({
               <p className="text-sm text-muted">{shop.bio || t("account.noBio")}</p>
             )}
           </Field>
-          <Fieldset label={t("account.specialties")}>
+          <Fieldset label={t("account.specialties")} span>
             <p className="mb-2 text-sm text-muted">{t("account.specialtiesHint")}</p>
             <ChipEditor
               kind="spec"
@@ -4254,7 +4096,7 @@ function Account({
               empty={t("account.noSpecialties")}
             />
           </Fieldset>
-          <Fieldset label={t("account.credentials")}>
+          <Fieldset label={t("account.credentials")} span>
             <p className="mb-2 text-sm text-muted">{t("account.credentialsHint")}</p>
             <ChipEditor
               kind="cred"
@@ -4339,6 +4181,7 @@ function Account({
               <p className="text-sm text-muted">{shop.supportPhone || t("account.notSet")}</p>
             )}
           </Field>
+          <div className="md:col-span-2">
           <HoursEditor
             days={shopDays}
             open={shopOpen}
@@ -4348,7 +4191,10 @@ function Account({
             onClose={setShopClose}
             canEdit={!!canEditShop}
           />
+          </div>
+          <div className="md:col-span-2">
           <BlockAfterEditor value={shopBlock} onChange={setShopBlock} canEdit={!!canEditShop} />
+          </div>
           </div>
           {canEditShop ? (
             <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
@@ -4390,7 +4236,7 @@ function Account({
       )}
       {user.role === "independent" && (
         <form
-          className="mt-3 rounded-xl border border-line bg-surface p-4"
+          className="mt-3 rounded-xl border border-line bg-surface p-4 md:col-span-2"
           data-account-public-profile="independent"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -4417,7 +4263,7 @@ function Account({
           }}
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("account.publicMech")}</p>
-          <div className="mt-3 flex flex-col gap-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <Field label={t("account.bizName")}>
             <input className={inputClass} value={bizName} onChange={(e) => setBizName(e.target.value)} required />
           </Field>
@@ -4432,7 +4278,7 @@ function Account({
               <option value="both">{t("register.modeBoth")}</option>
             </select>
           </Field>
-          <Field label={t("account.bioCustomers")}>
+          <Field label={t("account.bioCustomers")} span>
             <textarea
               className={inputClass + " min-h-28"}
               value={indyBio}
@@ -4444,7 +4290,7 @@ function Account({
               {indyBio.length}/{BIO_MAX}
             </p>
           </Field>
-          <Fieldset label={t("account.specialties")}>
+          <Fieldset label={t("account.specialties")} span>
             <p className="mb-2 text-sm text-muted">{t("account.specialtiesHint")}</p>
             <ChipEditor
               kind="spec"
@@ -4454,7 +4300,7 @@ function Account({
               empty={t("account.noSpecialties")}
             />
           </Fieldset>
-          <Fieldset label={t("account.credentials")}>
+          <Fieldset label={t("account.credentials")} span>
             <p className="mb-2 text-sm text-muted">{t("account.credentialsHint")}</p>
             <ChipEditor
               kind="cred"
@@ -4513,6 +4359,7 @@ function Account({
               placeholder="(555) 555-0100"
             />
           </Field>
+          <div className="md:col-span-2">
           <HoursEditor
             days={indyDays}
             open={indyOpen}
@@ -4522,7 +4369,10 @@ function Account({
             onClose={setIndyClose}
             canEdit
           />
+          </div>
+          <div className="md:col-span-2">
           <BlockAfterEditor value={indyBlock} onChange={setIndyBlock} canEdit />
+          </div>
           </div>
           <button type="submit" className="mt-2 h-12 w-full rounded-xl bg-accent font-semibold text-ink">
             {t("account.saveProfile")}
@@ -4534,12 +4384,12 @@ function Account({
           </div>
         </form>
       )}
-      <PolicyFooterLinks className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm font-semibold text-muted" />
-      <button type="button" onClick={onLogout} className="mt-4 h-12 w-full rounded-xl border border-line bg-surface font-semibold">
+      <PolicyFooterLinks className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm font-semibold text-muted md:col-span-2" />
+      <button type="button" onClick={onLogout} className="mt-4 h-12 w-full rounded-xl border border-line bg-surface font-semibold md:col-span-2">
         {t("account.logout")}
       </button>
       <form
-        className="mt-3 rounded-xl border border-line bg-surface p-4"
+        className="mt-3 rounded-xl border border-line bg-surface p-4 md:col-span-2"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!deletePw) return flash(t("account.deleteNeedPw"));
@@ -4571,6 +4421,7 @@ function Account({
           {deleting ? t("account.deleting") : t("account.deleteBtn")}
         </button>
       </form>
+      </div>
     </div>
   );
 }

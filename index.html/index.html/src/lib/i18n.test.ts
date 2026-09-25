@@ -399,21 +399,19 @@ test("alert copy is honest that SMS is not connected yet", () => {
   assert.equal(translate("en", "job.callCustomer"), "Call");
   assert.equal(translate("en", "job.textCustomer"), "Text");
   assert.equal(translate("en", "job.confirmContinue"), "Continue");
-  assert.equal(translate("en", "job.writeEstimate"), "Write estimate");
   assert.equal(translate("en", "job.addParts"), "Add parts ETA");
   assert.match(translate("en", "photo.dropHint"), /Drop a photo/i);
   assert.match(translate("es", "job.callCustomerHint"), /ticket/);
 });
 
-test("bay-ops ticket strings and estimate notes translate", () => {
+test("bay-ops ticket strings translate and old estimate notes stay readable", () => {
   assert.equal(translate("en", "job.appointment"), "Appointment");
   assert.equal(translate("es", "job.addToCalendar"), "Agregar al calendario");
   assert.equal(translateNote("es", "Customer approved the estimate."), "El cliente aprobó el presupuesto.");
   assert.equal(translateNote("es", "Work started without a written estimate."), "El trabajo empezó sin un presupuesto escrito.");
-  assert.equal(
-    translateStoreError("es", "Send a written estimate or confirm you are going in without one."),
-    "Envía un presupuesto escrito o confirma que vas a entrar sin uno.",
-  );
+  assert.doesNotMatch(translate("en", "privacy.store.body"), /written estimate/i);
+  assert.doesNotMatch(translate("es", "privacy.store.body"), /presupuesto escrito/i);
+  assert.match(translate("en", "privacy.store.body"), /invoice/i);
   assert.match(translate("en", "privacy.photos.body"), /symptom photo/i);
   assert.match(translate("en", "book.symptomPhoto"), /Photo of the problem/);
 });
@@ -430,6 +428,8 @@ test("ticket invoice copy stays a handwritten total, not QuickBooks", () => {
   assert.match(translate("es", "privacy.store.body"), /factura/i);
   assert.equal(translate("en", "job.invoiceHint"), "Write the bill for this job, then share it.");
   assert.equal(translate("es", "job.invoiceHint"), "Escribe la cuenta de este trabajo y compártela.");
+  assert.doesNotMatch(translate("en", "job.invoiceHint"), /estimate/i);
+  assert.doesNotMatch(translate("es", "job.invoiceHint"), /presupuesto/i);
   assert.equal(translate("en", "job.invoiceCustomerHint"), "This is your bill from the shop.");
   assert.doesNotMatch(translate("en", "job.invoiceHint"), /already pay|QuickBooks|inventory|refund|deposit|card processing/i);
   assert.equal(

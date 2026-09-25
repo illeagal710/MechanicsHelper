@@ -230,7 +230,6 @@ export const mhSaveJobOps = createServerFn({ method: "POST" })
       id: string;
       patch: {
         symptomPhoto?: string;
-        estimate?: Job["estimate"];
         parts?: Job["parts"];
         statusBefore?: string;
         flaggedForOwner?: boolean;
@@ -248,13 +247,13 @@ export const mhSaveJobOps = createServerFn({ method: "POST" })
   });
 
 export const mhSetJobStatus = createServerFn({ method: "POST" })
-  .validator((d: { id: string; status: Job["status"]; skipEstimate?: boolean; authToken?: string }) => d)
+  .validator((d: { id: string; status: Job["status"]; authToken?: string }) => d)
   .handler(async ({ data }) => {
     const { verifySession } = await import("./session-token");
     const uid = verifySession(data.authToken);
     if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
-    return db.setJobStatus(data.id, data.status, uid, { skipEstimate: data.skipEstimate });
+    return db.setJobStatus(data.id, data.status, uid);
   });
 
 export const mhUndoJobStatus = createServerFn({ method: "POST" })
@@ -265,36 +264,6 @@ export const mhUndoJobStatus = createServerFn({ method: "POST" })
     if (!uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
     return db.undoJobStatus(data.id, uid);
-  });
-
-export const mhSaveEstimate = createServerFn({ method: "POST" })
-  .validator((d: { id: string; amount: string; note: string; authToken?: string }) => d)
-  .handler(async ({ data }) => {
-    const { verifySession } = await import("./session-token");
-    const uid = verifySession(data.authToken);
-    if (!uid) return { ok: false as const, error: "Please sign in again." };
-    const db = await import("./mh-db.server");
-    return db.saveEstimate(data.id, data.amount, data.note, uid);
-  });
-
-export const mhDecideEstimate = createServerFn({ method: "POST" })
-  .validator((d: { id: string; approved: boolean; authToken?: string }) => d)
-  .handler(async ({ data }) => {
-    const { verifySession } = await import("./session-token");
-    const uid = verifySession(data.authToken);
-    if (!uid) return { ok: false as const, error: "Please sign in again." };
-    const db = await import("./mh-db.server");
-    return db.decideEstimate(data.id, data.approved, uid);
-  });
-
-export const mhSkipEstimate = createServerFn({ method: "POST" })
-  .validator((d: { id: string; authToken?: string }) => d)
-  .handler(async ({ data }) => {
-    const { verifySession } = await import("./session-token");
-    const uid = verifySession(data.authToken);
-    if (!uid) return { ok: false as const, error: "Please sign in again." };
-    const db = await import("./mh-db.server");
-    return db.skipEstimate(data.id, uid);
   });
 
 export const mhSaveParts = createServerFn({ method: "POST" })

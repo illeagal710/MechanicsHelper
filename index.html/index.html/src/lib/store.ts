@@ -22,9 +22,6 @@ import {
   mhSaveJobOps,
   mhSetJobStatus,
   mhUndoJobStatus,
-  mhSaveEstimate,
-  mhDecideEstimate,
-  mhSkipEstimate,
   mhSaveParts,
   mhFlagJob,
   mhSaveInvoice,
@@ -41,7 +38,7 @@ import { TIME_12H } from "@/lib/i18n";
 import { blockHoursFromRecord, normalizeBlockAfterHours, type BlockAfterHours } from "./booking-block.ts";
 import { generateSlots, type HoursLike } from "./booking-calendar.ts";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
-import type { JobEstimate, JobParts, JobInvoice } from "./job-ops.ts";
+import type { JobParts, JobInvoice } from "./job-ops.ts";
 
 export function soloMechanicDetail(
   mode?: "mobile" | "shop" | "both",
@@ -139,9 +136,8 @@ export type Job = {
   jobPhoto?: string;
   /** Customer photo of the problem, taken at book time. Independent of the bay slot. */
   symptomPhoto?: string;
-  estimate?: JobEstimate;
   parts?: JobParts;
-  /** Shop bill on this ticket. Not an estimate, not card processing. */
+  /** Shop bill on this ticket. Line items, total, share or PDF. Not card processing. */
   invoice?: JobInvoice;
   /** Previous pipeline status so the shop can undo the last tap. */
   statusBefore?: string;
@@ -745,15 +741,15 @@ export const Store = {
     return res;
   },
 
-  async saveJobOps(id: string, patch: Partial<Pick<Job, "symptomPhoto" | "estimate" | "parts" | "statusBefore" | "flaggedForOwner" | "invoice">>) {
+  async saveJobOps(id: string, patch: Partial<Pick<Job, "symptomPhoto" | "parts" | "statusBefore" | "flaggedForOwner" | "invoice">>) {
     const saved = await mhSaveJobOps({ data: { id, patch, authToken: this.getToken() } });
     await this.hydrate();
     return saved;
   },
 
-  async setJobStatus(id: string, status: StatusId, opts?: { skipEstimate?: boolean }) {
+  async setJobStatus(id: string, status: StatusId) {
     const res = await mhSetJobStatus({
-      data: { id, status, skipEstimate: opts?.skipEstimate, authToken: this.getToken() },
+      data: { id, status, authToken: this.getToken() },
     });
     await this.hydrate();
     return res;
@@ -761,24 +757,6 @@ export const Store = {
 
   async undoJobStatus(id: string) {
     const res = await mhUndoJobStatus({ data: { id, authToken: this.getToken() } });
-    await this.hydrate();
-    return res;
-  },
-
-  async saveEstimate(id: string, amount: string, note: string) {
-    const res = await mhSaveEstimate({ data: { id, amount, note, authToken: this.getToken() } });
-    await this.hydrate();
-    return res;
-  },
-
-  async decideEstimate(id: string, approved: boolean) {
-    const res = await mhDecideEstimate({ data: { id, approved, authToken: this.getToken() } });
-    await this.hydrate();
-    return res;
-  },
-
-  async skipEstimate(id: string) {
-    const res = await mhSkipEstimate({ data: { id, authToken: this.getToken() } });
     await this.hydrate();
     return res;
   },
