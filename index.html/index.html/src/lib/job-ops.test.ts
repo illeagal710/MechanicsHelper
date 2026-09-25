@@ -1,29 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  ESTIMATE_APPROVED_NOTE,
-  ESTIMATE_INVALID,
   FLAG_NOTE,
   NOTHING_TO_UNDO,
-  REPAIR_NEEDS_ESTIMATE,
-  applyEstimateDecision,
-  applyEstimateSend,
   applyOpsToJob,
   applyParts,
-  applySkipEstimate,
   applyStatusChange,
   applyStatusUndo,
   appointmentEndIso,
   appointmentIcs,
-  canCustomerDecideEstimate,
-  canEnterRepair,
-  estimateNoteText,
-  formatEstimateAmount,
   googleCalendarUrl,
   jobOpsOf,
   mergeJobOps,
   needsStatusConfirm,
-  parseEstimateAmount,
   statusActionConfirm,
   parseJobOps,
   partsNoteText,
@@ -31,44 +20,13 @@ import {
   skippedStatuses,
 } from "./job-ops.ts";
 
-test("parseEstimateAmount accepts dollars and rejects junk", () => {
-  assert.equal(parseEstimateAmount("240"), 240);
-  assert.equal(parseEstimateAmount("$1,240.50"), 1240.5);
-  assert.equal(parseEstimateAmount("0"), null);
-  assert.equal(parseEstimateAmount("abc"), null);
-  assert.equal(parseEstimateAmount(""), null);
-});
-
-test("written estimate starts sent and customer can approve or decline", () => {
-  const sent = applyEstimateSend(240, "Pads and rotors");
-  assert.equal(sent.status, "sent");
-  assert.equal(canEnterRepair(sent), false);
-  assert.equal(canCustomerDecideEstimate(sent), true);
-  assert.equal(estimateNoteText(sent), "Written estimate: $240.00. Pads and rotors");
-  const ok = applyEstimateDecision(sent, true, 99);
-  assert.equal(ok.status, "approved");
-  assert.equal(ok.decidedAt, 99);
-  assert.equal(canEnterRepair(ok), true);
-  assert.equal(canCustomerDecideEstimate(ok), false);
-  const no = applyEstimateDecision(sent, false, 100);
-  assert.equal(no.status, "declined");
-  assert.equal(canEnterRepair(no), false);
-});
-
-test("repair is allowed after skipping a written estimate", () => {
-  const skipped = applySkipEstimate(5);
-  assert.equal(skipped.status, "skipped");
-  assert.equal(canEnterRepair(skipped), true);
-  assert.equal(canEnterRepair(undefined), false);
-});
-
 test("parts line formats ETA for the ticket", () => {
   assert.equal(partsNoteText(applyParts("Fri 2pm", "Dealer rotor")), "Parts ordered · ETA Fri 2pm. Dealer rotor");
   assert.equal(partsNoteText(applyParts("Friday", "")), "Parts ordered · ETA Friday.");
   assert.equal(partsNoteText(applyParts("", "", false)), "Parts not ordered yet.");
 });
 
-test("ops_json round-trips estimate, parts, undo pointer, photo, flag, and invoice", () => {
+test("ops_json keeps invoice and drops a legacy estimate blob", () => {
   const ops = parseJobOps({
     estimate: { amount: 90, note: "Oil", status: "sent", at: 1 },
     parts: { ordered: true, eta: "Tue", note: "", at: 2 },
@@ -85,7 +43,7 @@ test("ops_json round-trips estimate, parts, undo pointer, photo, flag, and invoi
       updatedAt: 4,
     },
   });
-  assert.equal(ops.estimate?.amount, 90);
+  assert.equal("estimate" in ops, false);
   assert.equal(ops.parts?.eta, "Tue");
   assert.equal(ops.statusBefore, "diagnosing");
   assert.equal(ops.symptomPhoto, "data:symptom");
@@ -94,7 +52,8 @@ test("ops_json round-trips estimate, parts, undo pointer, photo, flag, and invoi
   assert.equal(ops.invoice?.lines[0].price, 180);
   const json = serializeJobOps(ops);
   assert.deepEqual(parseJobOps(json), ops);
-  assert.equal(parseJobOps("not-json").estimate, undefined);
+  assert.equal(JSON.parse(json).estimate, undefined);
+  assert.equal(parseJobOps("not-json").invoice, undefined);
   assert.equal(parseJobOps("").flaggedForOwner, undefined);
   assert.equal(parseJobOps("").invoice, undefined);
 });
@@ -115,7 +74,7 @@ test("mergeJobOps patches without dropping other fields, and nullish clears", ()
     },
   });
   const merged = mergeJobOps(base, { parts: applyParts("Wed", ""), flaggedForOwner: false });
-  assert.equal(merged.estimate?.amount, 10);
+  assert.equal("estimate" in merged, false);
   assert.equal(merged.parts?.eta, "Wed");
   assert.equal(merged.symptomPhoto, "data:a");
   assert.equal(merged.flaggedForOwner, undefined);
@@ -129,12 +88,21 @@ test("mergeJobOps patches without dropping other fields, and nullish clears", ()
 test("applyOpsToJob flattens ops onto a ticket without inventing fields", () => {
   const job = applyOpsToJob(
     { id: "MH-1", status: "diagnosing" },
-    { estimate: applyEstimateSend(12, ""), symptomPhoto: "data:x" },
+    { symptomPhoto: "data:x", invoice: {
+      number: "LEON-2",
+      lines: [{ description: "Oil", qty: 1, price: 40 }],
+      taxPct: 0,
+      note: "",
+      paid: false,
+      createdAt: 1,
+      updatedAt: 1,
+    } },
   );
   assert.equal(job.id, "MH-1");
-  assert.equal(job.estimate?.amount, 12);
+  assert.equal("estimate" in job, false);
   assert.equal(job.symptomPhoto, "data:x");
-  assert.equal(jobOpsOf(job).estimate?.amount, 12);
+  assert.equal(job.invoice?.number, "LEON-2");
+  assert.equal(jobOpsOf(job).invoice?.lines[0].price, 40);
 });
 
 test("status skip detect jumps of more than one pipeline step", () => {
@@ -147,19 +115,16 @@ test("status skip detect jumps of more than one pipeline step", () => {
   assert.deepEqual(skippedStatuses("diagnosing", "repair"), ["parts"]);
 });
 
-test("statusActionConfirm asks once: silent next step, one repair dialog, one skip dialog", () => {
-  const none = statusActionConfirm("scheduled", "enroute", undefined);
+test("statusActionConfirm is silent on the next step and asks once when skipping", () => {
+  const none = statusActionConfirm("scheduled", "enroute");
   assert.equal(none.kind, "none");
-  const skip = statusActionConfirm("scheduled", "checkedin", undefined);
+  const skip = statusActionConfirm("scheduled", "checkedin");
   assert.equal(skip.kind, "skip");
-  const repair = statusActionConfirm("diagnosing", "repair", undefined);
-  assert.equal(repair.kind, "repair");
-  assert.equal(repair.skipEstimate, true);
-  const jumpRepair = statusActionConfirm("scheduled", "repair", undefined);
-  assert.equal(jumpRepair.kind, "repair");
-  const approved = applyEstimateDecision(applyEstimateSend(10, ""), true);
-  assert.equal(statusActionConfirm("parts", "repair", approved).kind, "none");
-  assert.equal(statusActionConfirm("diagnosing", "repair", approved).kind, "skip");
+  assert.equal(statusActionConfirm("parts", "repair").kind, "none");
+  assert.equal(statusActionConfirm("diagnosing", "repair").kind, "skip");
+  const jumpRepair = statusActionConfirm("scheduled", "repair");
+  assert.equal(jumpRepair.kind, "skip");
+  if (jumpRepair.kind === "skip") assert.equal(jumpRepair.to, "repair");
 });
 
 test("status change remembers the previous step so undo can restore it", () => {
@@ -202,10 +167,6 @@ test("calendar ICS and Google URL use a 90-minute window around the slot", () =>
   assert.match(gcal, /1450/);
 });
 
-test("gate copy and note constants stay stable for i18n maps", () => {
-  assert.equal(REPAIR_NEEDS_ESTIMATE.startsWith("Send a written estimate"), true);
-  assert.equal(ESTIMATE_INVALID, "Enter a dollar amount.");
-  assert.equal(ESTIMATE_APPROVED_NOTE, "Customer approved the estimate.");
+test("flag note stays stable for the i18n map", () => {
   assert.equal(FLAG_NOTE, "Flagged for the shop owner.");
-  assert.equal(formatEstimateAmount(12), "$12.00");
 });

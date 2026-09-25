@@ -85,7 +85,7 @@ export function techPortalLabel(shopName: string, fallback = "Shop"): string {
   return `Technician · ${shopName.trim() || fallback}`;
 }
 
-/** Owner, technician, and independent — same ~980px Jobs shell from PR #23. Customers stay phone-narrow. */
+/** Owner, technician, and independent share a full-width shell from the md breakpoint up. Customers stay phone-narrow. */
 export function usesWideProviderShell(user: ShopRoleUser | null | undefined): boolean {
   return user?.role === "shop" || user?.role === "independent";
 }
