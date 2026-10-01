@@ -133,20 +133,36 @@ export const mhAddTech = createServerFn({ method: "POST" })
     return db.addTechName(data.shopId, data.name);
   });
 
+export const mhStartSubscription = createServerFn({ method: "POST" })
+  .validator((d: { mode: "trial" | "subscribe"; authToken?: string }) => d)
+  .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = verifySession(data.authToken);
+    if (!uid) return { ok: false as const, error: "Please sign in again." };
+    const db = await import("./mh-db.server");
+    return db.startSubscription(uid, data.mode);
+  });
+
 export const mhAddJob = createServerFn({ method: "POST" })
-  .validator((d: { job: Job }) => ({
+  .validator((d: { job: Job; authToken?: string }) => ({
     job: { ...d.job, symptoms: normalizeSymptoms(d.job?.symptoms) },
+    authToken: d.authToken,
   }))
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = data.authToken ? verifySession(data.authToken) : "";
     const db = await import("./mh-db.server");
-    return db.addJob(data.job);
+    return db.addJob(data.job, uid || undefined);
   });
 
 export const mhUpdateJob = createServerFn({ method: "POST" })
-  .validator((d: { id: string; patch: Partial<Job> & { jobPhoto?: string; vehiclePhoto?: string } }) => d)
+  .validator((d: { id: string; patch: Partial<Job> & { jobPhoto?: string; vehiclePhoto?: string }; authToken?: string }) => d)
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = data.authToken ? verifySession(data.authToken) : "";
+    if (data.authToken && !uid) return null;
     const db = await import("./mh-db.server");
-    return db.updateJob(data.id, data.patch);
+    return db.updateJob(data.id, data.patch, uid || undefined);
   });
 
 export const mhSavePush = createServerFn({ method: "POST" })
@@ -191,17 +207,23 @@ export const mhDeleteAccount = createServerFn({ method: "POST" })
   });
 
 export const mhAddNote = createServerFn({ method: "POST" })
-  .validator((d: { id: string; text: string; by?: string }) => d)
+  .validator((d: { id: string; text: string; by?: string; authToken?: string }) => d)
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = data.authToken ? verifySession(data.authToken) : "";
+    if (data.authToken && !uid) return null;
     const db = await import("./mh-db.server");
-    return db.addNote(data.id, data.text, data.by || "shop");
+    return db.addNote(data.id, data.text, data.by || "shop", uid || undefined);
   });
 
 export const mhDeclineJob = createServerFn({ method: "POST" })
-  .validator((d: { id: string; reason?: string }) => d)
+  .validator((d: { id: string; reason?: string; authToken?: string }) => d)
   .handler(async ({ data }) => {
+    const { verifySession } = await import("./session-token");
+    const uid = data.authToken ? verifySession(data.authToken) : "";
+    if (data.authToken && !uid) return { ok: false as const, error: "Please sign in again." };
     const db = await import("./mh-db.server");
-    return db.declineJob(data.id, data.reason || "");
+    return db.declineJob(data.id, data.reason || "", uid || undefined);
   });
 
 export const mhCancelJob = createServerFn({ method: "POST" })

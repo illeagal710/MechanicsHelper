@@ -1,3 +1,10 @@
+import {
+  PAYER_ONLY_ERROR,
+  PORTAL_LOCKED_ERROR,
+  TECH_ASK_OWNER_ERROR,
+  TRIAL_USED_ERROR,
+} from "./subscription.ts";
+
 export type Locale = "en" | "es";
 
 export const LOCALES: Locale[] = ["en", "es"];
@@ -842,6 +849,38 @@ const en = {
   "err.nothingToUndo": "Nothing to undo.",
   "err.invoiceNeedLine": "Add a line with a description.",
   "err.invoiceShareFail": "Could not share the invoice.",
+
+  "pay.plan.shop": "Shop",
+  "pay.plan.independent": "Independent",
+  "pay.title": "Unlock your {plan} portal",
+  "pay.blurb": "Run your job board, post customer updates, and share your QR code.",
+  "pay.price": "${price}/mo",
+  "pay.trialLine": "Start with a {days}-day free trial. Cancel anytime.",
+  "pay.startTrial": "Start {days}-day free trial",
+  "pay.subscribe": "Subscribe · ${price}/mo",
+  "pay.subscribeShort": "Subscribe",
+  "pay.customerFree": "Customers always use Mechanics Helper for free.",
+  "pay.feat.board": "Live job board for every ticket",
+  "pay.feat.team": "Add technicians who use the shop plan",
+  "pay.feat.qr": "Your QR code so customers land on your bay",
+  "pay.feat.updates": "Status updates customers see right away",
+  "pay.feat.mobile": "Built for driveway and roadside work",
+  "pay.trialLeft": "Trial · {days} days left",
+  "pay.trialLast": "Trial ends today — subscribe to keep your portal",
+  "pay.account.title": "Plan",
+  "pay.account.trialing": "Free trial · {days} days left",
+  "pay.account.active": "Subscription active",
+  "pay.account.locked": "No active plan",
+  "pay.account.manage": "Subscribe",
+  "pay.tech.title": "Ask the shop owner",
+  "pay.tech.body": "This shop's portal is locked. The owner starts the free trial or subscribes. You don't get a separate plan.",
+  "pay.placeholder": "Placeholder price — no card is charged.",
+  "toast.trialStarted": "Free trial started — your portal is open.",
+  "toast.subscribed": "You're subscribed. Thanks for supporting the bay.",
+  "err.portalLocked": PORTAL_LOCKED_ERROR,
+  "err.trialUsed": TRIAL_USED_ERROR,
+  "err.payerOnly": PAYER_ONLY_ERROR,
+  "err.techAskOwner": TECH_ASK_OWNER_ERROR,
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1685,6 +1724,38 @@ const es: Record<MessageKey, string> = {
   "err.invoiceNeedLine": "Agrega una línea con una descripción.",
   "err.invoiceShareFail": "No se pudo compartir la factura.",
 
+  "pay.plan.shop": "Taller",
+  "pay.plan.independent": "Independiente",
+  "pay.title": "Activa tu portal de {plan}",
+  "pay.blurb": "Administra tu tablero, publica novedades para clientes y comparte tu código QR.",
+  "pay.price": "${price}/mes",
+  "pay.trialLine": "Empieza con una prueba gratis de {days} días. Cancela cuando quieras.",
+  "pay.startTrial": "Prueba gratis de {days} días",
+  "pay.subscribe": "Suscribirse · ${price}/mes",
+  "pay.subscribeShort": "Suscribirse",
+  "pay.customerFree": "Los clientes siempre usan Mechanics Helper gratis.",
+  "pay.feat.board": "Tablero de trabajos en vivo para cada ticket",
+  "pay.feat.team": "Agrega técnicos que usan el plan del taller",
+  "pay.feat.qr": "Tu código QR para que los clientes lleguen a tu bahía",
+  "pay.feat.updates": "Novedades que el cliente ve al momento",
+  "pay.feat.mobile": "Hecho para trabajo a domicilio y en la calle",
+  "pay.trialLeft": "Prueba · {days} días restantes",
+  "pay.trialLast": "La prueba termina hoy — suscríbete para mantener tu portal",
+  "pay.account.title": "Plan",
+  "pay.account.trialing": "Prueba gratis · {days} días restantes",
+  "pay.account.active": "Suscripción activa",
+  "pay.account.locked": "Sin plan activo",
+  "pay.account.manage": "Suscribirse",
+  "pay.tech.title": "Pídele al dueño del taller",
+  "pay.tech.body": "El portal de este taller está cerrado. El dueño inicia la prueba gratis o se suscribe. Tú no tienes un plan aparte.",
+  "pay.placeholder": "Precio provisional — no se cobra ninguna tarjeta.",
+  "toast.trialStarted": "Prueba gratis iniciada — tu portal está abierto.",
+  "toast.subscribed": "Suscripción activa. Gracias por apoyar el taller.",
+  "err.portalLocked": "Suscríbete o inicia una prueba para usar el portal del taller.",
+  "err.trialUsed": "Tu prueba gratis ya se usó.",
+  "err.payerOnly": "Solo el dueño del taller o un independiente puede suscribirse.",
+  "err.techAskOwner": "Pídele al dueño del taller que inicie la prueba o se suscriba.",
+
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en, es };
@@ -1725,6 +1796,10 @@ const STORE_ERROR_KEYS: Record<string, MessageKey> = {
   "Nothing to undo.": "err.nothingToUndo",
   "Add a line with a description.": "err.invoiceNeedLine",
   "Could not share the invoice.": "err.invoiceShareFail",
+  [PORTAL_LOCKED_ERROR]: "err.portalLocked",
+  [TRIAL_USED_ERROR]: "err.trialUsed",
+  [PAYER_ONLY_ERROR]: "err.payerOnly",
+  [TECH_ASK_OWNER_ERROR]: "err.techAskOwner",
 };
 
 const DETAIL_KEYS: Record<string, MessageKey> = {

@@ -25,6 +25,7 @@ import {
   mhSaveParts,
   mhFlagJob,
   mhSaveInvoice,
+  mhStartSubscription,
 } from "@/lib/mh-api";
 import { jobPhotoOf, profilePhotoOf, resizePhoto, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, type PublicProfileFields } from "@/lib/shop-profile";
@@ -39,6 +40,7 @@ import { blockHoursFromRecord, normalizeBlockAfterHours, type BlockAfterHours } 
 import { generateSlots, type HoursLike } from "./booking-calendar.ts";
 import { slotTakenAmong, type JobStatusId } from "./job-status.ts";
 import type { JobParts, JobInvoice } from "./job-ops.ts";
+import type { SubStatus } from "./subscription.ts";
 
 export function soloMechanicDetail(
   mode?: "mobile" | "shop" | "both",
@@ -83,6 +85,10 @@ export type User = {
   serviceArea?: string;
   yearsWrenching?: string;
   address?: string;
+  /** Billing on the payer row. Techs inherit the shop owner; ignore a tech's own status. */
+  subStatus?: SubStatus;
+  trialEndsAt?: number;
+  subRenewsAt?: number;
 };
 
 export type Shop = {
@@ -695,15 +701,24 @@ export const Store = {
     return shop;
   },
 
+  async startSubscription(user: User, mode: "trial" | "subscribe") {
+    const res = await mhStartSubscription({ data: { mode, authToken: this.getToken() } });
+    if (res.ok) {
+      this.setSession(res.user);
+      await this.hydrate();
+    }
+    return res;
+  },
+
   async addJob(job: Job) {
-    const saved = await mhAddJob({ data: { job } });
+    const saved = await mhAddJob({ data: { job, authToken: this.getToken() } });
     await this.hydrate();
     return saved;
   },
 
   async updateJob(id: string, patch: Partial<Job> & { jobPhoto?: string }) {
     const saved = await mhUpdateJob({
-      data: { id, patch: sanitizeJobPatch(patch as Record<string, unknown>) },
+      data: { id, patch: sanitizeJobPatch(patch as Record<string, unknown>), authToken: this.getToken() },
     });
     await this.hydrate();
     return saved;
@@ -718,13 +733,13 @@ export const Store = {
   },
 
   async addNote(id: string, text: string, by = "shop") {
-    const saved = await mhAddNote({ data: { id, text, by } });
+    const saved = await mhAddNote({ data: { id, text, by, authToken: this.getToken() } });
     await this.hydrate();
     return saved;
   },
 
   async declineJob(id: string, reason = "") {
-    const res = await mhDeclineJob({ data: { id, reason } });
+    const res = await mhDeclineJob({ data: { id, reason, authToken: this.getToken() } });
     await this.hydrate();
     return res;
   },
