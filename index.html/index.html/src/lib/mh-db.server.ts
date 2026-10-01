@@ -30,6 +30,18 @@ import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode, isShopTechnician } from "@/lib/shop-role";
 import {
+  PAYER_ONLY_ERROR,
+  PORTAL_LOCKED_ERROR,
+  TECH_ASK_OWNER_ERROR,
+  TRIAL_USED_ERROR,
+  activateFields,
+  canStartTrial,
+  isPayer,
+  parseSubStatus,
+  providerMutationAllowed,
+  startTrialFields,
+} from "@/lib/subscription";
+import {
   FLAG_NOTE,
   UNFLAG_NOTE,
   applyOpsToJob,
@@ -98,8 +110,17 @@ function rowUser(r: Record<string, unknown>): User {
     hoursOpen: String(r.hours_open || "08:00"),
     hoursClose: String(r.hours_close || "16:00"),
     blockAfterHours: normalizeBlockAfterHours(r.block_after_hours),
+    subStatus: parseSubStatus(r.sub_status),
+    trialEndsAt: r.trial_ends_at != null && r.trial_ends_at !== "" ? Number(r.trial_ends_at) : undefined,
+    subRenewsAt: r.sub_renews_at != null && r.sub_renews_at !== "" ? Number(r.sub_renews_at) : undefined,
     ...publicProfileFromRecord(r),
   };
+}
+
+/** Customers pass. A locked shop owner, independent, or inheriting tech does not. */
+function portalBlock(actor: User | undefined, users: User[]): string | null {
+  if (!actor || providerMutationAllowed(actor, users)) return null;
+  return PORTAL_LOCKED_ERROR;
 }
 
 function rowShop(r: Record<string, unknown>): Shop {
@@ -303,6 +324,12 @@ export async function ensureSeeded() {
       "14",
     ],
   );
+  try {
+    // 0015: seeded shop + independent stay usable (comped, no renewal, no paywall).
+    await sql.query("update mh_users set sub_status = 'comped' where id in ('u-shop', 'u-indy')");
+  } catch {
+    /* column arrives after 0015 */
+  }
 
   const jobs: Job[] = [
     {
@@ -684,6 +711,7 @@ export async function register(fields: {
       user.shopId = shop.id;
       user.shopName = shop.name;
       user.shopRole = "owner";
+      user.subStatus = "none";
     }
   }
   if (role === "independent") {
@@ -694,6 +722,7 @@ export async function register(fields: {
     if (!allocated.ok) return allocated;
     user.code = allocated.code;
     user.bio = "";
+    user.subStatus = "none";
   }
   await sql.query(
     `insert into mh_users (id, name, email, phone, role, pass, shop_id, shop_name, shop_role, business_name, service_mode, code, bio)
@@ -1049,10 +1078,47 @@ async function insertJob(job: Job) {
   return applyOpsToJob(job, jobOpsOf(job));
 }
 
-export async function addJob(job: Job) {
+/**
+ * Start a provider trial or stub subscription.
+ * No card is charged. `subscribe` writes `active` plus a stub renewal — the
+ * seam a Stripe Checkout session and webhook will replace later.
+ */
+export async function startSubscription(userId: string, mode: "trial" | "subscribe") {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === userId);
+  if (!user) return { ok: false as const, error: "Account not found." };
+  if (isShopTechnician(user)) return { ok: false as const, error: TECH_ASK_OWNER_ERROR };
+  if (!isPayer(user)) return { ok: false as const, error: PAYER_ONLY_ERROR };
+  const sql = await getSql();
+  if (mode === "trial") {
+    if (!canStartTrial(user)) return { ok: false as const, error: TRIAL_USED_ERROR };
+    const fields = startTrialFields();
+    await sql.query("update mh_users set sub_status = $2, trial_ends_at = $3 where id = $1", [
+      user.id,
+      fields.subStatus,
+      fields.trialEndsAt,
+    ]);
+  } else {
+    const fields = activateFields();
+    await sql.query("update mh_users set sub_status = $2, sub_renews_at = $3 where id = $1", [
+      user.id,
+      fields.subStatus,
+      fields.subRenewsAt,
+    ]);
+  }
+  const fresh = (await loadBoard()).users.find((u) => u.id === userId);
+  if (!fresh) return { ok: false as const, error: "Account not found." };
+  const { pass: _p, ...rest } = fresh;
+  return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+export async function addJob(job: Job, actorUserId?: string) {
   await ensureSeeded();
   job = { ...job, symptoms: normalizeSymptoms(job.symptoms) };
   const board = await loadBoard();
+  const actor = actorUserId ? board.users.find((u) => u.id === actorUserId) : undefined;
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   const provider =
     board.shops.find((s) => s.id === job.providerId) || board.users.find((u) => u.id === job.providerId);
   const taken = slotTakenAmong(board.jobs, job.providerId, job.slot, blockHoursFromRecord(provider));
@@ -1063,8 +1129,10 @@ export async function addJob(job: Job) {
   return { ok: true as const, job: saved };
 }
 
-export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: string }) {
+export async function updateJob(id: string, patch: Partial<Job> & { jobPhoto?: string }, actorUserId?: string) {
   const board = await loadBoard();
+  const actor = actorUserId ? board.users.find((u) => u.id === actorUserId) : undefined;
+  if (portalBlock(actor, board.users)) return null;
   const job = board.jobs.find((j) => j.id === id);
   if (!job) return null;
   const previous = job.status;
@@ -1127,8 +1195,10 @@ export async function savePushToken(userId: string, token: string, alertsOn: boo
   return { ok: true as const, user: { ...rest, pass: "", pushToken: token, alertsOn } };
 }
 
-export async function addNote(id: string, text: string, by = "shop") {
+export async function addNote(id: string, text: string, by = "shop", actorUserId?: string) {
   const board = await loadBoard();
+  const actor = actorUserId ? board.users.find((u) => u.id === actorUserId) : undefined;
+  if (portalBlock(actor, board.users)) return null;
   const job = board.jobs.find((j) => j.id === id);
   if (!job) return null;
   const noteText = String(text || "").trim();
@@ -1145,8 +1215,11 @@ export async function addNote(id: string, text: string, by = "shop") {
   return job;
 }
 
-export async function declineJob(id: string, reason = "") {
+export async function declineJob(id: string, reason = "", actorUserId?: string) {
   const board = await loadBoard();
+  const actor = actorUserId ? board.users.find((u) => u.id === actorUserId) : undefined;
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   const job = board.jobs.find((j) => j.id === id);
   if (!job) return { ok: false as const, error: "Job not found." };
   const result = applyDecline(job, reason);
@@ -1271,6 +1344,8 @@ export async function saveJobOps(
   if (!providerOwnsJob(actor, job)) {
     return { ok: false as const, error: "Please sign in again." };
   }
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   const nextOps = mergeJobOps(jobOpsOf(job), patch);
   const next = applyOpsToJob(job, nextOps);
   Object.assign(job, next);
@@ -1290,6 +1365,8 @@ export async function saveInvoice(
   if (!providerOwnsJob(actor, job)) {
     return { ok: false as const, error: "Please sign in again." };
   }
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   const check = canShareInvoice(draft.lines);
   if (!check.ok) return { ok: false as const, error: check.error };
   const shop = board.shops.find((s) => s.id === job.providerId);
@@ -1321,6 +1398,8 @@ export async function setJobStatus(id: string, status: Job["status"], actorUserI
   if (!providerOwnsJob(actor, job)) {
     return { ok: false as const, error: "Please sign in again." };
   }
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   if (!isJobStatus(status)) {
     return { ok: false as const, error: "Job not found." };
   }
@@ -1357,6 +1436,8 @@ export async function undoJobStatus(id: string, actorUserId: string) {
   if (!providerOwnsJob(actor, job)) {
     return { ok: false as const, error: "Please sign in again." };
   }
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   const result = applyStatusUndo(job);
   if (!result.ok) return result;
   job.status = result.job.status as Job["status"];
@@ -1376,6 +1457,8 @@ export async function saveParts(id: string, eta: string, note: string, ordered: 
   if (!providerOwnsJob(actor, job)) {
     return { ok: false as const, error: "Please sign in again." };
   }
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   job.parts = applyParts(eta, note, ordered);
   Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { parts: job.parts })));
   Object.assign(job, withNote(job, partsNoteText(job.parts), "shop"));
@@ -1392,6 +1475,8 @@ export async function flagJob(id: string, flagged: boolean, actorUserId: string)
   if (!providerOwnsJob(actor, job) || !isShopTechnician(actor)) {
     return { ok: false as const, error: "Please sign in again." };
   }
+  const blocked = portalBlock(actor, board.users);
+  if (blocked) return { ok: false as const, error: blocked };
   job.flaggedForOwner = flagged;
   Object.assign(job, applyOpsToJob(job, mergeJobOps(jobOpsOf(job), { flaggedForOwner: flagged })));
   Object.assign(job, withNote(job, flagged ? FLAG_NOTE : UNFLAG_NOTE, "internal"));
