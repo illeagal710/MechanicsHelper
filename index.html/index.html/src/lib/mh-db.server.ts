@@ -30,17 +30,12 @@ import { sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, sanitizePublicProfile } from "@/lib/shop-profile";
 import { canRotateFindCode, isShopTechnician } from "@/lib/shop-role";
 import {
-  PAYER_ONLY_ERROR,
   PORTAL_LOCKED_ERROR,
-  TECH_ASK_OWNER_ERROR,
-  TRIAL_USED_ERROR,
-  activateFields,
-  canStartTrial,
-  isPayer,
+  billingWriteAllowed,
   parseSubStatus,
   providerMutationAllowed,
-  startTrialFields,
 } from "@/lib/subscription";
+import { beginProviderBilling, readStripeEnv, safeOrigin, type BillingWrite } from "@/lib/stripe-billing";
 import {
   FLAG_NOTE,
   UNFLAG_NOTE,
@@ -1079,37 +1074,45 @@ async function insertJob(job: Job) {
 }
 
 /**
- * Start a provider trial or stub subscription.
- * No card is charged. `subscribe` writes `active` plus a stub renewal — the
- * seam a Stripe Checkout session and webhook will replace later.
+ * Trial writes the free 14-day fields. Subscribe creates a Stripe Checkout
+ * Session or fails closed. It does not mark the account paid.
  */
-export async function startSubscription(userId: string, mode: "trial" | "subscribe") {
+export async function startSubscription(userId: string, mode: "trial" | "subscribe", origin?: string) {
   const board = await loadBoard();
   const user = board.users.find((u) => u.id === userId);
   if (!user) return { ok: false as const, error: "Account not found." };
-  if (isShopTechnician(user)) return { ok: false as const, error: TECH_ASK_OWNER_ERROR };
-  if (!isPayer(user)) return { ok: false as const, error: PAYER_ONLY_ERROR };
+  const result = await beginProviderBilling({
+    user,
+    userId: user.id,
+    mode,
+    env: readStripeEnv(),
+    origin: safeOrigin(origin),
+  });
+  if (!result.ok) return result;
+  if (result.kind === "checkout") return { ok: true as const, checkoutUrl: result.checkoutUrl };
   const sql = await getSql();
-  if (mode === "trial") {
-    if (!canStartTrial(user)) return { ok: false as const, error: TRIAL_USED_ERROR };
-    const fields = startTrialFields();
-    await sql.query("update mh_users set sub_status = $2, trial_ends_at = $3 where id = $1", [
-      user.id,
-      fields.subStatus,
-      fields.trialEndsAt,
-    ]);
-  } else {
-    const fields = activateFields();
-    await sql.query("update mh_users set sub_status = $2, sub_renews_at = $3 where id = $1", [
-      user.id,
-      fields.subStatus,
-      fields.subRenewsAt,
-    ]);
-  }
+  await sql.query("update mh_users set sub_status = $2, trial_ends_at = $3 where id = $1", [
+    user.id,
+    result.fields.subStatus,
+    result.fields.trialEndsAt,
+  ]);
   const fresh = (await loadBoard()).users.find((u) => u.id === userId);
   if (!fresh) return { ok: false as const, error: "Account not found." };
   const { pass: _p, ...rest } = fresh;
   return { ok: true as const, user: { ...rest, pass: "" } };
+}
+
+/** Apply a signature-checked Stripe write. Grandfathered and comped rows stay put. */
+export async function applyStripeBilling(write: BillingWrite): Promise<void> {
+  const board = await loadBoard();
+  const user = board.users.find((u) => u.id === write.userId);
+  if (!user || !billingWriteAllowed(user)) return;
+  const sql = await getSql();
+  await sql.query("update mh_users set sub_status = $2, sub_renews_at = $3 where id = $1", [
+    user.id,
+    write.subStatus,
+    write.subRenewsAt,
+  ]);
 }
 
 export async function addJob(job: Job, actorUserId?: string) {

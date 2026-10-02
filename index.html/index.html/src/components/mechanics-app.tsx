@@ -144,6 +144,7 @@ import {
   usesWideProviderShell,
 } from "@/lib/shop-role";
 import {
+  PAYMENTS_NOT_SET_UP,
   TRIAL_DAYS,
   canStartTrial,
   isPayer,
@@ -331,6 +332,7 @@ export function MechanicsApp({
   const [view, setView] = useState<View>(initialView);
   const [user, setUser] = useState<User | null>(null);
   const [toast, setToast] = useState("");
+  const [paymentsBlocked, setPaymentsBlocked] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Job | null>(null);
   const [lockedProvider, setLockedProvider] = useState<Provider | null>(null);
@@ -462,17 +464,38 @@ export function MechanicsApp({
   const showAskOwner = portalClosed && isShopTechnician(sessionUser);
   const showTrial = !!sessionUser && payer && access === "trialing" && onPortal;
 
+  useEffect(() => {
+    if (!sessionUser || !isPayer(sessionUser)) {
+      setPaymentsBlocked(false);
+      return;
+    }
+    const role = sessionUser.role === "independent" ? "independent" : "shop";
+    let live = true;
+    void Store.paymentsReady(role).then((ready) => {
+      if (live) setPaymentsBlocked(!ready);
+    });
+    return () => {
+      live = false;
+    };
+  }, [sessionUser?.id, sessionUser?.role]);
+
   async function startSub(mode: "trial" | "subscribe") {
     if (!user) return;
+    // A Checkout return is not payment. Only the webhook changes sub_status.
     const res = await Store.startSubscription(user, mode);
-    if (res.ok) {
-      setUser(res.user);
-      setView(homeFor(res.user.role));
-      flash(mode === "trial" ? t("toast.trialStarted") : t("toast.subscribed"));
-      bump();
-    } else {
+    if (!res.ok) {
+      if (res.error === PAYMENTS_NOT_SET_UP) setPaymentsBlocked(true);
       flash(translateStoreError(locale, res.error));
+      return;
     }
+    if ("checkoutUrl" in res) {
+      window.location.assign(res.checkoutUrl);
+      return;
+    }
+    setUser(res.user);
+    setView(homeFor(res.user.role));
+    flash(t("toast.trialStarted"));
+    bump();
   }
 
   const showShare = canShareCustomerQr(user);
@@ -650,13 +673,19 @@ export function MechanicsApp({
           <ProviderPaywall
             user={sessionUser}
             t={t}
+            paymentsBlocked={paymentsBlocked}
             onStartTrial={() => startSub("trial")}
             onSubscribe={() => startSub("subscribe")}
           />
         )}
         {showAskOwner ? <TechAskOwner t={t} /> : null}
         {showTrial && sessionUser ? (
-          <TrialBanner user={sessionUser} t={t} onSubscribe={() => startSub("subscribe")} />
+          <TrialBanner
+            user={sessionUser}
+            t={t}
+            paymentsBlocked={paymentsBlocked}
+            onSubscribe={() => startSub("subscribe")}
+          />
         ) : null}
         {view === "shopHome" && user && !portalClosed && (
           <ShopHome
@@ -737,6 +766,8 @@ export function MechanicsApp({
             }}
             flash={flash}
             bump={bump}
+            paymentsBlocked={paymentsBlocked}
+            onPaymentsBlocked={() => setPaymentsBlocked(true)}
             onSaved={(u) => {
               setUser(u);
               bump();
@@ -774,14 +805,27 @@ export function MechanicsApp({
   );
 }
 
+function PaymentsNotSetup({ t }: { t: TranslateFn }) {
+  return (
+    <p
+      data-payments-not-setup=""
+      className="mt-3 rounded-xl border border-line bg-bg2 px-3 py-2 text-sm text-fg"
+    >
+      {t("pay.notSetup")}
+    </p>
+  );
+}
+
 function ProviderPaywall({
   user,
   t,
+  paymentsBlocked,
   onStartTrial,
   onSubscribe,
 }: {
   user: User;
   t: TranslateFn;
+  paymentsBlocked: boolean;
   onStartTrial: () => void;
   onSubscribe: () => void;
 }) {
@@ -811,7 +855,7 @@ function ProviderPaywall({
         </div>
         <div className="mt-5 md:mt-0">
           <p className="text-3xl font-bold text-fg">{t("pay.price", { price: plan.priceMonthly })}</p>
-          <p className="mt-1 text-xs text-dim">{t("pay.placeholder")}</p>
+          {paymentsBlocked ? <PaymentsNotSetup t={t} /> : <p className="mt-1 text-xs text-dim">{t("pay.placeholder")}</p>}
           <div className="mt-4 space-y-2.5">
             {canTrial ? (
               <button
@@ -847,29 +891,34 @@ function ProviderPaywall({
 function TrialBanner({
   user,
   t,
+  paymentsBlocked,
   onSubscribe,
 }: {
   user: User;
   t: TranslateFn;
+  paymentsBlocked: boolean;
   onSubscribe: () => void;
 }) {
   const days = trialDaysLeft(user);
   return (
-    <div
-      className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-2.5 md:px-5"
-      data-trial-banner=""
-    >
-      <span className="text-sm font-semibold text-fg">
-        {days <= 0 ? t("pay.trialLast") : t("pay.trialLeft", { days })}
-      </span>
-      <button
-        type="button"
-        onClick={onSubscribe}
-        data-pay-subscribe=""
-        className="h-9 shrink-0 rounded-lg bg-accent px-3 text-sm font-semibold text-ink"
+    <div className="mb-3">
+      <div
+        className="flex items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-2.5 md:px-5"
+        data-trial-banner=""
       >
-        {t("pay.subscribeShort")}
-      </button>
+        <span className="text-sm font-semibold text-fg">
+          {days <= 0 ? t("pay.trialLast") : t("pay.trialLeft", { days })}
+        </span>
+        <button
+          type="button"
+          onClick={onSubscribe}
+          data-pay-subscribe=""
+          className="h-9 shrink-0 rounded-lg bg-accent px-3 text-sm font-semibold text-ink"
+        >
+          {t("pay.subscribeShort")}
+        </button>
+      </div>
+      {paymentsBlocked ? <PaymentsNotSetup t={t} /> : null}
     </div>
   );
 }
@@ -889,10 +938,12 @@ function TechAskOwner({ t }: { t: TranslateFn }) {
 function ProviderPlanCard({
   user,
   t,
+  paymentsBlocked,
   onSubscribe,
 }: {
   user: User;
   t: TranslateFn;
+  paymentsBlocked: boolean;
   onSubscribe: () => void;
 }) {
   if (!isPayer(user)) return null;
@@ -921,6 +972,7 @@ function ProviderPlanCard({
           </button>
         ) : null}
       </div>
+      {paymentsBlocked && access !== "active" ? <PaymentsNotSetup t={t} /> : null}
     </div>
   );
 }
@@ -4022,6 +4074,8 @@ function Account({
   onDeleted,
   flash,
   bump,
+  paymentsBlocked,
+  onPaymentsBlocked,
   onSaved,
 }: {
   user: User;
@@ -4031,6 +4085,8 @@ function Account({
   onDeleted: () => void;
   flash: (s: string) => void;
   bump: () => void;
+  paymentsBlocked: boolean;
+  onPaymentsBlocked: () => void;
   onSaved: (u: User) => void;
 }) {
   const { locale, t } = useI18n();
@@ -4076,13 +4132,17 @@ function Account({
   void locked;
   async function subscribeFromAccount() {
     const res = await Store.startSubscription(user, "subscribe");
-    if (res.ok) {
-      onSaved(res.user);
-      flash(t("toast.subscribed"));
-      bump();
-    } else {
+    if (!res.ok) {
+      if (res.error === PAYMENTS_NOT_SET_UP) onPaymentsBlocked();
       flash(translateStoreError(locale, res.error));
+      return;
     }
+    if ("checkoutUrl" in res) {
+      window.location.assign(res.checkoutUrl);
+      return;
+    }
+    onSaved(res.user);
+    bump();
   }
   const label =
     user.role === "shop"
@@ -4157,6 +4217,7 @@ function Account({
       <ProviderPlanCard
         user={Store.load().users.find((u) => u.id === user.id) || user}
         t={t}
+        paymentsBlocked={paymentsBlocked}
         onSubscribe={subscribeFromAccount}
       />
       {user.role === "customer" ? (

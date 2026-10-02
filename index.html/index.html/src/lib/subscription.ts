@@ -5,11 +5,13 @@
  * Shop technicians do not get a plan, checkout, or lock screen — they inherit
  * the owner's subscription. If that shop is locked, the tech is locked too.
  *
- * Card processing is not wired. `startSubscription` marks the payer `active`
- * for a stub period. That write is the seam for Stripe Checkout + webhooks.
- * Do not add the Stripe SDK or require Stripe keys here.
+ * Subscribe opens Stripe Checkout. It does not mark the account paid.
+ * A signature-checked webhook is the only writer of a paid `active` period
+ * and the only writer that locks a lapsed or canceled one. If Stripe env is
+ * missing, subscribe fails closed and the 14-day trial still works.
  *
- * Prices below are placeholders, not live charges.
+ * Prices below are placeholder amounts shown in the app. The charge is the
+ * Stripe Price id from the environment, never a key committed in this repo.
  *
  * Access decisions live in this module. The paywall, the Account plan card,
  * and server checks on provider mutations all call these functions.
@@ -37,21 +39,27 @@ export type BillingUser = SubscriptionFields & {
 
 export const DAY_MS = 86_400_000;
 export const TRIAL_DAYS = 14;
-/** Stub paid period until a payment provider drives renewals. Not a Stripe price. */
+/**
+ * Access-gate fixture for an elapsed paid period. Live renewals use Stripe
+ * `current_period_end`. Subscribe does not write this stub.
+ */
 export const PAID_PERIOD_DAYS = 30;
 
 export const PORTAL_LOCKED_ERROR = "Subscribe or start a trial to use the shop portal.";
 export const TRIAL_USED_ERROR = "Your free trial has already been used.";
 export const PAYER_ONLY_ERROR = "Only the shop owner or an independent can subscribe.";
 export const TECH_ASK_OWNER_ERROR = "Ask the shop owner to start a trial or subscribe.";
+export const PAYMENTS_NOT_SET_UP = "Payments aren't set up yet. You can still start the free trial.";
+export const CHECKOUT_NOT_REQUIRED = "This account is already included. Checkout isn't required.";
+export const ALREADY_ACTIVE_ERROR = "This subscription is already active.";
 
 export type PlanId = "shop" | "independent";
 
 export type Plan = {
   id: PlanId;
   /**
-   * Monthly price in whole USD.
-   * Placeholder until billing is connected — not a charge.
+   * Monthly price in whole USD shown in the app.
+   * Placeholder amount. Checkout charges the Stripe Price from the environment.
    */
   priceMonthly: number;
   /** i18n keys for the paywall bullets. */
@@ -61,13 +69,13 @@ export type Plan = {
 export const PLANS: Record<PlanId, Plan> = {
   shop: {
     id: "shop",
-    // Placeholder price. Not a live charge.
+    // Placeholder amount. Live charge is STRIPE_PRICE_SHOP.
     priceMonthly: 49,
     featureKeys: ["pay.feat.board", "pay.feat.team", "pay.feat.qr", "pay.feat.updates"],
   },
   independent: {
     id: "independent",
-    // Placeholder price. Not a live charge.
+    // Placeholder amount. Live charge is STRIPE_PRICE_INDEPENDENT.
     priceMonthly: 19,
     featureKeys: ["pay.feat.board", "pay.feat.qr", "pay.feat.updates", "pay.feat.mobile"],
   },
@@ -180,7 +188,34 @@ export function startTrialFields(now: number = Date.now()): { subStatus: SubStat
   return { subStatus: "trialing", trialEndsAt: now + TRIAL_DAYS * DAY_MS };
 }
 
-/** Stub activation. The later Stripe webhook should write the same fields. */
+/** Gate fixture. The Stripe webhook writes `active` plus Stripe's period end, not this stub. */
 export function activateFields(now: number = Date.now()): { subStatus: SubStatus; subRenewsAt: number } {
   return { subStatus: "active", subRenewsAt: now + PAID_PERIOD_DAYS * DAY_MS };
+}
+
+/**
+ * Comped rows, and `active` rows with no renewal, were grandfathered.
+ * A paid Stripe period always has a numeric `subRenewsAt`, so it is not this.
+ */
+export function isGrandfatheredOrComped(user: BillingUser): boolean {
+  const status = user.subStatus ?? "none";
+  if (status === "comped") return true;
+  return status === "active" && typeof user.subRenewsAt !== "number";
+}
+
+/**
+ * Who may be sent to Stripe Checkout.
+ * Customers and technicians cannot. Grandfathered and comped accounts cannot.
+ * A payer who already has access through a paid period is not sent again.
+ * Locked and trialing payers can.
+ */
+export function canStartCheckout(user: BillingUser, now: number = Date.now()): boolean {
+  if (!isPayer(user)) return false;
+  if (isGrandfatheredOrComped(user)) return false;
+  return subscriptionAccess(user, now) !== "active";
+}
+
+/** Webhook may update a real payer. It must not rewrite grandfathered or comped rows. */
+export function billingWriteAllowed(user: BillingUser): boolean {
+  return isPayer(user) && !isGrandfatheredOrComped(user);
 }

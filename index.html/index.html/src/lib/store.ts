@@ -26,6 +26,7 @@ import {
   mhFlagJob,
   mhSaveInvoice,
   mhStartSubscription,
+  mhPaymentsReady,
 } from "@/lib/mh-api";
 import { jobPhotoOf, profilePhotoOf, resizePhoto, sanitizeJobPatch, withJobPhoto } from "@/lib/photos";
 import { publicProfileFromRecord, type PublicProfileFields } from "@/lib/shop-profile";
@@ -701,13 +702,30 @@ export const Store = {
     return shop;
   },
 
-  async startSubscription(user: User, mode: "trial" | "subscribe") {
-    const res = await mhStartSubscription({ data: { mode, authToken: this.getToken() } });
-    if (res.ok) {
+  async paymentsReady(role: "shop" | "independent") {
+    try {
+      const res = await mhPaymentsReady({ data: { role } });
+      return !!res.ready;
+    } catch {
+      return false;
+    }
+  },
+
+  async startSubscription(
+    user: User,
+    mode: "trial" | "subscribe",
+  ): Promise<{ ok: true; checkoutUrl: string } | { ok: true; user: User } | { ok: false; error: string }> {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const res = await mhStartSubscription({ data: { mode, authToken: this.getToken(), origin } });
+    if (res.ok && "checkoutUrl" in res && typeof res.checkoutUrl === "string") {
+      return { ok: true, checkoutUrl: res.checkoutUrl };
+    }
+    if (res.ok && "user" in res && res.user) {
       this.setSession(res.user);
       await this.hydrate();
+      return { ok: true, user: res.user };
     }
-    return res;
+    return { ok: false, error: "error" in res && res.error ? res.error : "Could not start billing." };
   },
 
   async addJob(job: Job) {
