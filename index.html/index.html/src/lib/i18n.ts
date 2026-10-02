@@ -1,5 +1,8 @@
 import {
+  ALREADY_ACTIVE_ERROR,
+  CHECKOUT_NOT_REQUIRED,
   PAYER_ONLY_ERROR,
+  PAYMENTS_NOT_SET_UP,
   PORTAL_LOCKED_ERROR,
   TECH_ASK_OWNER_ERROR,
   TRIAL_USED_ERROR,
@@ -874,13 +877,17 @@ const en = {
   "pay.account.manage": "Subscribe",
   "pay.tech.title": "Ask the shop owner",
   "pay.tech.body": "This shop's portal is locked. The owner starts the free trial or subscribes. You don't get a separate plan.",
-  "pay.placeholder": "Placeholder price — no card is charged.",
+  "pay.placeholder": "Shown price is a placeholder. Checkout uses your Stripe price.",
+  "pay.notSetup": PAYMENTS_NOT_SET_UP,
   "toast.trialStarted": "Free trial started — your portal is open.",
   "toast.subscribed": "You're subscribed. Thanks for supporting the bay.",
   "err.portalLocked": PORTAL_LOCKED_ERROR,
   "err.trialUsed": TRIAL_USED_ERROR,
   "err.payerOnly": PAYER_ONLY_ERROR,
   "err.techAskOwner": TECH_ASK_OWNER_ERROR,
+  "err.paymentsNotSetup": PAYMENTS_NOT_SET_UP,
+  "err.checkoutNotRequired": CHECKOUT_NOT_REQUIRED,
+  "err.alreadyActive": ALREADY_ACTIVE_ERROR,
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1748,13 +1755,17 @@ const es: Record<MessageKey, string> = {
   "pay.account.manage": "Suscribirse",
   "pay.tech.title": "Pídele al dueño del taller",
   "pay.tech.body": "El portal de este taller está cerrado. El dueño inicia la prueba gratis o se suscribe. Tú no tienes un plan aparte.",
-  "pay.placeholder": "Precio provisional — no se cobra ninguna tarjeta.",
+  "pay.placeholder": "El precio mostrado es provisional. El cobro usa tu precio de Stripe.",
+  "pay.notSetup": "Los pagos todavía no están configurados. Aún puedes empezar la prueba gratis.",
   "toast.trialStarted": "Prueba gratis iniciada — tu portal está abierto.",
   "toast.subscribed": "Suscripción activa. Gracias por apoyar el taller.",
   "err.portalLocked": "Suscríbete o inicia una prueba para usar el portal del taller.",
   "err.trialUsed": "Tu prueba gratis ya se usó.",
   "err.payerOnly": "Solo el dueño del taller o un independiente puede suscribirse.",
   "err.techAskOwner": "Pídele al dueño del taller que inicie la prueba o se suscriba.",
+  "err.paymentsNotSetup": "Los pagos todavía no están configurados. Aún puedes empezar la prueba gratis.",
+  "err.checkoutNotRequired": "Esta cuenta ya está incluida. No hace falta pagar.",
+  "err.alreadyActive": "Esta suscripción ya está activa.",
 
 };
 
@@ -1800,6 +1811,9 @@ const STORE_ERROR_KEYS: Record<string, MessageKey> = {
   [TRIAL_USED_ERROR]: "err.trialUsed",
   [PAYER_ONLY_ERROR]: "err.payerOnly",
   [TECH_ASK_OWNER_ERROR]: "err.techAskOwner",
+  [PAYMENTS_NOT_SET_UP]: "err.paymentsNotSetup",
+  [CHECKOUT_NOT_REQUIRED]: "err.checkoutNotRequired",
+  [ALREADY_ACTIVE_ERROR]: "err.alreadyActive",
 };
 
 const DETAIL_KEYS: Record<string, MessageKey> = {

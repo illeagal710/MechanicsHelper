@@ -134,13 +134,27 @@ export const mhAddTech = createServerFn({ method: "POST" })
   });
 
 export const mhStartSubscription = createServerFn({ method: "POST" })
-  .validator((d: { mode: "trial" | "subscribe"; authToken?: string }) => d)
+  .validator((d: { mode: "trial" | "subscribe"; authToken?: string; origin?: string }) => d)
   .handler(async ({ data }) => {
     const { verifySession } = await import("./session-token");
     const uid = verifySession(data.authToken);
     if (!uid) return { ok: false as const, error: "Please sign in again." };
+    let origin = data.origin;
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      origin = new URL(getRequest().url).origin;
+    } catch {
+      /* Client origin is only a fallback for the Checkout return page. */
+    }
     const db = await import("./mh-db.server");
-    return db.startSubscription(uid, data.mode);
+    return db.startSubscription(uid, data.mode, origin);
+  });
+
+export const mhPaymentsReady = createServerFn({ method: "POST" })
+  .validator((d: { role: "shop" | "independent" }) => d)
+  .handler(async ({ data }) => {
+    const { paymentsReadyFor, readStripeEnv } = await import("./stripe-billing");
+    return { ready: paymentsReadyFor(data.role, readStripeEnv()) };
   });
 
 export const mhAddJob = createServerFn({ method: "POST" })
